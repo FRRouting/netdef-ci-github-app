@@ -10,10 +10,10 @@ require 'octokit'
 require 'netrc'
 require 'date'
 
-require_relative 'lib/helpers/sinatra_payload'
-require_relative 'lib/github/pull_request'
-require_relative 'lib/github/check'
 require_relative 'database_loader'
+require_relative 'lib/github/build_plan'
+require_relative 'lib/github/check'
+require_relative 'lib/helpers/sinatra_payload'
 
 class GitHubHookServer < Sinatra::Base
   set :bind, '0.0.0.0'
@@ -54,7 +54,7 @@ class GitHubHookServer < Sinatra::Base
 
     case @payload['bamboo_ci_status']
     when 'in_progress'
-      puts github_check.update(@payload['bamboo_ci_stage'], 'in_progress').inspect
+      github_check.update(@payload['bamboo_ci_stage'], 'in_progress')
     when 'success'
       github_check.success(@payload['bamboo_ci_stage'])
     else
@@ -67,13 +67,15 @@ class GitHubHookServer < Sinatra::Base
   post '/*' do
     content_type :text
 
-    logger_level = Logger::DEBUG
+    logger_level = Logger::INFO
     logger = Logger.new($stdout)
     logger.level = logger_level
 
-    log_header(logger, request.body.rewind.dup)
+    request.body.rewind
+    body = request.body.read
+    log_header(logger, body)
 
-    @payload_raw = request.body&.read
+    @payload_raw = body
     auth_signature
 
     case request.env['HTTP_X_GITHUB_EVENT'].downcase
@@ -103,7 +105,8 @@ class GitHubHookServer < Sinatra::Base
       logger.debug "\n\npost Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
       logger.debug '=' * 80
       logger.debug "#{request.env}\n#{JSON.pretty_generate(request.env)}"
-      logger.debug ('-' * 80) + "\n#{JSON.pretty_generate(JSON.parse(body))}"
+      logger.debug('-' * 80)
+      logger.debug "\n#{JSON.pretty_generate(JSON.parse(body))}"
       logger.debug '======= POST DONE ========'
     end
   end

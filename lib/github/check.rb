@@ -4,6 +4,7 @@ require 'jwt'
 require 'octokit'
 require 'json'
 require 'netrc'
+require 'yaml'
 
 module Github
   class Check
@@ -11,43 +12,49 @@ module Github
 
     def initialize(payload)
       @payload = payload
-      @netrc = Netrc.read
+      @config = YAML.load_file('config.yml')
       authenticate_app
       auth_installation
     end
 
     def create(name)
       @app.create_check_run(
-        @payload['pull_request']['base']['repo']['full_name'],
+        @payload.dig('pull_request', 'base', 'repo', 'full_name'),
         name,
-        @payload['pull_request']['head']['sha'],
+        @payload.dig('pull_request', 'head', 'sha'),
         accept: 'application/vnd.github+json'
       )
     end
 
-    def update(id, status)
-      @app.update_check_run(
-        @payload['pull_request']['base']['repo']['full_name'],
+    def in_progress(id)
+      app.update_check_run(
+        @payload.dig('pull_request', 'base', 'repo', 'full_name'),
         id,
-        status: status,
+        status: 'in_progress',
         accept: 'application/vnd.github+json'
       )
     end
 
-    def success(name)
+    def cancelled(id)
+      completed(id, 'completed', 'cancelled')
+    end
+
+    def success(name, _output: '')
       completed(name, 'completed', 'success')
     end
 
-    def failed(name)
+    def failed(name, _output: '')
       completed(name, 'completed', 'failure')
     end
 
     def app_id
-      @netrc['GITHUB-APP'].login
+      @config.dig('github_app', 'login')
     end
 
     private
 
+    # PS: Conclusion and status are the same name from GitHub Check doc.
+    # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#update-a-check-run
     def completed(name, status, conclusion)
       @app.update_check_run(
         @payload['pull_request']['base']['repo']['full_name'],
@@ -59,7 +66,9 @@ module Github
     end
 
     def authenticate_app
-      payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: @netrc['GITHUB-APP'].login.to_i }
+      payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app_id }
+
+      puts payload
 
       rsa = OpenSSL::PKey::RSA.new(File.read('private_key.pem'))
 
@@ -70,7 +79,7 @@ module Github
     end
 
     def auth_installation
-      @installation_id = @payload['installation']['id']
+      @installation_id = @payload.dig('installation', 'id')
       token = @authenticate_app.create_app_installation_access_token(@installation_id)[:token]
       @app = Octokit::Client.new(bearer_token: token)
     end

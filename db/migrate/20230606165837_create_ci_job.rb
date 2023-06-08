@@ -6,6 +6,7 @@ class CreateCiJob < ActiveRecord::Migration[6.0]
       t.string :name, null: false
       t.integer :status, null: false, default: 0
       t.string :job_ref
+      t.string :check_ref
       t.timestamps
 
       t.references :check_suite, index: true, foreign_key: true

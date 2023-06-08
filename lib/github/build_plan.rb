@@ -14,9 +14,11 @@ module GitHub
       @logger = Logger.new($stdout)
       @logger.level = logger_level
 
-      @github_check = Github::Check.new(@payload)
-
       @payload = JSON.parse(payload_raw)
+
+      raise "Invalid payload:\n#{payload_raw}" if @payload.nil? or @payload.empty?
+
+      @github_check = Github::Check.new(@payload)
 
       @logger.debug 'This is a Pull Request - proceed with branch check'
     end
@@ -53,7 +55,7 @@ module GitHub
     private
 
     def fetch_pull_request
-      @pull_request = PullRequest.find(github_pr_id: github_pr, repository: @payload.dig('repository', 'full_name'))
+      @pull_request = PullRequest.find_by(github_pr_id: github_pr, repository: @payload.dig('repository', 'full_name'))
 
       create_pull_request if @pull_request.nil?
     end
@@ -82,8 +84,13 @@ module GitHub
     def stop_previous_execution
       return if @pull_request.new? or @pull_request.finished?
 
+      @logger.info "Stopping previous execution"
+
       @pull_request.check_suites.last.ci_jobs.each do |ci_job|
         BambooCi::StopPlan.stop(ci_job.job_ref)
+
+        @logger.warn("Cancelling Job #{ci_job.inspect}")
+        ci_job.cancelled(@github_check)
       end
     end
 
@@ -112,11 +119,13 @@ module GitHub
       jobs.each do |job|
         ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
 
-        next if ci_job.persisted?
+        unless ci_job.persisted?
+          @logger.error "CiJob error: #{ci_job.errors.messages.inspect}"
 
-        @github_check.create(job[:name])
+          next
+        end
 
-        @logger.error "CiJob error: #{ci_job.errors.messages.inspect}"
+        ci_job.create_check_run(@github_check)
       end
     end
 

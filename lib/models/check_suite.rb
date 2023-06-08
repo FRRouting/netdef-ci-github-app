@@ -7,9 +7,9 @@ class CheckSuite < ActiveRecord::Base
   validates :commit_sha_ref, presence: true
 
   belongs_to :pull_request
-  has_many :ci_jobs
+  has_many :ci_jobs, dependent: :delete_all
 
   def finished?
-    ci_jobs.find_by_status(0..1).nil?
+    ci_jobs.find_by_status(%i[queued in_progress]).nil?
   end
 end

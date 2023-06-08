@@ -15,8 +15,8 @@ module BambooCi
       get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
     end
 
-    def submit_pr_to_ci(payload, bamboo_plan, ci_variables)
-      url = "https://#{server}/rest/api/latest/queue/#{bamboo_plan}"
+    def submit_pr_to_ci(bamboo_plan, payload, ci_variables)
+      url = "https://127.0.0.1/rest/api/latest/queue/#{bamboo_plan}"
 
       url += "?customRevision=#{payload['base']['ref']}" \
              "&bamboo.variable.github_repo=#{payload.dig('base', 'repo', 'full_name').gsub('/', '%2F')}" \
@@ -36,16 +36,12 @@ module BambooCi
     end
 
     def add_comment_to_ci(key, comment)
-      url = "https://127.0.0.1/rest/api/latest/resulta/#{key}/comment"
+      url = "https://127.0.0.1/rest/api/latest/result/#{key}/comment"
 
       @logger.debug "Comment Submission URL:\n  #{url}"
 
-      text = '<comment><content>'
-      text += comment
-      text += '</content></comment>'
-
       # Fetch Request
-      post_request(URI(url), body: text)
+      post_request(URI(url), body: "<comment><content>#{comment}</content></comment>")
     end
 
     def get_request(uri)
@@ -95,7 +91,7 @@ module BambooCi
       unless body.nil?
         # Add headers
         req.add_field 'Content-Type', 'application/xml'
-        req.body = text
+        req.body = body
       end
 
       req.add_field 'Accept', 'application/json'

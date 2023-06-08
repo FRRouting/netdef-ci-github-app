@@ -6,6 +6,6 @@ OTR::ActiveRecord.db_dir = 'db'
 OTR::ActiveRecord.migrations_paths = ['db/migrate']
 OTR::ActiveRecord.configure_from_file! 'database.yml'
 
-Dir['lib/models/*.rb'].sort.each { |model| require_relative model }
+Dir['lib/models/*.rb'].each { |model| require_relative model }
 
 OTR::ActiveRecord.establish_connection!

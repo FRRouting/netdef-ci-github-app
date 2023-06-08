@@ -1,9 +1,2 @@
-database:
-  adapter: 'postgresql',
-  host: 'localhost',
-  database: 'github-hook',
-  username: 'postgres',
-  password: 'postgres',
-  encoding: 'utf8',
-  pool: 10,
-  timeout: 5000
+auth_signature:
+  password: 123456
