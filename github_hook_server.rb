@@ -71,18 +71,7 @@ class GitHubHookServer < Sinatra::Base
     logger = Logger.new($stdout)
     logger.level = logger_level
 
-    logger.debug ''
-    logger.debug ''
-    logger.debug "post Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
-    logger.debug '============================================================='
-    logger.debug request.env.to_s
-
-    logger.debug JSON.pretty_generate(request.env).to_s
-    logger.debug '----------------------'
-    request.body.rewind
-    logger.debug JSON.pretty_generate(JSON.parse(request.body.read)).to_s
-    logger.debug '======= POST DONE ======== DONE ========== DONE ========='
-    request.body.rewind
+    log_header(logger, request.body.rewind.dup)
 
     @payload_raw = request.body&.read
     auth_signature
@@ -106,6 +95,16 @@ class GitHubHookServer < Sinatra::Base
     else
       logger.error "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
       halt 401, 'Invalid request (4)'
+    end
+  end
+
+  helpers do
+    def log_header(logger, body)
+      logger.debug "\n\npost Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
+      logger.debug '=' * 80
+      logger.debug "#{request.env}\n#{JSON.pretty_generate(request.env)}"
+      logger.debug ('-' * 80) + "\n#{JSON.pretty_generate(JSON.parse(body))}"
+      logger.debug '======= POST DONE ========'
     end
   end
 
