@@ -10,6 +10,7 @@ AllCops:
   DisplayStyleGuide: true
   Exclude:
     - 'githubapi/**/*'
+    - 'db/schema.rb'
 Metrics/MethodLength:
   Max: 20
 
@@ -32,4 +33,3 @@ Metrics/BlockLength:
   AllowedMethods: ['included']
   Exclude:
     - 'Gemfile'
-

@@ -5,7 +5,6 @@ require 'otr-activerecord'
 class CheckSuite < ActiveRecord::Base
   validates :author, presence: true
   validates :commit_sha_ref, presence: true
-  validates :bamboo_ci_ref
 
   belongs_to :pull_request
   has_many :ci_jobs

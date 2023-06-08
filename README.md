@@ -20,6 +20,7 @@ the gems must be available as Debian packages.
 We have a Gemfile to install the gems, but any gem must be available as a package.
 
 - puma
+- rubocop
 - ruby-json
 - ruby-jwt
 - ruby-netrc
@@ -29,6 +30,7 @@ We have a Gemfile to install the gems, but any gem must be available as a packag
 - ruby-sidekiq
 - ruby-sidekiq-cron
 - ruby-sinatra
+- ruby-rubocop-performance
 
 # Usage
 

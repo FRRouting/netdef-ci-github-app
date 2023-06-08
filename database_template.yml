@@ -1,0 +1,29 @@
+development:
+  adapter: postgresql
+  host: localhost
+  database: githubruns-dev
+  username: postgres
+  password: postgres
+  encoding: utf8
+  pool: 10
+  timeout: 5000
+
+test:
+  adapter: postgresql
+  host: localhost
+  database: githubruns-test
+  username: postgres
+  password: postgres
+  encoding: utf8
+  pool: 10
+  timeout: 5000
+
+production:
+  adapter: postgresql
+  host: localhost
+  database: githubruns-prod
+  username: postgres
+  password: postgres
+  encoding: utf8
+  pool: 10
+  timeout: 5000

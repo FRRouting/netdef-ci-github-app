@@ -2,15 +2,10 @@
 
 require 'otr-activerecord'
 
-require_relative 'lib/models/*'
+OTR::ActiveRecord.db_dir = 'db'
+OTR::ActiveRecord.migrations_paths = ['db/migrate']
+OTR::ActiveRecord.configure_from_file! 'database.yml'
 
-OTR::ActiveRecord.configure_from_hash!(adapter: 'postgresql',
-                                       host: 'localhost',
-                                       database: 'github-hook',
-                                       username: 'postgres',
-                                       password: 'postgres',
-                                       encoding: 'utf8',
-                                       pool: 10,
-                                       timeout: 5000)
+Dir['lib/models/*.rb'].sort.each { |model| require_relative model }
 
 OTR::ActiveRecord.establish_connection!
