@@ -47,7 +47,7 @@ module GitHub
       return [status, 'Failed to create CI Plan'] if status != 200
 
       # Creating CiJobs at database
-      create_ci_jobs
+      ci_jobs
     end
 
     private
@@ -59,7 +59,7 @@ module GitHub
     end
 
     def github_pr
-      @payload.dig('number')
+      @payload['number']
     end
 
     def create_pull_request
@@ -96,13 +96,19 @@ module GitHub
         )
     end
 
-    def create_ci_jobs
+    def ci_jobs
       @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
 
       jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
 
       return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
 
+      create_ci_jobs(jobs)
+
+      [200, 'Pull Request created']
+    end
+
+    def create_ci_jobs(jobs)
       jobs.each do |job|
         ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
 
@@ -112,8 +118,6 @@ module GitHub
 
         @logger.error "CiJob error: #{ci_job.errors.messages.inspect}"
       end
-
-      [200, 'Pull Request created']
     end
 
     def ci_vars

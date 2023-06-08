@@ -11,7 +11,7 @@ module BambooCi
   class PlanRun
     include Api
 
-    attr_reader :ciKey
+    attr_reader :ci_key
     attr_accessor :checks_run, :ci_variables
 
     def initialize(plan, payload, logger_level: Logger::INFO)
@@ -51,24 +51,24 @@ module BambooCi
 
       resp['stages']['stage'].map { |entry| entry['name'] }
     end
-    
+
     private
-    
+
     def success(response)
       hash = JSON.parse(response.body)
-      @logger.debug ""
-      @logger.debug "CI Submitted:"
-      @logger.debug "#{ hash }"
 
-      @ci_key = hash["buildResultKey"]
+      @logger.debug "\nCI Submitted:\n#{hash}"
+
+      @ci_key = hash['buildResultKey']
 
       comment = "GitHub Merge Request #{@number}\n"
-      comment += "for GitHub Repo #{@pull_request['base']['repo']['full_name']}, branch #{@pull_request['base']['ref']}\n\n"
-      comment += "Request to merge from #{@pull_request['head']['repo']['full_name']}\n"
-      comment += "Merge Git Commit ID #{@pull_request['head']['sha']}"
-      comment += " on top of base Git Commit ID #{@pull_request['base']['sha']}"
+      comment += "for GitHub Repo #{@pull_request.dig('base', 'repo', 'full_name')}, " \
+                 "branch #{@pull_request.dig('base', 'ref')}\n\n"
+      comment += "Request to merge from #{@pull_request.dig('head', 'repo', 'full_name')}\n"
+      comment += "Merge Git Commit ID #{@pull_request.dig('head', 'sha')}"
+      comment += " on top of base Git Commit ID #{@pull_request.dig('base', 'sha')}"
 
-      response =  add_comment_to_ci(@ci_key, comment)
+      response = add_comment_to_ci(@ci_key, comment)
       debugPuts "Comment Submit response: #{response&.code}"
 
       200
@@ -79,7 +79,7 @@ module BambooCi
       @logger.debug "ci submission failed: #{response.body}"
       @logger.debug "Error #{response.code}"
 
-      return 429 if response.body =~ /reached the maximum number of concurrent builds/
+      return 429 if response.body.include?('reached the maximum number of concurrent builds')
 
       response.code.to_i
     end

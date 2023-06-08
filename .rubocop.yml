@@ -1,0 +1,35 @@
+inherit_from: .rubocop_todo.yml
+
+require:
+  - rubocop-performance
+
+AllCops:
+  NewCops: enable
+  DisplayCopNames: true
+  SuggestExtensions: false
+  DisplayStyleGuide: true
+  Exclude:
+    - 'githubapi/**/*'
+Metrics/MethodLength:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 200
+
+Metrics/ModuleLength:
+  Max: 200.
+
+# Do not enforce documentation.
+Style/Documentation:
+  Enabled: false
+
+Style/AndOr:
+  Enabled: false
+
+# Some regions of code use blocks that are big.
+Metrics/BlockLength:
+  Max: 120
+  AllowedMethods: ['included']
+  Exclude:
+    - 'Gemfile'
+

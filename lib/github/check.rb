@@ -8,6 +8,7 @@ require 'netrc'
 module Github
   class Check
     attr_reader :installation_id
+
     def initialize(payload)
       @payload = payload
       @netrc = Netrc.read
@@ -17,16 +18,16 @@ module Github
 
     def create(name)
       @app.create_check_run(
-        @payload["pull_request"]['base']['repo']['full_name'],
+        @payload['pull_request']['base']['repo']['full_name'],
         name,
-        @payload["pull_request"]['head']['sha'],
+        @payload['pull_request']['head']['sha'],
         accept: 'application/vnd.github+json'
       )
     end
 
     def update(id, status)
       @app.update_check_run(
-        @payload["pull_request"]['base']['repo']['full_name'],
+        @payload['pull_request']['base']['repo']['full_name'],
         id,
         status: status,
         accept: 'application/vnd.github+json'
@@ -49,7 +50,7 @@ module Github
 
     def completed(name, status, conclusion)
       @app.update_check_run(
-        @payload["pull_request"]['base']['repo']['full_name'],
+        @payload['pull_request']['base']['repo']['full_name'],
         name,
         status: status,
         conclusion: conclusion,

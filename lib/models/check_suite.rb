@@ -14,4 +14,3 @@ class CheckSuite < ActiveRecord::Base
     ci_jobs.find_by_status(0..1).nil?
   end
 end
-

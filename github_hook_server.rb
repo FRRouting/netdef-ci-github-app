@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'logger'
 require 'net/http'
@@ -14,28 +15,6 @@ require_relative 'lib/github/pull_request'
 require_relative 'lib/github/check'
 require_relative 'database_loader'
 
-$bambooServer = '127.0.0.1'
-$debugEnabled = 0
-$debugLog = nil
-$debugLogDir = '/home/githubchecks/debug'
-$githubLogFile = '/home/githubchecks/githubAPILog.log'
-
-def debugPuts(string)
-  if $debugEnabled > 0
-    if $debugLog != nil
-      $debugLog.puts string
-    end
-    puts string
-  end
-end
-
-def debugPP(var)
-  if $debugEnabled > 0
-    pp var, $debugLog
-  end
-  pp var
-end
-
 class GitHubHookServer < Sinatra::Base
   set :bind, '0.0.0.0'
   set :port, 4667
@@ -44,28 +23,28 @@ class GitHubHookServer < Sinatra::Base
   helpers Sinatra::Payload
 
   get '/' do
-    debugPuts ''
-    debugPuts ''
-    debugPuts "get Request at #{DateTime.now.strftime("%Y%jT%H%M%SZ")}"
-    debugPuts '============================================================='
-    debugPuts "#{ request.env }"
     content_type :text
-    debugPuts "#{ JSON.pretty_generate(request.env) }"
-    debugPuts '======= GET DONE ======== DONE ========== DONE ========='
-    debugPuts 'RETURN: halt 401: Invalid request (1)'
+    logger = Logger.new($stdout)
+    logger.level = Logger::INFO
+
+    logger.debug ''
+    logger.debug ''
+    logger.debug "get Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
+    logger.debug '============================================================='
+    logger.debug request.env.to_s
+    logger.debug JSON.pretty_generate(request.env).to_s
+    logger.debug '======= GET DONE ======== DONE ========== DONE ========='
+    logger.debug 'RETURN: halt 401: Invalid request (1)'
 
     halt 401, 'Invalid request (1)'
   end
 
   get '/ping' do
-    debugPuts 'RETURN: halt 200: Pong'
-
     halt 200, 'Pong'
   end
 
   post '/bamboo/update' do
     @payload_raw = request.body.read
-    @rc = Netrc.read
 
     auth_signature
 
@@ -78,8 +57,6 @@ class GitHubHookServer < Sinatra::Base
       puts github_check.update(@payload['bamboo_ci_stage'], 'in_progress').inspect
     when 'success'
       github_check.success(@payload['bamboo_ci_stage'])
-    when 'failed'
-      github_check.failed(@payload['bamboo_ci_stage'])
     else
       github_check.failed(@payload['bamboo_ci_stage'])
     end
@@ -88,32 +65,35 @@ class GitHubHookServer < Sinatra::Base
   end
 
   post '/*' do
-    debugPuts ''
-    debugPuts ''
-    debugPuts "post Request at #{DateTime.now.strftime("%Y%jT%H%M%SZ")}"
-    debugPuts '============================================================='
-    debugPuts "#{ request.env }"
     content_type :text
-    debugPuts "#{ JSON.pretty_generate(request.env) }"
-    debugPuts '----------------------'
+
+    logger_level = Logger::DEBUG
+    logger = Logger.new($stdout)
+    logger.level = logger_level
+
+    logger.debug ''
+    logger.debug ''
+    logger.debug "post Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
+    logger.debug '============================================================='
+    logger.debug request.env.to_s
+
+    logger.debug JSON.pretty_generate(request.env).to_s
+    logger.debug '----------------------'
     request.body.rewind
-    debugPuts "#{ JSON.pretty_generate(JSON.parse(request.body.read)) }"
-    debugPuts '======= POST DONE ======== DONE ========== DONE ========='
+    logger.debug JSON.pretty_generate(JSON.parse(request.body.read)).to_s
+    logger.debug '======= POST DONE ======== DONE ========== DONE ========='
     request.body.rewind
 
     @payload_raw = request.body&.read
-    @rc = Netrc.read
     auth_signature
 
     case request.env['HTTP_X_GITHUB_EVENT'].downcase
     when 'ping'
-      debugPuts 'Ping received - Pong sending'
-      debugPuts 'RETURN: halt 200: PONG!'
+      logger.debug 'Ping received - Pong sending'
+      logger.debug 'RETURN: halt 200: PONG!'
 
       halt 200, 'PONG!'
     when 'pull_request'
-      logger_level = $debugEnabled.positive? ? Logger::DEBUG: Logger::INFO
-
       build_plan = GitHub::BuildPlan.new(@payload_raw, logger_level: logger_level)
       resp = build_plan.create
 
@@ -121,14 +101,14 @@ class GitHubHookServer < Sinatra::Base
     when 'check_run'
       payload = JSON.parse(@payload_raw)
       message = "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
-      debugPuts(message)
+      logger.debug(message)
       halt 200, 'OK'
     else
-      puts "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
+      logger.error "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
       halt 401, 'Invalid request (4)'
     end
   end
 
-  run! if __FILE__ == $0
+  run! if __FILE__ == $PROGRAM_NAME
   exit
 end

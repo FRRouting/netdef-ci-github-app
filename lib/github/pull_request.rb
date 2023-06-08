@@ -28,10 +28,7 @@ module GitHub
     end
 
     def start
-      @logger.debug ''
-      @logger.debug ''
-      @logger.debug "post is PULL REQUEST for plan #{@plan}"
-      @logger.debug "Action is #{@payload['action']}"
+      start_logs
 
       unless %w[opened synchronize reopened].include? @payload['action']
         @logger.info "Action is \"#{@payload['action']}\" - ignored"
@@ -58,13 +55,18 @@ module GitHub
 
     private
 
+    def start_logs
+      @logger.debug ''
+      @logger.debug ''
+      @logger.debug "post is PULL REQUEST for plan #{@plan}"
+      @logger.debug "Action is #{@payload['action']}"
+    end
+
     def github_logs(resp)
       ci_user = '(unknown)'
-      if !@payload['pull_request']['user'].nil? and !@payload['pull_request']['user']['login'].nil?
-        ci_user = @payload['pull_request']['user']['login']
-      end
+      ci_user = @payload.dig('pull_request', 'user', 'login') if valid_user?
 
-      ci_timestamp = @payload['pull_request']['updated_at']
+      ci_timestamp = @payload.dig('pull_request', 'updated_at')
 
       @logger.debug 'CI Command is  PULL_REQUEST'
       @logger.debug "     note is   #{@payload['action']}"
@@ -73,19 +75,17 @@ module GitHub
 
       github_log = File.open('/home/githubchecks/githubAPILog.log', 'a')
       github_log.puts "#{ci_timestamp}, PR#{@payload['pull_request']['number']}, " \
-                         "PULL_REQUEST, #{ci_user}," \
-                         " #{@payload['action']}, #{@bamboo_plan_run.ciKey}, #{resp}"
+                      "PULL_REQUEST, #{ci_user}, " \
+                      "#{@payload['action']}, #{@bamboo_plan_run.ciKey}, #{resp}"
       github_log.close
+    end
+
+    def valid_user?
+      !@payload.dig('pull_request', 'user', 'login').nil?
     end
 
     def create_check_runs
       ci_vars = []
-      @bamboo_plan_run.fetch_executions['searchResults'].each do |entry|
-        @logger.info entry.inspect
-        stage = entry['searchEntity']['jobName']
-        check_run = @github_check.create(stage)
-        ci_vars << { id: check_run.id, name: stage }
-      end
 
       ci_vars << { id: @github_check.app_id, name: 'app_id' }
       ci_vars << { id: @github_check.installation_id, name: 'app_installation_id' }
@@ -107,7 +107,7 @@ module GitHub
     end
 
     def fetch_plan
-      # TODO - Change to FRR plans
+      # TODO: - Change to FRR plans
       @plan = case @payload['pull_request']['head']['repo']['full_name']
               when 'RodrigoMNardi/bind_manager'
                 'TESTING-FRRCRAS'

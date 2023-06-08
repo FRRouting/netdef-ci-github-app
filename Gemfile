@@ -24,6 +24,7 @@ gem 'rack', '~> 2.2.4'
 
 # Code lint
 gem 'rubocop'
+gem 'rubocop-performance'
 
 # Unit tests
 gem 'rspec'
@@ -33,3 +34,6 @@ gem 'sinatra'
 
 # ActiveRecord
 gem 'otr-activerecord'
+
+# Unit Test
+gem 'rack-test'

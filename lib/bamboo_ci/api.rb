@@ -18,19 +18,12 @@ module BambooCi
     def submit_pr_to_ci(payload, bamboo_plan, ci_variables)
       url = "https://#{server}/rest/api/latest/queue/#{bamboo_plan}"
 
-      # Add Branch
-      url += "?customRevision=#{payload['base']['ref']}"
-      # Add Github Repo
-      # replace / in github names with %2F
-      url += "&bamboo.variable.github_repo=#{payload['base']['repo']['full_name'].gsub("/", "%2F")}"
-      # Add Github Pull Request Number
-      url += "&bamboo.variable.github_pullreq=#{payload['base']['ref']}"
-      # Add Github Merge Branch
-      url += "&bamboo.variable.github_branch=#{payload['base']['ref']}"
-      # Add Github Merge SHA
-      url += "&bamboo.variable.github_merge_sha=#{payload['head']['sha']}"
-      # Add Github Base SHA
-      url += "&bamboo.variable.github_base_sha=#{payload['base']['sha']}"
+      url += "?customRevision=#{payload['base']['ref']}" \
+             "&bamboo.variable.github_repo=#{payload.dig('base', 'repo', 'full_name').gsub('/', '%2F')}" \
+             "&bamboo.variable.github_pullreq=#{payload.dig('base', 'ref')}" \
+             "&bamboo.variable.github_branch=#{payload.dig('base', 'ref')}" \
+             "&bamboo.variable.github_merge_sha=#{payload.dig('head', 'sha')}" \
+             "&bamboo.variable.github_base_sha=#{payload.dig('base', 'sha')}"
 
       ci_variables.each do |variable|
         url += "&bamboo.variable.github_#{variable[:name]}=#{variable[:value]}"
@@ -47,30 +40,25 @@ module BambooCi
 
       @logger.debug "Comment Submission URL:\n  #{url}"
 
-      text = "<comment><content>"
+      text = '<comment><content>'
       text += comment
-      text += "</content></comment>"
+      text += '</content></comment>'
 
       # Fetch Request
       post_request(URI(url), body: text)
     end
 
     def get_request(uri)
-      netrc = Netrc.read
-      user, passwd = netrc['ci1.netdef.org']
-
-      # Create client
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      user, passwd = fetch_user_pass
+      http = create_http(uri)
 
       # Create Request
-      req =  Net::HTTP::Get.new(uri)
+      req = Net::HTTP::Get.new(uri)
       # Add authorization headers
       req.basic_auth user, passwd
 
       # Add JSON request header
-      req.add_field "Accept", "application/json"
+      req.add_field 'Accept', 'application/json'
 
       JSON.parse(http.request(req).body)
     rescue StandardError => e
@@ -80,15 +68,11 @@ module BambooCi
     end
 
     def delete_request(uri)
-      netrc = Netrc.read
-      user, passwd = netrc['ci1.netdef.org']
-
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      user, passwd = fetch_user_pass
+      http = create_http(uri)
 
       # Create Request
-      req =  Net::HTTP::Delete.new(uri)
+      req = Net::HTTP::Delete.new(uri)
       # Add authorization headers
       req.basic_auth user, passwd
 
@@ -100,28 +84,21 @@ module BambooCi
     end
 
     def post_request(uri, body: nil)
-      netrc = Netrc.read
-      user, passwd = netrc['ci1.netdef.org']
-      server = '127.0.0.1'
-
-      http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = true
-      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      user, passwd = fetch_user_pass
+      http = create_http(uri)
 
       # Create Request
-      req =  Net::HTTP::Post.new(uri)
+      req = Net::HTTP::Post.new(uri)
       # Add authorization headers
       req.basic_auth user, passwd
 
-      if body.nil?
-        # Add JSON request header
-        req.add_field "Accept", "application/json"
-      else
+      unless body.nil?
         # Add headers
-        req.add_field "Content-Type", "application/xml"
-        # Add JSON request header
-        req.add_field "Accept", "application/json"
+        req.add_field 'Content-Type', 'application/xml'
+        req.body = text
       end
+
+      req.add_field 'Accept', 'application/json'
 
       # Fetch Request
       resp = http.request(req)
@@ -132,6 +109,19 @@ module BambooCi
       @logger.error "HTTP POST Request failed (#{e.message}) for #{uri.host}"
 
       nil
+    end
+
+    def create_http(uri)
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+
+      http
+    end
+
+    def fetch_user_pass
+      netrc = Netrc.read
+      netrc['ci1.netdef.org']
     end
   end
 end

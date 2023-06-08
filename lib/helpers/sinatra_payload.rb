@@ -37,7 +37,7 @@ module Sinatra
 
       @payload = JSON.parse @payload_raw
     rescue StandardError => e
-        raise "Invalid JSON (#{e}): #{@payload_raw}"
+      raise "Invalid JSON (#{e}): #{@payload_raw}"
     end
 
     # Instantiate an Octokit client, authenticated as an installation of a
@@ -61,7 +61,7 @@ module Sinatra
 
     def auth_signature
       info = @rc['TESTING-FRRCRAS']
-      signature = 'sha256=' + OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), info.password, @payload_raw)
+      signature = "sha256=#{OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'), info.password, @payload_raw)}"
       unless Rack::Utils.secure_compare(signature, request.env['HTTP_X_HUB_SIGNATURE_256'])
         return halt 401, "Signatures didn't match!"
       end
