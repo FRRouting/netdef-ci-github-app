@@ -3,7 +3,7 @@
 require 'otr-activerecord'
 
 class CiJob < ActiveRecord::Base
-  enum status: { queued: 0, in_progress: 1, success: 2, cancelled: -1, failed: -2 }
+  enum status: { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2 }
 
   validates :name, presence: true
   validates :job_ref, presence: true
@@ -16,9 +16,19 @@ class CiJob < ActiveRecord::Base
     update(check_ref: check_run.id)
   end
 
+  def enqueue(github)
+    create_check_run(github)
+  end
+
   def cancelled(github)
     github.cancelled(check_ref)
 
     update(status: :cancelled)
+  end
+
+  def failure(github)
+    github.failure(check_ref)
+
+    update(status: :failure)
   end
 end

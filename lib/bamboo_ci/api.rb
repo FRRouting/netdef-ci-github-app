@@ -79,6 +79,29 @@ module BambooCi
       resp
     end
 
+    def put_request(uri)
+      user, passwd = fetch_user_pass
+      http = create_http(uri)
+
+      # Create Request
+      req = Net::HTTP::Put.new(uri)
+      # Add authorization headers
+      req.basic_auth user, passwd
+
+      req.add_field 'Content-Type', 'application/xml'
+      req.add_field 'Accept', 'application/json'
+
+      # Fetch Request
+      resp = http.request(req)
+      @logger.debug("#{resp.code} - #{resp.body.inspect}")
+
+      resp
+    rescue StandardError => e
+      @logger.error "HTTP POST Request failed (#{e.message}) for #{uri.host}"
+
+      nil
+    end
+
     def post_request(uri, body: nil)
       user, passwd = fetch_user_pass
       http = create_http(uri)

@@ -13,6 +13,7 @@ require 'date'
 require_relative 'database_loader'
 require_relative 'lib/github/build_plan'
 require_relative 'lib/github/check'
+require_relative 'lib/github/re_run'
 require_relative 'lib/helpers/sinatra_payload'
 
 class GitHubHookServer < Sinatra::Base
@@ -67,7 +68,7 @@ class GitHubHookServer < Sinatra::Base
   post '/*' do
     content_type :text
 
-    logger_level = Logger::INFO
+    logger_level = Logger::DEBUG
     logger = Logger.new($stdout)
     logger.level = logger_level
 
@@ -77,6 +78,8 @@ class GitHubHookServer < Sinatra::Base
 
     @payload_raw = body
     auth_signature
+
+    logger.warn "Received event: #{request.env['HTTP_X_GITHUB_EVENT']}"
 
     case request.env['HTTP_X_GITHUB_EVENT'].downcase
     when 'ping'
@@ -91,8 +94,11 @@ class GitHubHookServer < Sinatra::Base
       halt resp.first, resp.last
     when 'check_run'
       payload = JSON.parse(@payload_raw)
-      message = "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
-      logger.debug(message)
+      logger.debug "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
+      logger.debug payload['action']
+
+      halt GitHub::ReRun.new(payload, logger_level: logger_level) if payload['action'].casecmp('rerequested').zero?
+
       halt 200, 'OK'
     else
       logger.error "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
