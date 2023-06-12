@@ -5,14 +5,14 @@ require 'octokit'
 require 'json'
 require 'netrc'
 require 'yaml'
+require 'logger'
 
 module Github
   class Check
-    attr_reader :installation_id
-
     def initialize(check_suite)
       @check_suite = check_suite
       @config = YAML.load_file('config.yml')
+      @logger = Logger.new($stdout)
 
       authenticate_app
       auth_installation
@@ -49,6 +49,12 @@ module Github
 
     def app_id
       @config.dig('github_app', 'login')
+    end
+
+    def installation_id
+      list = @authenticate_app.find_app_installations
+      @logger.info list.inspect
+      list.first['id']
     end
 
     private
@@ -88,8 +94,7 @@ module Github
     end
 
     def auth_installation
-      list = @authenticate_app.installation(app_id).first
-      token = @authenticate_app.create_app_installation_access_token(list['id'])[:token]
+      token = @authenticate_app.create_app_installation_access_token(installation_id)[:token]
       @app = Octokit::Client.new(bearer_token: token)
     end
   end

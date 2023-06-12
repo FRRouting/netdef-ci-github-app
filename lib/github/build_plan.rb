@@ -23,15 +23,18 @@ module GitHub
 
     def create
       unless %w[opened synchronize reopened].include? @payload['action']
-        @logger.info "Action is \"#{@payload['action']}\" - ignored"
+        @logger.warn "Action is \"#{@payload['action']}\" - ignored"
 
         return [200, "Not dealing with action \"#{@payload['action']}\" for Pull Request"]
       end
 
       # Fetch for a Pull Request at database
+      @logger.info 'Fetching / Creating a pull request'
       fetch_pull_request
-      # Stop a previous execution - Avoiding CI spam
-      stop_previous_execution
+
+      # Fetch last Check Suite
+      fetch_last_check_suite
+
       # Create a Check Suite
       create_check_suite
 
@@ -40,6 +43,9 @@ module GitHub
         @logger.error "Failed to save CheckSuite: #{@check_suite.errors.inspect}"
         [422, 'Failed to save Check Suite']
       end
+
+      # Stop a previous execution - Avoiding CI spam
+      stop_previous_execution
 
       # Starting a new CI run
       status = start_new_execution
@@ -80,11 +86,14 @@ module GitHub
     end
 
     def stop_previous_execution
-      return if @pull_request.new? or @pull_request.finished?
+      return if @pull_request.new?
+      return unless @pull_request.finished?
 
-      @logger.info "Stopping previous execution"
+      @logger.info 'Stopping previous execution'
+      @logger.info @last_check_suite.inspect
+      @logger.info @check_suite.inspect
 
-      @pull_request.check_suites.last.ci_jobs.each do |ci_job|
+      @last_check_suite.ci_jobs.each do |ci_job|
         BambooCi::StopPlan.stop(ci_job.job_ref)
 
         @logger.warn("Cancelling Job #{ci_job.inspect}")
@@ -93,18 +102,26 @@ module GitHub
     end
 
     def create_check_suite
+      @logger.info 'Creating a check suite'
       @check_suite =
         CheckSuite.create(
           pull_request: @pull_request,
           author: @payload.dig('pull_request', 'user', 'login'),
           commit_sha_ref: @payload.dig('pull_request', 'head', 'sha')
         )
+
+      @logger.info 'Creating GitHub Check API'
+      @github_check = Github::Check.new(@check_suite)
+    end
+
+    def fetch_last_check_suite
+      @last_check_suite = @pull_request.check_suites.last
     end
 
     def ci_jobs
-      @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
+      @logger.info 'Creating GitHub Check'
 
-      @github_check = Github::Check.new(@check_suite)
+      @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
 
       jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
 
