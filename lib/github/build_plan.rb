@@ -10,15 +10,13 @@ require_relative 'check'
 
 module GitHub
   class BuildPlan
-    def initialize(payload_raw, logger_level: Logger::INFO)
+    def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
       @logger.level = logger_level
 
-      @payload = JSON.parse(payload_raw)
+      @payload = payload
 
-      raise "Invalid payload:\n#{payload_raw}" if @payload.nil? or @payload.empty?
-
-      @github_check = Github::Check.new(@payload)
+      raise "Invalid payload:\n#{payload}" if @payload.nil? or @payload.empty?
 
       @logger.debug 'This is a Pull Request - proceed with branch check'
     end
@@ -105,6 +103,8 @@ module GitHub
 
     def ci_jobs
       @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
+
+      @github_check = Github::Check.new(@check_suite)
 
       jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
 

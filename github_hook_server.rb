@@ -68,7 +68,7 @@ class GitHubHookServer < Sinatra::Base
   post '/*' do
     content_type :text
 
-    logger_level = Logger::DEBUG
+    logger_level = Logger::INFO
     logger = Logger.new($stdout)
     logger.level = logger_level
 
@@ -77,6 +77,7 @@ class GitHubHookServer < Sinatra::Base
     log_header(logger, body)
 
     @payload_raw = body
+    payload = JSON.parse(@payload_raw)
     auth_signature
 
     logger.warn "Received event: #{request.env['HTTP_X_GITHUB_EVENT']}"
@@ -88,12 +89,11 @@ class GitHubHookServer < Sinatra::Base
 
       halt 200, 'PONG!'
     when 'pull_request'
-      build_plan = GitHub::BuildPlan.new(@payload_raw, logger_level: logger_level)
+      build_plan = GitHub::BuildPlan.new(payload, logger_level: logger_level)
       resp = build_plan.create
 
       halt resp.first, resp.last
     when 'check_run'
-      payload = JSON.parse(@payload_raw)
       logger.debug "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
       logger.debug payload['action']
 

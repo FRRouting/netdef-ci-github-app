@@ -1,2 +1,6 @@
 auth_signature:
-  password: 123456
+  password:
+
+github_app:
+  login:
+  installation_id:

@@ -10,18 +10,19 @@ module Github
   class Check
     attr_reader :installation_id
 
-    def initialize(payload)
-      @payload = payload
+    def initialize(check_suite)
+      @check_suite = check_suite
       @config = YAML.load_file('config.yml')
+
       authenticate_app
       auth_installation
     end
 
     def create(name)
       @app.create_check_run(
-        fetch_repo_name,
+        @check_suite.pull_request.repository,
         name,
-        fetch_sha,
+        @check_suite.commit_sha_ref,
         accept: 'application/vnd.github+json'
       )
     end
@@ -54,7 +55,7 @@ module Github
 
     def basic_status(id, status)
       @app.update_check_run(
-        fetch_repo_name,
+        @check_suite.pull_request.repository,
         id.to_i,
         status: status,
         accept: 'application/vnd.github+json'
@@ -65,7 +66,7 @@ module Github
     # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#update-a-check-run
     def completed(name, status, conclusion)
       @app.update_check_run(
-        fetch_repo_name,
+        @check_suite.pull_request.repository,
         name,
         status: status,
         conclusion: conclusion,
@@ -87,19 +88,9 @@ module Github
     end
 
     def auth_installation
-      @installation_id = @payload.dig('installation', 'id')
-      token = @authenticate_app.create_app_installation_access_token(@installation_id)[:token]
+      list = @authenticate_app.installation(app_id).first
+      token = @authenticate_app.create_app_installation_access_token(list['id'])[:token]
       @app = Octokit::Client.new(bearer_token: token)
-    end
-
-    def fetch_repo_name
-      @payload.dig('pull_request', 'base', 'repo', 'full_name') ||
-        @payload.dig('repository', 'full_name')
-    end
-
-    def fetch_sha
-      @payload.dig('pull_request', 'head', 'sha') ||
-        @payload.dig('check_run', 'check_suite', 'head_sha')
     end
   end
 end
