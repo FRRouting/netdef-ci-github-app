@@ -36,15 +36,19 @@ module Github
     end
 
     def cancelled(id)
-      completed(id, 'completed', 'cancelled')
+      completed(id, 'completed', 'cancelled', {})
     end
 
-    def success(name, _output: '')
-      completed(name, 'completed', 'success')
+    def success(name, output = {})
+      completed(name, 'completed', 'success', output)
     end
 
-    def failure(name, _output: '')
-      completed(name, 'completed', 'failure')
+    def failure(name, output = {})
+      completed(name, 'completed', 'failure', output)
+    end
+
+    def skipped(name)
+      completed(name, 'completed', 'skipped', {})
     end
 
     def app_id
@@ -53,8 +57,11 @@ module Github
 
     def installation_id
       list = @authenticate_app.find_app_installations
-      @logger.info list.inspect
       list.first['id']
+    end
+
+    def signature
+      @config.dig('auth_signature', 'password')
     end
 
     private
@@ -70,20 +77,24 @@ module Github
 
     # PS: Conclusion and status are the same name from GitHub Check doc.
     # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#update-a-check-run
-    def completed(name, status, conclusion)
-      @app.update_check_run(
-        @check_suite.pull_request.repository,
-        name,
+    def completed(name, status, conclusion, output)
+      opts = {
         status: status,
         conclusion: conclusion,
         accept: 'application/vnd.github+json'
+      }
+
+      opts[:output] = output unless output.empty?
+
+      @logger.info @app.update_check_run(
+        @check_suite.pull_request.repository,
+        name,
+        opts
       )
     end
 
     def authenticate_app
       payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app_id }
-
-      puts payload
 
       rsa = OpenSSL::PKey::RSA.new(File.read('private_key.pem'))
 

@@ -69,13 +69,13 @@ module Sinatra
                                     @payload_raw)
 
       signature = "sha256=#{sha}"
-      unless Rack::Utils.secure_compare(signature, request.env['HTTP_X_HUB_SIGNATURE_256'])
-        return halt 401, "Signatures didn't match!"
-      end
+      http_signature = request.env['HTTP_SIGNATURE'] || request.env['HTTP_X_HUB_SIGNATURE_256']
+
+      return halt 401, "Signatures didn't match!" unless Rack::Utils.secure_compare(signature, http_signature)
 
       @installation_client = Octokit::Client.new(bearer_token: signature)
     end
-    
+
     def config
       @config ||= YAML.load_file('config.yml')
     end

@@ -87,7 +87,7 @@ module GitHub
 
     def stop_previous_execution
       return if @pull_request.new?
-      return unless @pull_request.finished?
+      return if @last_check_suite.finished?
 
       @logger.info 'Stopping previous execution'
       @logger.info @last_check_suite.inspect
@@ -151,7 +151,7 @@ module GitHub
       ci_vars << { value: @check_suite.id, name: 'check_suite_id_secret' }
       ci_vars << { value: @github_check.app_id, name: 'app_id_secret' }
       ci_vars << { value: @github_check.installation_id, name: 'app_installation_id_secret' }
-      ci_vars << { value: Base64.encode64(File.read('private_key.pem')), name: 'app_secret' }
+      ci_vars << { value: @github_check.signature, name: 'signature_secret' }
 
       ci_vars
     end

@@ -27,7 +27,7 @@ module GitHub
 
       check_suite = job.check_suite
 
-      check_suite.ci_jobs.each do |ci_job|
+      check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
         @github_check = Github::Check.new(check_suite)
         ci_job.enqueue(@github_check)
       end

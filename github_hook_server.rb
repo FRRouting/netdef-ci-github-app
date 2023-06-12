@@ -14,6 +14,7 @@ require_relative 'database_loader'
 require_relative 'lib/github/build_plan'
 require_relative 'lib/github/check'
 require_relative 'lib/github/retry'
+require_relative 'lib/github/update_status'
 require_relative 'lib/helpers/sinatra_payload'
 
 class GitHubHookServer < Sinatra::Base
@@ -23,46 +24,25 @@ class GitHubHookServer < Sinatra::Base
 
   helpers Sinatra::Payload
 
-  get '/' do
-    content_type :text
-    logger = Logger.new($stdout)
-    logger.level = Logger::INFO
-
-    logger.debug ''
-    logger.debug ''
-    logger.debug "get Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
-    logger.debug '============================================================='
-    logger.debug request.env.to_s
-    logger.debug JSON.pretty_generate(request.env).to_s
-    logger.debug '======= GET DONE ======== DONE ========== DONE ========='
-    logger.debug 'RETURN: halt 401: Invalid request (1)'
-
-    halt 401, 'Invalid request (1)'
-  end
-
   get '/ping' do
     halt 200, 'Pong'
   end
 
-  post '/bamboo/update' do
+  post '/update/status' do
+    logger_level = Logger::INFO
+    logger = Logger.new($stdout)
+    logger.level = logger_level
+
     @payload_raw = request.body.read
+    @payload = JSON.parse(@payload_raw)
+
+    logger.warn "Received event UpdateStatus: #{@payload}"
 
     auth_signature
 
-    @payload = JSON.parse(@payload_raw)
+    github = Github::UpdateStatus.new(@payload)
 
-    github_check = Github::Check.new(@payload)
-
-    case @payload['bamboo_ci_status']
-    when 'in_progress'
-      github_check.update(@payload['bamboo_ci_stage'], 'in_progress')
-    when 'success'
-      github_check.success(@payload['bamboo_ci_stage'])
-    else
-      github_check.failed(@payload['bamboo_ci_stage'])
-    end
-
-    halt 200
+    halt github.update
   end
 
   post '/*' do
@@ -116,7 +96,7 @@ class GitHubHookServer < Sinatra::Base
       logger.debug "\n\npost Request at #{DateTime.now.strftime('%Y%jT%H%M%SZ')}"
       logger.debug '=' * 80
       logger.debug "#{request.env}\n#{JSON.pretty_generate(request.env)}"
-      logger.debug('-' * 80)
+      logger.debug '-' * 80
       logger.debug "\n#{JSON.pretty_generate(JSON.parse(body))}"
       logger.debug '======= POST DONE ========'
     end
