@@ -3,12 +3,12 @@
 require 'logger'
 
 require_relative '../../database_loader'
-require_relative '../bamboo_ci/re_run_job'
+require_relative '../bamboo_ci/retry'
 
 require_relative 'check'
 
 module GitHub
-  class ReRun
+  class Retry
     def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
       @logger.level = logger_level
@@ -19,25 +19,30 @@ module GitHub
     def start
       return [422, "Invalid payload:\n#{payload}"] if @payload.nil? or @payload.empty?
 
-      @github_check = Github::Check.new(@payload)
-
       job = CiJob.find_by_check_ref(@payload.dig('check_run', 'id'))
+
+      return [201, 'Already enqueued this execution'] if job.queued?
 
       @logger.debug "Running Job #{job.inspect}"
 
-      job.enqueue(@github_check)
-
       check_suite = job.check_suite
 
-      BambooCi::ReRunJob.restart(job.job_ref) if can_rerun? check_suite
+      check_suite.ci_jobs.each do |ci_job|
+        @github_check = Github::Check.new(check_suite)
+        ci_job.enqueue(@github_check)
+      end
+
+      BambooCi::Retry.restart(check_suite.bamboo_ci_ref)
     end
 
     private
 
     def can_rerun?(check_suite)
-      enqueued = check_suite.ci_jobs.all.size - check_suite.ci_jobs.where.not(status: %i[success]).size
+      failure = check_suite.reload.ci_jobs.where(status: :failure).count
 
-      check_suite.ci_jobs.where(status: :queued).size == enqueued
+      @logger.info ">> #{failure}"
+
+      !failure.positive?
     end
   end
 end

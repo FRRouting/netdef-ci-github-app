@@ -13,7 +13,7 @@ require 'date'
 require_relative 'database_loader'
 require_relative 'lib/github/build_plan'
 require_relative 'lib/github/check'
-require_relative 'lib/github/re_run'
+require_relative 'lib/github/retry'
 require_relative 'lib/helpers/sinatra_payload'
 
 class GitHubHookServer < Sinatra::Base
@@ -94,10 +94,15 @@ class GitHubHookServer < Sinatra::Base
 
       halt resp.first, resp.last
     when 'check_run'
+      logger.level = Logger::DEBUG
       logger.debug "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
       logger.debug payload['action']
+      logger.debug payload['action'].downcase.match?('rerequested')
 
-      halt GitHub::ReRun.new(payload, logger_level: logger_level) if payload['action'].casecmp('rerequested').zero?
+      if payload['action'].downcase.match?('rerequested')
+        re_run = GitHub::Retry.new(payload, logger_level: logger_level)
+        halt re_run.start
+      end
 
       halt 200, 'OK'
     else

@@ -5,7 +5,7 @@ require 'logger'
 require_relative 'api'
 
 module BambooCi
-  class ReRunJob
+  class Retry
     extend BambooCi::Api
 
     def self.restart(plan_key)
