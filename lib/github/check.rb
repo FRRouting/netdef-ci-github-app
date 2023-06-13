@@ -18,6 +18,14 @@ module Github
       auth_installation
     end
 
+    def add_comment(pr_id, comment, repo)
+      @app.add_comment(
+        repo,
+        pr_id,
+        comment
+      )
+    end
+
     def create(name)
       @app.create_check_run(
         @check_suite.pull_request.repository,

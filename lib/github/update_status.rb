@@ -21,7 +21,7 @@ module Github
 
     def update
       return [404, 'CI JOB not found'] if @job.nil?
-      return [304, 'Not Modified'] if @job.queued? and @status != 'in_progress'
+      return [304, 'Not Modified'] if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
       return [304, 'Not Modified'] if @job.in_progress? and !%w[success failure].include? @status
 
       @github_check = Github::Check.new(@job.check_suite)

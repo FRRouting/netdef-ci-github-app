@@ -8,7 +8,7 @@ require_relative '../bamboo_ci/stop_plan'
 
 require_relative 'check'
 
-module GitHub
+module Github
   class Retry
     def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
@@ -18,7 +18,7 @@ module GitHub
     end
 
     def start
-      return [422, "Invalid payload:\n#{payload}"] if @payload.nil? or @payload.empty?
+      return [422, "Invalid payload:\n#{@payload}"] if @payload.nil? or @payload.empty?
 
       job = CiJob.find_by_check_ref(@payload.dig('check_run', 'id'))
 

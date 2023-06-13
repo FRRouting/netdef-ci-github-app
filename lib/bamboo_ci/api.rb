@@ -15,15 +15,15 @@ module BambooCi
       get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
     end
 
-    def submit_pr_to_ci(bamboo_plan, payload, ci_variables)
-      url = "https://127.0.0.1/rest/api/latest/queue/#{bamboo_plan}"
+    def submit_pr_to_ci(check_suite, ci_variables)
+      url = "https://127.0.0.1/rest/api/latest/queue/#{check_suite.pull_request.plan}"
 
-      url += "?customRevision=#{payload['base']['ref']}" \
-             "&bamboo.variable.github_repo=#{payload.dig('base', 'repo', 'full_name').gsub('/', '%2F')}" \
-             "&bamboo.variable.github_pullreq=#{payload.dig('base', 'ref')}" \
-             "&bamboo.variable.github_branch=#{payload.dig('base', 'ref')}" \
-             "&bamboo.variable.github_merge_sha=#{payload.dig('head', 'sha')}" \
-             "&bamboo.variable.github_base_sha=#{payload.dig('base', 'sha')}"
+      url += "?customRevision=#{check_suite.merge_branch}" \
+             "&bamboo.variable.github_repo=#{check_suite.pull_request.repository.gsub('/', '%2F')}" \
+             "&bamboo.variable.github_pullreq=#{check_suite.work_branch}" \
+             "&bamboo.variable.github_branch=#{check_suite.merge_branch}" \
+             "&bamboo.variable.github_merge_sha=#{check_suite.commit_sha_ref}" \
+             "&bamboo.variable.github_base_sha=#{check_suite.base_sha_ref}"
 
       ci_variables.each do |variable|
         url += "&bamboo.variable.github_#{variable[:name]}=#{variable[:value]}"

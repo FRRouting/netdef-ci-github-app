@@ -14,18 +14,15 @@ module BambooCi
     attr_reader :ci_key
     attr_accessor :checks_run, :ci_variables
 
-    def initialize(pull_request, payload, logger_level: Logger::INFO)
-      @pull_request = pull_request
-      @payload = payload['pull_request']
+    def initialize(check_suite, logger_level: Logger::INFO)
+      @check_suite = check_suite
       @ci_variables = []
       @logger = Logger.new($stdout)
       @logger.level = logger_level
     end
 
     def start_plan
-      log_title
-
-      @response = submit_pr_to_ci(@pull_request.plan, @payload, @ci_variables)
+      @response = submit_pr_to_ci(@check_suite, @ci_variables)
 
       case @response&.code.to_i
       when 200, 201
@@ -35,7 +32,7 @@ module BambooCi
       when 0
         @logger.unknown 'HTTP Request error'
       else
-        @logger.unknown "Unmapped HTTP error (Bamboo): #{@response&.code.to_i}\nPR: #{@payload.inspect}"
+        @logger.unknown "Unmapped HTTP error (Bamboo): #{@response&.code.to_i}\nPR: #{@check_suite.inspect}"
         failed(@response)
       end
     end
@@ -61,16 +58,8 @@ module BambooCi
 
       @ci_key = hash['buildResultKey']
 
-      comment = "GitHub Merge Request #{@number}\n"
-      comment += "for GitHub Repo #{@payload.dig('base', 'repo', 'full_name')}, " \
-                 "branch #{@payload.dig('base', 'ref')}\n\n"
-      comment += "Request to merge from #{@payload.dig('head', 'repo', 'full_name')}\n"
-      comment += "Merge Git Commit ID #{@payload.dig('head', 'sha')}"
-      comment += " on top of base Git Commit ID #{@payload.dig('base', 'sha')}"
+      response = generate_comment
 
-      @logger.debug comment
-
-      response = add_comment_to_ci(@ci_key, comment)
       @logger.debug "Comment Submit response: #{response&.code}"
 
       200
@@ -86,14 +75,17 @@ module BambooCi
       response.code.to_i
     end
 
-    def log_title
-      @logger.debug "It's #{@payload['title']}"
-      @logger.debug "Bamboo Plan:      #{@pull_request.plan}"
-      @logger.debug "Github Repo:      #{@payload.dig('base', 'repo', 'full_name')}"
-      @logger.debug "Github Branch:    #{@payload.dig('base', 'ref')}"
-      @logger.debug "Github Base SHA:  #{@payload.dig('base', 'sha')}"
-      @logger.debug "Github Merge SHA: #{@payload.dig('head', 'sha')}"
-      @logger.debug "Pull Req # is:    #{@number}"
+    def generate_comment
+      comment = "GitHub Merge Request #{@check_suite.pull_request.github_pr_id.split('/').last}\n"
+      comment += "for GitHub Repo #{@check_suite.pull_request.repository}, " \
+                 "branch #{@check_suite.work_branch}\n\n"
+      comment += "Request to merge from #{@check_suite.pull_request.repository}\n"
+      comment += "Merge Git Commit ID #{@check_suite.commit_sha_ref}"
+      comment += " on top of base Git Commit ID #{@check_suite.base_sha_ref}"
+
+      @logger.debug comment
+
+      add_comment_to_ci(@ci_key, comment)
     end
   end
 end

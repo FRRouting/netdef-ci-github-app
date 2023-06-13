@@ -13,6 +13,7 @@ require 'date'
 require_relative 'database_loader'
 require_relative 'lib/github/build_plan'
 require_relative 'lib/github/check'
+require_relative 'lib/github/re_run'
 require_relative 'lib/github/retry'
 require_relative 'lib/github/update_status'
 require_relative 'lib/helpers/sinatra_payload'
@@ -69,7 +70,7 @@ class GitHubHookServer < Sinatra::Base
 
       halt 200, 'PONG!'
     when 'pull_request'
-      build_plan = GitHub::BuildPlan.new(payload, logger_level: logger_level)
+      build_plan = Github::BuildPlan.new(payload, logger_level: logger_level)
       resp = build_plan.create
 
       halt resp.first, resp.last
@@ -80,11 +81,18 @@ class GitHubHookServer < Sinatra::Base
       logger.debug payload['action'].downcase.match?('rerequested')
 
       if payload['action'].downcase.match?('rerequested')
-        re_run = GitHub::Retry.new(payload, logger_level: logger_level)
+        re_run = Github::Retry.new(payload, logger_level: logger_level)
         halt re_run.start
       end
 
       halt 200, 'OK'
+    when 'installation'
+      logger.warn '>>> Received a new installation policy'
+      halt 202, 'Updated'
+    when 'issue_comment'
+      logger.warn '>>> Received a new issue comment'
+
+      halt Github::ReRun.new(payload, logger_level: logger_level).start
     else
       logger.error "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
       halt 401, 'Invalid request (4)'

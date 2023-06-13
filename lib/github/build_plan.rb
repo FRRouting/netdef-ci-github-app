@@ -8,7 +8,7 @@ require_relative '../bamboo_ci/running_plan'
 require_relative '../bamboo_ci/plan_run'
 require_relative 'check'
 
-module GitHub
+module Github
   class BuildPlan
     def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
@@ -80,14 +80,14 @@ module GitHub
     end
 
     def start_new_execution
-      @bamboo_plan_run = BambooCi::PlanRun.new(@pull_request, @payload, logger_level: @logger.level)
+      @bamboo_plan_run = BambooCi::PlanRun.new(@check_suite, logger_level: @logger.level)
       @bamboo_plan_run.ci_variables = ci_vars
       @bamboo_plan_run.start_plan
     end
 
     def stop_previous_execution
       return if @pull_request.new?
-      return if @last_check_suite.finished?
+      return if @last_check_suite.nil? or @last_check_suite.finished?
 
       @logger.info 'Stopping previous execution'
       @logger.info @last_check_suite.inspect
@@ -107,7 +107,10 @@ module GitHub
         CheckSuite.create(
           pull_request: @pull_request,
           author: @payload.dig('pull_request', 'user', 'login'),
-          commit_sha_ref: @payload.dig('pull_request', 'head', 'sha')
+          commit_sha_ref: @payload.dig('pull_request', 'head', 'sha'),
+          work_branch: @payload.dig('pull_request', 'head', 'ref'),
+          base_sha_ref: @payload.dig('pull_request', 'base', 'sha'),
+          merge_branch: @payload.dig('pull_request', 'base', 'ref')
         )
 
       @logger.info 'Creating GitHub Check API'
