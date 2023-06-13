@@ -4,6 +4,7 @@ require 'logger'
 
 require_relative '../../database_loader'
 require_relative '../bamboo_ci/retry'
+require_relative '../bamboo_ci/stop_plan'
 
 require_relative 'check'
 
@@ -30,6 +31,9 @@ module GitHub
       check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
         @github_check = Github::Check.new(check_suite)
         ci_job.enqueue(@github_check)
+
+        @logger.warn "Stopping Job: #{ci_job.job_ref}"
+        BambooCi::StopPlan.stop(ci_job.job_ref)
       end
 
       BambooCi::Retry.restart(check_suite.bamboo_ci_ref)
