@@ -10,15 +10,15 @@ require 'octokit'
 require 'netrc'
 require 'date'
 
-require_relative 'database_loader'
-require_relative 'lib/github/build_plan'
-require_relative 'lib/github/check'
-require_relative 'lib/github/re_run'
-require_relative 'lib/github/retry'
-require_relative 'lib/github/update_status'
-require_relative 'lib/helpers/sinatra_payload'
+require_relative '../database_loader'
+require_relative '../lib/github/build_plan'
+require_relative '../lib/github/check'
+require_relative '../lib/github/re_run'
+require_relative '../lib/github/retry'
+require_relative '../lib/github/update_status'
+require_relative '../lib/helpers/sinatra_payload'
 
-class GitHubHookServer < Sinatra::Base
+class GithubApp < Sinatra::Base
   set :bind, '0.0.0.0'
   set :port, 4667
   set :show_exceptions, false
@@ -111,5 +111,4 @@ class GitHubHookServer < Sinatra::Base
   end
 
   run! if __FILE__ == $PROGRAM_NAME
-  exit
 end

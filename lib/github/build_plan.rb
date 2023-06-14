@@ -25,7 +25,7 @@ module Github
       unless %w[opened synchronize reopened].include? @payload['action']
         @logger.warn "Action is \"#{@payload['action']}\" - ignored"
 
-        return [200, "Not dealing with action \"#{@payload['action']}\" for Pull Request"]
+        return [405, "Not dealing with action \"#{@payload['action']}\" for Pull Request"]
       end
 
       # Fetch for a Pull Request at database
@@ -41,7 +41,7 @@ module Github
       # Check if could save the Check Suite at database
       unless @check_suite.persisted?
         @logger.error "Failed to save CheckSuite: #{@check_suite.errors.inspect}"
-        [422, 'Failed to save Check Suite']
+        return [422, 'Failed to save Check Suite']
       end
 
       # Stop a previous execution - Avoiding CI spam

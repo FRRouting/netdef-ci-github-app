@@ -31,6 +31,7 @@ module BambooCi
         failed(@response)
       when 0
         @logger.unknown 'HTTP Request error'
+        418
       else
         @logger.unknown "Unmapped HTTP error (Bamboo): #{@response&.code.to_i}\nPR: #{@check_suite.inspect}"
         failed(@response)

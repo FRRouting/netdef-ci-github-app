@@ -18,6 +18,18 @@ gem 'otr-activerecord', '2.0.3'
 # PostgreSQL adapter
 gem 'pg', '1.2.3'
 
+gem 'netrc'
+
+gem 'puma'
+
 # Code lint
 gem 'rubocop', group: %i[development test]
 gem 'rubocop-performance', group: %i[development test]
+
+group :test do
+  gem 'database_cleaner'
+  gem 'factory_bot'
+  gem 'rack-test'
+  gem 'rspec'
+  gem 'webmock', require: 'webmock/rspec'
+end

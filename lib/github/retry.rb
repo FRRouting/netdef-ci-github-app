@@ -26,20 +26,23 @@ module Github
 
       @logger.debug "Running Job #{job.inspect}"
 
-      check_suite = job.check_suite
+      create_ci_jobs(job.check_suite)
+
+      BambooCi::Retry.restart(job.check_suite.bamboo_ci_ref)
+    end
+
+    private
+
+    def create_ci_jobs(check_suite)
+      github_check = Github::Check.new(check_suite)
 
       check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
-        @github_check = Github::Check.new(check_suite)
-        ci_job.enqueue(@github_check)
+        ci_job.enqueue(github_check)
 
         @logger.warn "Stopping Job: #{ci_job.job_ref}"
         BambooCi::StopPlan.stop(ci_job.job_ref)
       end
-
-      BambooCi::Retry.restart(check_suite.bamboo_ci_ref)
     end
-
-    private
 
     def can_rerun?(check_suite)
       failure = check_suite.reload.ci_jobs.where(status: :failure).count

@@ -71,6 +71,7 @@ module Sinatra
       signature = "sha256=#{sha}"
       http_signature = request.env['HTTP_SIGNATURE'] || request.env['HTTP_X_HUB_SIGNATURE_256']
 
+      return halt 404, 'Signature not found' if http_signature.nil? or http_signature.empty?
       return halt 401, "Signatures didn't match!" unless Rack::Utils.secure_compare(signature, http_signature)
 
       @installation_client = Octokit::Client.new(bearer_token: signature)

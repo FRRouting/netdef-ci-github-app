@@ -17,7 +17,10 @@ ActiveRecord::Schema[7.0].define(version: 2023_06_07_074545) do
   create_table "check_suites", force: :cascade do |t|
     t.string "author", null: false
     t.string "commit_sha_ref", null: false
+    t.string "base_sha_ref", null: false
     t.string "bamboo_ci_ref"
+    t.string "merge_branch"
+    t.string "work_branch"
     t.string "details"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
@@ -29,6 +32,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_06_07_074545) do
     t.string "name", null: false
     t.integer "status", default: 0, null: false
     t.string "job_ref"
+    t.string "check_ref"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
