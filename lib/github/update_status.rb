@@ -26,6 +26,16 @@ module Github
 
       @github_check = Github::Check.new(@job.check_suite)
 
+      update_status
+
+      skipping_jobs
+
+      [200, 'Success']
+    end
+
+    private
+
+    def update_status
       case @status
       when 'in_progress'
         @job.in_progress(@github_check)
@@ -36,14 +46,14 @@ module Github
       else
         @logger.error "Invalid status: #{@status}"
       end
+    end
 
-      if (@job.name.downcase.match? 'code' or @job.name.downcase.match? 'build') and @status == 'failure'
-        @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-          job.skipped(@github_check)
-        end
+    def skipping_jobs
+      return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
+
+      @job.check_suite.ci_jobs.where(status: :queued).each do |job|
+        job.skipped(@github_check)
       end
-
-      [200, 'Success']
     end
   end
 end

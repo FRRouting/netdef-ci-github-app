@@ -18,17 +18,19 @@ module Github
     end
 
     def start
-      return [422, "Invalid payload:\n#{@payload}"] if @payload.nil? or @payload.empty?
+      return [422, 'Payload can not be blank'] if @payload.nil? or @payload.empty?
 
       job = CiJob.find_by_check_ref(@payload.dig('check_run', 'id'))
 
-      return [201, 'Already enqueued this execution'] if job.queued?
+      return [304, 'Already enqueued this execution'] if job.queued? or job.in_progress?
 
       @logger.debug "Running Job #{job.inspect}"
 
       create_ci_jobs(job.check_suite)
 
       BambooCi::Retry.restart(job.check_suite.bamboo_ci_ref)
+
+      [200, 'Retrying failure jobs']
     end
 
     private
