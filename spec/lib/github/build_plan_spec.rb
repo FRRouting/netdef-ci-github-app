@@ -82,7 +82,7 @@ describe Github::BuildPlan do
       end
     end
 
-    context 'when commit and has a previous CI job running' do
+    context 'when commit and has a previous CI jobs' do
       let(:action) { 'opened' }
       let(:pull_request) { create(:pull_request, github_pr_id: pr_number, repository: repo) }
       let(:previous_check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
@@ -105,6 +105,40 @@ describe Github::BuildPlan do
         expect(pull_request.author).to eq(new_pull_request.author)
         expect(check_suite.author).to eq(author)
         expect(previous_ci_job.status).to eq('cancelled')
+      end
+    end
+
+    context 'when commit and has a previous CI jobs running' do
+      let(:action) { 'opened' }
+      let(:pull_request) { create(:pull_request, github_pr_id: pr_number, repository: repo) }
+      let(:previous_check_suite) { create(:check_suite, :with_running_success_ci_jobs, pull_request: pull_request) }
+      let(:previous_ci_job) { previous_check_suite.reload.ci_jobs.last }
+      let(:check_suite) { pull_request.reload.check_suites.last }
+      let(:author) { 'Johnny Silverhand' }
+      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:new_pull_request) { PullRequest.last }
+
+      let(:after_queued_jobs) { previous_check_suite.ci_jobs.where(status: 'queued').count }
+      let(:after_in_progress_jobs) { previous_check_suite.ci_jobs.where(status: 'in_progress').count }
+      let(:after_success_jobs) { previous_check_suite.ci_jobs.where(status: 'success').count }
+
+      let!(:before_queued_jobs) { previous_check_suite.ci_jobs.where(status: 'queued').count }
+      let!(:before_in_progress_jobs) { previous_check_suite.ci_jobs.reload.where(status: 'in_progress').count }
+      let!(:before_success_jobs) { previous_check_suite.ci_jobs.reload.where(status: 'success').count }
+
+      before do
+        previous_check_suite
+
+        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(fake_github_check).to receive(:cancelled)
+
+        build_plan.create
+      end
+
+      it 'must cancel only queued and in_progress jobs' do
+        expect(before_queued_jobs).not_to eq(after_queued_jobs)
+        expect(before_in_progress_jobs).not_to eq(after_in_progress_jobs)
+        expect(before_success_jobs).to eq(after_success_jobs)
       end
     end
   end

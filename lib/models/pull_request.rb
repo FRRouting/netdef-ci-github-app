@@ -8,7 +8,7 @@ class PullRequest < ActiveRecord::Base
   validates :branch_name, presence: true
   validates :repository, presence: true
 
-  has_many :check_suites
+  has_many :check_suites, dependent: :delete_all
 
   def new?
     check_suites.nil? or check_suites.empty?

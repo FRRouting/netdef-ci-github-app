@@ -93,7 +93,7 @@ module Github
       @logger.info @last_check_suite.inspect
       @logger.info @check_suite.inspect
 
-      @last_check_suite.ci_jobs.each do |ci_job|
+      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
         BambooCi::StopPlan.stop(ci_job.job_ref)
 
         @logger.warn("Cancelling Job #{ci_job.inspect}")
@@ -162,7 +162,7 @@ module Github
     def fetch_plan
       plan = Plan.find_by_github_repo_name(@payload.dig('repository', 'full_name'))
 
-      return plan unless plan.nil?
+      return plan.bamboo_ci_plan_name unless plan.nil?
 
       # Default plan
       'TESTING-FRRCRAS'

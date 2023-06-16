@@ -16,5 +16,13 @@ FactoryBot.define do
         create(:ci_job, check_suite: check_suite, status: :in_progress)
       end
     end
+
+    trait :with_running_success_ci_jobs do
+      after(:create) do |check_suite|
+        create_list(:ci_job, 5, check_suite: check_suite, status: 0)
+        create_list(:ci_job, 5, check_suite: check_suite, status: 1)
+        create_list(:ci_job, 5, check_suite: check_suite, status: 2)
+      end
+    end
   end
 end
