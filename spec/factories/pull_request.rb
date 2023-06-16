@@ -2,10 +2,10 @@
 
 FactoryBot.define do
   factory :pull_request do
-    author { 'John Doe' }
+    author { Faker::Name.name }
     github_pr_id { 1 }
-    branch_name { 'unit_test' }
+    branch_name { Faker::App.name }
     repository { 'Unit/Test' }
-    plan { 'FRR-UNITTEST' }
+    plan { Faker::Alphanumeric.alpha(number: 10) }
   end
 end

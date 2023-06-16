@@ -2,12 +2,12 @@
 
 FactoryBot.define do
   factory :check_suite do
-    author { 'John Doe' }
-    commit_sha_ref { 'abc1234' }
-    base_sha_ref { 'qwerty1' }
-    bamboo_ci_ref { "FRR-UNITTEST-#{rand(1_000_000)}" }
+    author { Faker::Name.name }
+    commit_sha_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
+    base_sha_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
+    bamboo_ci_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
     merge_branch { 'master' }
-    work_branch { 'unit_test' }
+    work_branch { Faker::Team.creature }
 
     pull_request
 

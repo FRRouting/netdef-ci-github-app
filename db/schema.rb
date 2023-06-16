@@ -50,7 +50,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_06_07_074545) do
 
   create_table "pull_requests", force: :cascade do |t|
     t.string "author", null: false
-    t.string "github_pr_id", null: false
+    t.integer "github_pr_id", null: false
     t.string "branch_name", null: false
     t.string "repository", null: false
     t.string "plan"

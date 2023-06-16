@@ -28,7 +28,7 @@ describe BambooCi::PlanRun do
     let(:status) { 200 }
     let(:body) { '{"buildResultKey": 1}' }
     let(:comment) do
-      "<comment><content>GitHub Merge Request #{check_suite.pull_request.github_pr_id.split('/').last}\n" \
+      "<comment><content>GitHub Merge Request #{check_suite.pull_request.github_pr_id}\n" \
         "for GitHub Repo #{check_suite.pull_request.repository}, " \
         "branch #{check_suite.work_branch}\n\n" \
         "Request to merge from #{check_suite.pull_request.repository}\n" \

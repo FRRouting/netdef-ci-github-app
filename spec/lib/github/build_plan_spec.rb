@@ -90,6 +90,7 @@ describe Github::BuildPlan do
       let(:check_suite) { pull_request.reload.check_suites.last }
       let(:author) { 'Johnny Silverhand' }
       let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:new_pull_request) { PullRequest.last }
 
       before do
         previous_check_suite
@@ -101,7 +102,7 @@ describe Github::BuildPlan do
       end
 
       it 'must create a new check_suite' do
-        expect(pull_request.author).to eq('John Doe')
+        expect(pull_request.author).to eq(new_pull_request.author)
         expect(check_suite.author).to eq(author)
         expect(previous_ci_job.status).to eq('cancelled')
       end

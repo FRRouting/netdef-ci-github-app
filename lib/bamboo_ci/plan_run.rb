@@ -77,7 +77,7 @@ module BambooCi
     end
 
     def generate_comment
-      comment = "GitHub Merge Request #{@check_suite.pull_request.github_pr_id.split('/').last}\n"
+      comment = "GitHub Merge Request #{@check_suite.pull_request.github_pr_id}\n"
       comment += "for GitHub Repo #{@check_suite.pull_request.repository}, " \
                  "branch #{@check_suite.work_branch}\n\n"
       comment += "Request to merge from #{@check_suite.pull_request.repository}\n"
