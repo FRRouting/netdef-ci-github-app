@@ -19,8 +19,8 @@ The project does not use any Ruby versioning services (RVM or Rbenv) and
 the gems must be available as Debian packages.
 We have a Gemfile to install the gems, but any gem must be available as a package.
 
+Production / Development
 - puma
-- rubocop
 - ruby-json
 - ruby-jwt
 - ruby-netrc
@@ -30,8 +30,26 @@ We have a Gemfile to install the gems, but any gem must be available as a packag
 - ruby-sidekiq
 - ruby-sidekiq-cron
 - ruby-sinatra
+
+Test
+
+In addition to the gems listed above, we need these to run the tests locally:
+
+- rubocop
+- ruby-database-cleaner
+- ruby-factory-bot
+- ruby-faker
+- ruby-rack-test
 - ruby-rubocop-performance
+- ruby-rspec
+- ruby-webmock
 
 # Usage
 
 # Testing
+
+Rubocop can be executed with the following command: `rubocop -A`.
+
+The '-A' parameter will automatically fix some code mistakes.
+
+Rspec be executed with the following command: `rspec ./spec --pattern '**/*_spec.rb'`
