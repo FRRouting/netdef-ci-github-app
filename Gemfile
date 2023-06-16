@@ -29,6 +29,7 @@ gem 'rubocop-performance', group: %i[development test]
 group :test do
   gem 'database_cleaner'
   gem 'factory_bot'
+  gem 'faker'
   gem 'rack-test'
   gem 'rspec'
   gem 'webmock', require: 'webmock/rspec'

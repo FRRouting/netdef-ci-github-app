@@ -1,0 +1,7 @@
+inherit_from: ../.rubocop.yml
+
+# The describe, context and factorybot methods takes much space, so we want to
+# disable that rubocop rule to enforce standard usage.
+Metrics/BlockLength:
+  Max: 300
+  AllowedMethods: ['describe', 'context', 'define', 'factory', 'shared_examples_for', 'include_context']
