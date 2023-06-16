@@ -46,6 +46,15 @@ In addition to the gems listed above, we need these to run the tests locally:
 
 # Usage
 
+### Production
+
+GitHub Hook is initialized at production mode running the following command:
+`RAILS_ENV=production RACK_ENV=production rackup config.ru -o 0.0.0.0 -p 4667`
+
+### Development
+
+Just run the command: `ruby app/github_app.rb`
+
 # Testing
 
 Rubocop can be executed with the following command: `rubocop -A`.

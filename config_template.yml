@@ -4,3 +4,4 @@ auth_signature:
 github_app:
   login:
   installation_id:
+  cert:

@@ -1,35 +1,10 @@
 # frozen_string_literal: true
 
 require 'sinatra/base'
+require_relative '../github/check'
 
 module Sinatra
   module Payload
-    # Instantiate an Octokit client authenticated as a GitHub App.
-    # GitHub App authentication requires that you construct a
-    # JWT (https://jwt.io/introduction/) signed with the app's private key,
-    # so GitHub can be sure that it came from the app an not altererd by
-    # a malicious third party.
-    def authenticate_app
-      config
-
-      payload = {
-        # The time that this JWT was issued, _i.e._ now.
-        iat: Time.now.to_i,
-
-        # JWT expiration time (10 minute maximum)
-        exp: Time.now.to_i + (10 * 60),
-
-        # Your GitHub App's identifier number
-        iss: @config.dig('auth_signature', 'password')
-      }
-
-      # Cryptographically sign the JWT.
-      jwt = JWT.encode(payload, PRIVATE_KEY, 'RS256')
-
-      # Create the Octokit client, using the JWT as the auth token.
-      @authenticate_app ||= Octokit::Client.new(bearer_token: jwt)
-    end
-
     # Saves the raw payload and converts the payload to JSON format
     def get_payload_request(request)
       request.body.rewind
@@ -44,10 +19,10 @@ module Sinatra
 
     # Instantiate an Octokit client, authenticated as an installation of a
     # GitHub App, to run API operations.
-    def authenticate_request
-      return if @payload.empty?
+    def authenticate_request(payload)
+      return if payload.empty?
 
-      return auth_installation if @payload.key? 'installation'
+      return auth_installation(payload) if !payload.dig('hook', 'app_id').nil? or payload.key? 'installation'
       return auth_signature if request.env.key? 'HTTP_X_HUB_SIGNATURE_256'
 
       halt 401
@@ -55,10 +30,11 @@ module Sinatra
 
     private
 
-    def auth_installation
-      @installation_id = @payload['installation']['id']
-      @installation_token = @authenticate_app.create_app_installation_access_token(@installation_id)[:token]
-      @installation_client = Octokit::Client.new(bearer_token: @installation_token)
+    def auth_installation(payload)
+      github_check = Github::Check.new(nil)
+
+      github_check.installation_id == payload.dig('hook', 'app_id') or
+        github_check.installation_id == payload.dig('installation', 'id')
     end
 
     def auth_signature

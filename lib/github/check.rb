@@ -9,6 +9,8 @@ require 'logger'
 
 module Github
   class Check
+    attr_reader :app
+
     def initialize(check_suite)
       @check_suite = check_suite
       @config = YAML.load_file('config.yml')
@@ -104,7 +106,7 @@ module Github
     def authenticate_app
       payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app_id }
 
-      rsa = OpenSSL::PKey::RSA.new(File.read('private_key.pem'))
+      rsa = OpenSSL::PKey::RSA.new(File.read(@config.dig('github_app', 'cert')))
 
       jwt = JWT.encode(payload, rsa, 'RS256')
 

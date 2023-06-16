@@ -59,7 +59,7 @@ class GithubApp < Sinatra::Base
 
     @payload_raw = body
     payload = JSON.parse(@payload_raw)
-    auth_signature
+    authenticate_request(payload)
 
     logger.warn "Received event: #{request.env['HTTP_X_GITHUB_EVENT']}"
 
@@ -75,7 +75,6 @@ class GithubApp < Sinatra::Base
 
       halt resp.first, resp.last
     when 'check_run'
-      logger.level = Logger::DEBUG
       logger.debug "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
       logger.debug payload['action']
       logger.debug payload['action'].downcase.match?('rerequested')
