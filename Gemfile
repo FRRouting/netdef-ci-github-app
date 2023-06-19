@@ -12,6 +12,8 @@ gem 'octokit', '<= 4.17.0'
 # Web Framework
 gem 'sinatra', '2.0.8.1'
 
+gem 'rack', '2.1.4'
+
 # ActiveRecord
 gem 'otr-activerecord', '2.0.3'
 
@@ -20,7 +22,7 @@ gem 'pg', '1.2.3'
 
 gem 'netrc'
 
-gem 'puma'
+gem 'puma', '5.5.2'
 
 # Code lint
 gem 'rubocop', group: %i[development test]

@@ -2,11 +2,14 @@
 
 require 'puma'
 
-workers 5
+workers 10
 
-threads_count = Integer(ENV['RAILS_MAX_THREADS'] || 5)
+threads_count = (ENV['RAILS_MAX_THREADS'] || 5).to_i
 threads 1, threads_count
 
 port ENV.fetch('PORT', 4667)
 
 preload_app!
+
+pidfile 'puma.pid'
+
