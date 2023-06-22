@@ -5,3 +5,7 @@ github_app:
   login:
   installation_id:
   cert:
+
+redis:
+  host:
+  port:

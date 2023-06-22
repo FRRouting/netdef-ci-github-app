@@ -1,0 +1,13 @@
+[Unit]
+Description="GitHub Server"
+After=syslog.target
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/home/githubchecks/server
+ExecStart=/home/githubchecks/server/deployment/server.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

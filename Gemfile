@@ -28,6 +28,9 @@ gem 'puma', '5.5.2'
 gem 'rubocop', group: %i[development test]
 gem 'rubocop-performance', group: %i[development test]
 
+gem 'sidekiq'
+gem 'sidekiq-cron'
+
 group :test do
   gem 'database_cleaner'
   gem 'factory_bot'
