@@ -151,9 +151,6 @@ module Github
 
     def ci_vars
       ci_vars = []
-      ci_vars << { value: @check_suite.id, name: 'check_suite_id_secret' }
-      ci_vars << { value: @github_check.app_id, name: 'app_id_secret' }
-      ci_vars << { value: @github_check.installation_id, name: 'app_installation_id_secret' }
       ci_vars << { value: @github_check.signature, name: 'signature_secret' }
 
       ci_vars

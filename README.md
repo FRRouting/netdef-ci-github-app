@@ -12,7 +12,7 @@ The first step before running the system is to install these programs:
 - Ruby (+2.7 or +3.0)
 - PostgreSQL (any version)
 - Git
-- Redis
+- Redis (https://redis.io/)
 
 ### Gems
 The project does not use any Ruby versioning services (RVM or Rbenv) and 
@@ -51,9 +51,11 @@ In addition to the gems listed above, we need these to run the tests locally:
 GitHub Hook is initialized at production mode running the following command:
 `RAILS_ENV=production RACK_ENV=production rackup config.ru -o 0.0.0.0 -p 4667`
 
+It is important that you have registered an application with GitHub for this tool to work correctly.
+
 ### Development
 
-Just run the command: `ruby app/github_app.rb`
+Just run the command: `rackup -o 0.0.0.0 -p 9292 config.ru`
 
 # Testing
 

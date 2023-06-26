@@ -20,7 +20,7 @@ module BambooCi
 
       url += "?customRevision=#{check_suite.merge_branch}" \
              "&bamboo.variable.github_repo=#{check_suite.pull_request.repository.gsub('/', '%2F')}" \
-             "&bamboo.variable.github_pullreq=#{check_suite.work_branch}" \
+             "&bamboo.variable.github_pullreq=#{check_suite.pull_request.github_pr_id}" \
              "&bamboo.variable.github_branch=#{check_suite.merge_branch}" \
              "&bamboo.variable.github_merge_sha=#{check_suite.commit_sha_ref}" \
              "&bamboo.variable.github_base_sha=#{check_suite.base_sha_ref}"
