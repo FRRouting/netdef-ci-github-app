@@ -83,21 +83,18 @@ module Github
     end
 
     def action?
-      action.match? 'CI:rerun' and @payload['action'] == 'created'
+      action.downcase.match? 'ci:rerun' and @payload['action'] == 'created'
     end
 
     def start_new_execution(check_suite)
       bamboo_plan_run = BambooCi::PlanRun.new(check_suite, logger_level: @logger.level)
-      bamboo_plan_run.ci_variables = ci_vars(check_suite)
+      bamboo_plan_run.ci_variables = ci_vars
       bamboo_plan_run.start_plan
       bamboo_plan_run
     end
 
-    def ci_vars(check_suite)
+    def ci_vars
       ci_vars = []
-      ci_vars << { value: check_suite.id, name: 'check_suite_id_secret' }
-      ci_vars << { value: @github_check.app_id, name: 'app_id_secret' }
-      ci_vars << { value: @github_check.installation_id, name: 'app_installation_id_secret' }
       ci_vars << { value: @github_check.signature, name: 'signature_secret' }
 
       ci_vars
