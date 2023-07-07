@@ -26,9 +26,13 @@ module Github
 
       @logger.debug "Running Job #{job.inspect}"
 
-      create_ci_jobs(job.check_suite)
+      check_suite = job.check_suite
 
-      BambooCi::Retry.restart(job.check_suite.bamboo_ci_ref)
+      check_suite.update(retry: check_suite.retry + 1)
+
+      create_ci_jobs(check_suite)
+
+      BambooCi::Retry.restart(check_suite.bamboo_ci_ref)
 
       [200, 'Retrying failure jobs']
     end
@@ -40,6 +44,7 @@ module Github
 
       check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
         ci_job.enqueue(github_check)
+        ci_job.update(retry: ci_job.retry + 1)
 
         @logger.warn "Stopping Job: #{ci_job.job_ref}"
         BambooCi::StopPlan.stop(ci_job.job_ref)

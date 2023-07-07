@@ -17,6 +17,7 @@ module Github
         end
 
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
+      @failures = payload['failures']
     end
 
     def update
@@ -35,6 +36,16 @@ module Github
 
     private
 
+    def failures_stats
+      @failures.each do |failure|
+        TopotestFailure.create(ci_job: @job,
+                               test_suite: failure['suite'],
+                               test_case: failure['case'],
+                               message: failure['message'],
+                               execution_time: failure['execution_time'])
+      end
+    end
+
     def update_status
       case @status
       when 'in_progress'
@@ -43,6 +54,7 @@ module Github
         @job.success(@github_check, @output)
       when 'failure'
         @job.failure(@github_check, @output)
+        failures_stats if @job.name.downcase.match? 'topotest' and @failures.is_a? Array
       else
         @logger.error "Invalid status: #{@status}"
       end

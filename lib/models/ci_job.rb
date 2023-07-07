@@ -9,23 +9,28 @@ class CiJob < ActiveRecord::Base
   validates :job_ref, presence: true
 
   belongs_to :check_suite
+  has_many :topotest_failures, dependent: :delete_all
 
   scope :sha256, ->(sha) { joins(:check_suite).where(check_suite: { commit_sha_ref: sha }) }
 
-  def create_check_run(github)
-    check_run = github.create(name)
+  def checkout_code?
+    name.downcase.match? 'checkout'
+  end
 
-    update(check_ref: check_run.id, status: :queued)
+  def create_check_run
+    update(status: :queued)
   end
 
   def enqueue(github)
-    create_check_run(github)
+    check_run = github.create(name)
+    update(check_ref: check_run.id, status: :queued)
   end
 
   def in_progress(github)
-    github.in_progress(check_ref)
+    check_run = save_check_run(github)
+    github.in_progress(check_run.id)
 
-    update(status: :in_progress)
+    update(check_ref: check_run.id, status: :in_progress)
   end
 
   def cancelled(github)
@@ -50,5 +55,11 @@ class CiJob < ActiveRecord::Base
     github.skipped(check_ref)
 
     update(status: :skipped)
+  end
+
+  private
+
+  def save_check_run(github)
+    github.create(name)
   end
 end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_06_07_074545) do
+ActiveRecord::Schema[7.0].define(version: 2023_07_12_075657) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -58,7 +58,19 @@ ActiveRecord::Schema[7.0].define(version: 2023_06_07_074545) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "topotest_failures", force: :cascade do |t|
+    t.string "test_suite", null: false
+    t.string "test_case", null: false
+    t.string "message", null: false
+    t.integer "execution_time", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "ci_job_id"
+    t.index ["ci_job_id"], name: "index_topotest_failures_on_ci_job_id"
+  end
+
   add_foreign_key "check_suites", "pull_requests"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "plans", "check_suites"
+  add_foreign_key "topotest_failures", "ci_jobs"
 end

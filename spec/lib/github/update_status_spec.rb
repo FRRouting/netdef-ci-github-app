@@ -71,6 +71,39 @@ describe Github::UpdateStatus do
       end
     end
 
+    context 'when Ci Job TopoTest Part 0 update from in_progress -> failure + topotest_failures' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress') }
+      let(:status) { 'failure' }
+      let(:payload) do
+        {
+          'status' => status,
+          'bamboo_ref' => ci_job.job_ref,
+          'failures' => [
+            failure_info
+          ]
+        }
+      end
+
+      let(:failure) { TopotestFailure.find_by(ci_job: ci_job) }
+      let(:failure_info) do
+        {
+          'suite' => 'test_ospf_sr_te_topo1',
+          'case' => 'test_ospf_sr_te_topo1',
+          'message' => "E   AssertionError: rt1 don't has entry 1111 but is was expected\n    assert False",
+          'execution_time' => 30
+        }
+      end
+
+      before do
+        ci_job
+        update_status.update
+      end
+
+      it 'must creates a topotest_failure' do
+        expect(failure.to_h).to eq(failure_info)
+      end
+    end
+
     context 'when Ci Job TopoTest Part 0 update from in_progress -> success' do
       let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress') }
       let(:ci_jobs) { create_list(:ci_job, 5, check_suite: ci_job.check_suite) }

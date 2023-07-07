@@ -25,6 +25,8 @@ module Github
 
       @github_check = Github::Check.new(@old_check_suite)
 
+      @github_check.comment_reaction_thumb_up(repo, comment_id) unless comment_id.nil?
+
       @logger.info ">>> CheckSuite: #{@old_check_suite.inspect}"
 
       return comment(@github_check) if @old_check_suite.nil?
@@ -56,7 +58,8 @@ module Github
         commit_sha_ref: @old_check_suite.commit_sha_ref,
         work_branch: @old_check_suite.work_branch,
         base_sha_ref: @old_check_suite.base_sha_ref,
-        merge_branch: @old_check_suite.merge_branch
+        merge_branch: @old_check_suite.merge_branch,
+        re_run: true
       )
     end
 
@@ -76,6 +79,10 @@ module Github
 
     def repo
       @payload.dig('repository', 'full_name')
+    end
+
+    def comment_id
+      @payload.dig('comment', 'id')
     end
 
     def sha256
@@ -132,13 +139,9 @@ module Github
           job_ref: job[:job_ref]
         )
 
-        unless ci_job.persisted?
-          @logger.error "CiJob error: #{ci_job.errors.messages.inspect}"
+        next unless ci_job.persisted?
 
-          next
-        end
-
-        ci_job.create_check_run(@github_check)
+        ci_job.enqueue(@github_check)
       end
     end
   end

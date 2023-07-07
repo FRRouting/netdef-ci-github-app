@@ -61,7 +61,9 @@ module Github
     def fetch_pull_request
       @pull_request = PullRequest.find_by(github_pr_id: github_pr, repository: @payload.dig('repository', 'full_name'))
 
-      create_pull_request if @pull_request.nil?
+      return create_pull_request if @pull_request.nil?
+
+      @pull_request.update(plan: fetch_plan)
     end
 
     def github_pr
@@ -139,13 +141,10 @@ module Github
       jobs.each do |job|
         ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
 
-        unless ci_job.persisted?
-          @logger.error "CiJob error: #{ci_job.errors.messages.inspect}"
+        next unless ci_job.persisted?
 
-          next
-        end
-
-        ci_job.create_check_run(@github_check)
+        ci_job.create_check_run
+        ci_job.in_progress(@github_check) if ci_job.checkout_code?
       end
     end
 

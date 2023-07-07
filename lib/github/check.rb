@@ -17,7 +17,6 @@ module Github
       @logger = Logger.new($stdout)
 
       authenticate_app
-      auth_installation
     end
 
     def add_comment(pr_id, comment, repo)
@@ -26,6 +25,10 @@ module Github
         pr_id,
         comment
       )
+    end
+
+    def comment_reaction_thumb_up(repo, comment_id)
+      @app.create_issue_comment_reaction(repo, comment_id, '+1')
     end
 
     def create(name)
@@ -61,12 +64,10 @@ module Github
       completed(name, 'completed', 'skipped', {})
     end
 
-    def app_id
-      @config.dig('github_app', 'login')
-    end
-
     def installation_id
       list = @authenticate_app.find_app_installations
+      return 0 if list.first&.last&.match? 'Missing'
+
       list.first['id']
     end
 
@@ -104,17 +105,26 @@ module Github
     end
 
     def authenticate_app
-      payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app_id }
+      @config['github_apps'].each do |app|
+        payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app['login'] }
 
-      rsa = OpenSSL::PKey::RSA.new(File.read(@config.dig('github_app', 'cert')))
+        rsa = OpenSSL::PKey::RSA.new(File.read(app['cert']))
 
-      jwt = JWT.encode(payload, rsa, 'RS256')
+        jwt = JWT.encode(payload, rsa, 'RS256')
 
-      @authenticate_app = Octokit::Client.new(bearer_token: jwt)
-      @authenticate_app.login
+        authenticate(jwt)
+
+        break unless @app.nil?
+      end
+
+      raise 'Github Authentication Failed' if @app.nil?
     end
 
-    def auth_installation
+    def authenticate(jwt)
+      @authenticate_app = Octokit::Client.new(bearer_token: jwt)
+
+      return if installation_id.zero?
+
       token = @authenticate_app.create_app_installation_access_token(installation_id)[:token]
       @app = Octokit::Client.new(bearer_token: token)
     end
