@@ -49,7 +49,7 @@ module Github
     def update_status
       case @status
       when 'in_progress'
-        @job.in_progress(@github_check)
+        @job.in_progress(@github_check, @output)
       when 'success'
         @job.success(@github_check, @output)
       when 'failure'

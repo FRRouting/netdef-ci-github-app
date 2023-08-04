@@ -63,6 +63,8 @@ module Github
 
       return create_pull_request if @pull_request.nil?
 
+      @logger.info "Updating plan: #{fetch_plan}"
+
       @pull_request.update(plan: fetch_plan)
     end
 

@@ -25,7 +25,7 @@ module Github
 
       @github_check = Github::Check.new(@old_check_suite)
 
-      @github_check.comment_reaction_thumb_up(repo, comment_id) unless comment_id.nil?
+      github_reaction_feedback(comment_id)
 
       @logger.info ">>> CheckSuite: #{@old_check_suite.inspect}"
 
@@ -42,6 +42,12 @@ module Github
     end
 
     private
+
+    def github_reaction_feedback(comment_id)
+      return if comment_id.nil?
+
+      @github_check.comment_reaction_thumb_up(repo, comment_id)
+    end
 
     def fetch_old_check_suite
       @old_check_suite =

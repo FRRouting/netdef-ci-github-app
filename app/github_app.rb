@@ -25,19 +25,40 @@ class GithubApp < Sinatra::Base
 
   helpers Sinatra::Payload
 
+  class << self
+    def sinatra_logger_level
+      @sinatra_logger_level ||= Logger::INFO
+    end
+
+    attr_writer :sinatra_logger_level
+  end
+
   get '/ping' do
     halt 200, 'Pong'
   end
 
+  get '/debug/on' do
+    GithubApp.sinatra_logger_level = Logger::DEBUG
+    halt 200, 'Enabling debugging'
+  end
+
+  get '/debug/off' do
+    GithubApp.sinatra_logger_level = Logger::WARN
+    halt 200, 'Disabling debugging'
+  end
+
+  get '/logger/status' do
+    halt 200, GithubApp.sinatra_logger_level.to_s
+  end
+
   post '/update/status' do
-    logger_level = Logger::INFO
-    logger = Logger.new($stdout)
-    logger.level = logger_level
+    logger = Logger.new('github_app.log', 1, 1_024_000)
+    logger.level = GithubApp.sinatra_logger_level
 
     @payload_raw = request.body.read
     @payload = JSON.parse(@payload_raw)
 
-    logger.warn "Received event UpdateStatus: #{@payload}"
+    logger.debug "Received event UpdateStatus: #{@payload}"
 
     auth_signature
 
@@ -49,9 +70,8 @@ class GithubApp < Sinatra::Base
   post '/*' do
     content_type :text
 
-    logger_level = Logger::INFO
-    logger = Logger.new($stdout)
-    logger.level = logger_level
+    logger = Logger.new('github_app.log', 1, 1_024_000)
+    logger.level = GithubApp.sinatra_logger_level
 
     request.body.rewind
     body = request.body.read
@@ -61,7 +81,7 @@ class GithubApp < Sinatra::Base
     payload = JSON.parse(@payload_raw)
     authenticate_request(payload)
 
-    logger.warn "Received event: #{request.env['HTTP_X_GITHUB_EVENT']}"
+    logger.debug "Received event: #{request.env['HTTP_X_GITHUB_EVENT']}"
 
     case request.env['HTTP_X_GITHUB_EVENT'].downcase
     when 'ping'
@@ -70,7 +90,7 @@ class GithubApp < Sinatra::Base
 
       halt 200, 'PONG!'
     when 'pull_request'
-      build_plan = Github::BuildPlan.new(payload, logger_level: logger_level)
+      build_plan = Github::BuildPlan.new(payload, logger_level: GithubApp.sinatra_logger_level)
       resp = build_plan.create
 
       halt resp.first, resp.last
@@ -80,20 +100,20 @@ class GithubApp < Sinatra::Base
       logger.debug payload['action'].downcase.match?('rerequested')
 
       if payload['action'].downcase.match?('rerequested')
-        re_run = Github::Retry.new(payload, logger_level: logger_level)
+        re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
         halt re_run.start
       end
 
       halt 200, 'OK'
     when 'installation'
-      logger.warn '>>> Received a new installation policy'
+      logger.debug '>>> Received a new installation policy'
       halt 202, 'Updated'
     when 'issue_comment'
-      logger.warn '>>> Received a new issue comment'
+      logger.debug '>>> Received a new issue comment'
 
-      halt Github::ReRun.new(payload, logger_level: logger_level).start
+      halt Github::ReRun.new(payload, logger_level: GithubApp.sinatra_logger_level).start
     else
-      logger.error "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
+      logger.debug "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
       halt 401, 'Invalid request (4)'
     end
   end
@@ -109,5 +129,9 @@ class GithubApp < Sinatra::Base
     end
   end
 
-  run! if __FILE__ == $PROGRAM_NAME
+  if __FILE__ == $PROGRAM_NAME
+    GithubApp.sinatra_logger_level = Logger::INFO
+
+    run!
+  end
 end

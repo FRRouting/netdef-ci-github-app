@@ -41,15 +41,17 @@ module Github
     end
 
     def queued(id)
-      basic_status(id, 'queued')
+      basic_status(id, 'queued', {})
     end
 
-    def in_progress(id)
-      basic_status(id, 'in_progress')
+    def in_progress(id, output = {})
+      basic_status(id, 'in_progress', output)
     end
 
     def cancelled(id)
       completed(id, 'completed', 'cancelled', {})
+    rescue Octokit::NotFound
+      @logger.error "ID ##{id} not found at GitHub"
     end
 
     def success(name, output = {})
@@ -66,6 +68,8 @@ module Github
 
     def installation_id
       list = @authenticate_app.find_app_installations
+
+      return list.first['id'] if list.first.is_a? Hash
       return 0 if list.first&.last&.match? 'Missing'
 
       list.first['id']
@@ -77,12 +81,18 @@ module Github
 
     private
 
-    def basic_status(id, status)
+    def basic_status(id, status, output)
+      opts = {
+        status: status,
+        accept: 'application/vnd.github+json'
+      }
+
+      opts[:output] = output unless output.empty?
+
       @app.update_check_run(
         @check_suite.pull_request.repository,
         id.to_i,
-        status: status,
-        accept: 'application/vnd.github+json'
+        opts
       )
     end
 
@@ -106,7 +116,7 @@ module Github
 
     def authenticate_app
       @config['github_apps'].each do |app|
-        payload = { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app['login'] }
+        payload = generate_payload(app)
 
         rsa = OpenSSL::PKey::RSA.new(File.read(app['cert']))
 
@@ -118,6 +128,10 @@ module Github
       end
 
       raise 'Github Authentication Failed' if @app.nil?
+    end
+
+    def generate_payload(app)
+      { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app['login'] }
     end
 
     def authenticate(jwt)

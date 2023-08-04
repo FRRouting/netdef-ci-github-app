@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_07_12_075657) do
+ActiveRecord::Schema[7.0].define(version: 2023_07_27_101236) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -25,6 +25,8 @@ ActiveRecord::Schema[7.0].define(version: 2023_07_12_075657) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "pull_request_id"
+    t.boolean "re_run", default: false
+    t.integer "retry", default: 0
     t.index ["pull_request_id"], name: "index_check_suites_on_pull_request_id"
   end
 
@@ -36,6 +38,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_07_12_075657) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
+    t.integer "retry", default: 0
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
   end
 

@@ -26,9 +26,9 @@ class CiJob < ActiveRecord::Base
     update(check_ref: check_run.id, status: :queued)
   end
 
-  def in_progress(github)
+  def in_progress(github, output = {})
     check_run = save_check_run(github)
-    github.in_progress(check_run.id)
+    github.in_progress(check_run.id, output)
 
     update(check_ref: check_run.id, status: :in_progress)
   end

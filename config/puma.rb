@@ -12,4 +12,3 @@ port ENV.fetch('PORT', 4667)
 preload_app!
 
 pidfile 'puma.pid'
-
