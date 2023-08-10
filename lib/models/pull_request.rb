@@ -15,6 +15,8 @@ class PullRequest < ActiveRecord::Base
   end
 
   def finished?
+    return true if new?
+
     check_suites.last.finished?
   end
 end

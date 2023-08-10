@@ -33,7 +33,7 @@ module BambooCi
         @logger.unknown 'HTTP Request error'
         418
       else
-        @logger.unknown "Unmapped HTTP error (Bamboo): #{@response&.code.to_i}\nPR: #{@check_suite.inspect}"
+        @logger.unknown "Unmapped HTTP error (Bamboo): #{@response.code.to_i}\nPR: #{@check_suite.inspect}"
         failed(@response)
       end
     end
@@ -42,12 +42,6 @@ module BambooCi
       return nil if @response.nil?
 
       JSON.parse(@response.body)['buildResultKey']
-    end
-
-    def fetch_stages
-      resp = get_status(@ci_key)
-
-      resp['stages']['stage'].map { |entry| entry['name'] }
     end
 
     private
@@ -61,7 +55,7 @@ module BambooCi
 
       response = generate_comment
 
-      @logger.debug "Comment Submit response: #{response&.code}"
+      @logger.debug "Comment Submit response: #{response.inspect}"
 
       200
     end

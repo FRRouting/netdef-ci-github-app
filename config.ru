@@ -12,9 +12,6 @@ require 'sidekiq/web'
 
 File.write('.session.key', SecureRandom.hex(32))
 
-# Set GitHub port
-set :port, 4667
-
 use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, max_age: 86_400
 
 Rack::Handler::Puma.run Rack::URLMap.new('/' => GithubApp)

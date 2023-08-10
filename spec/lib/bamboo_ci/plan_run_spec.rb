@@ -27,6 +27,7 @@ describe BambooCi::PlanRun do
     let(:check_suite) { create(:check_suite) }
     let(:status) { 200 }
     let(:body) { '{"buildResultKey": 1}' }
+
     let(:comment) do
       "<comment><content>GitHub Merge Request #{check_suite.pull_request.github_pr_id}\n" \
         "for GitHub Repo #{check_suite.pull_request.repository}, " \
@@ -49,11 +50,16 @@ describe BambooCi::PlanRun do
             'User-Agent' => 'Ruby'
           }
         )
-        .to_return(status: 200, body: 'OK', headers: {})
+        .to_return(status: 200, body: body.to_json, headers: {})
     end
 
     it 'must returns success' do
       expect(plan_run.start_plan).to eq(200)
+    end
+
+    it 'must returns bamboo reference' do
+      plan_run.start_plan
+      expect(plan_run.bamboo_reference).to eq(JSON.parse(body)['buildResultKey'])
     end
   end
 
@@ -95,6 +101,28 @@ describe BambooCi::PlanRun do
 
       it 'must returns a error' do
         expect(plan_run.start_plan).to eq(300)
+      end
+    end
+
+    context 'when HTTP POST returns nil object' do
+      let(:check_suite) { create(:check_suite) }
+      let(:status) { 300 }
+      let(:body) { '{}' }
+      let(:dummy) { Net::HTTP.new(uri.host, uri.port) }
+      let(:uri) { URI('https://example.org') }
+
+      before do
+        allow(Net::HTTP).to receive(:new).and_return(dummy)
+        allow(dummy).to receive(:request).and_return(nil)
+      end
+
+      it 'must returns a error' do
+        expect(plan_run.start_plan).to eq(418)
+      end
+
+      it 'must returns nil' do
+        plan_run.start_plan
+        expect(plan_run.bamboo_reference).to be_nil
       end
     end
   end

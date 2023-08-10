@@ -9,14 +9,27 @@ require 'logger'
 
 module Github
   class Check
-    attr_reader :app
+    attr_reader :app, :check_suite
 
     def initialize(check_suite)
       @check_suite = check_suite
-      @config = YAML.load_file('config.yml')
+      @config = GithubApp.configuration
       @logger = Logger.new($stdout)
 
       authenticate_app
+    end
+
+    def pull_request_info(pr_id, repo)
+      @app.pull_request(repo, pr_id).to_h
+    end
+
+    def fetch_pull_request_commits(pr_id, repo, page)
+      @app.pull_request_commits(
+        repo,
+        pr_id,
+        per_page: 100,
+        page: page
+      )
     end
 
     def add_comment(pr_id, comment, repo)
@@ -56,21 +69,26 @@ module Github
 
     def success(name, output = {})
       completed(name, 'completed', 'success', output)
+    rescue Octokit::NotFound
+      @logger.error "ID ##{id} not found at GitHub"
     end
 
     def failure(name, output = {})
       completed(name, 'completed', 'failure', output)
+    rescue Octokit::NotFound
+      @logger.error "ID ##{id} not found at GitHub"
     end
 
     def skipped(name)
       completed(name, 'completed', 'skipped', {})
+    rescue Octokit::NotFound
+      @logger.error "ID ##{id} not found at GitHub"
     end
 
     def installation_id
       list = @authenticate_app.find_app_installations
 
-      return list.first['id'] if list.first.is_a? Hash
-      return 0 if list.first&.last&.match? 'Missing'
+      return 0 if list.first.is_a? Array and list.first&.last&.match? 'Missing'
 
       list.first['id']
     end
@@ -131,7 +149,7 @@ module Github
     end
 
     def generate_payload(app)
-      { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60), iss: app['login'] }
+      { iat: Time.now.to_i, exp: Time.now.to_i + (10 * 60) - 30, iss: app['login'] }
     end
 
     def authenticate(jwt)

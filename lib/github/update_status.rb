@@ -52,11 +52,9 @@ module Github
         @job.in_progress(@github_check, @output)
       when 'success'
         @job.success(@github_check, @output)
-      when 'failure'
+      else
         @job.failure(@github_check, @output)
         failures_stats if @job.name.downcase.match? 'topotest' and @failures.is_a? Array
-      else
-        @logger.error "Invalid status: #{@status}"
       end
     end
 

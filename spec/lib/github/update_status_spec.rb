@@ -22,6 +22,7 @@ describe Github::UpdateStatus do
       allow(Github::Check).to receive(:new).and_return(fake_github_check)
       allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:failure).and_return(ci_job.check_suite)
+      allow(fake_github_check).to receive(:in_progress).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:skipped).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:success).and_return(ci_job.check_suite)
     end
@@ -38,6 +39,20 @@ describe Github::UpdateStatus do
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
         ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+      end
+    end
+
+    context 'when Ci Job Checkout Code update from queued -> in_progress' do
+      let(:ci_job) { create(:ci_job, name: 'Checkout Code') }
+      let(:ci_jobs) { create_list(:ci_job, 5, check_suite: ci_job.check_suite) }
+      let(:status) { 'in_progress' }
+
+      before do
+        ci_jobs
+      end
+
+      it 'must returns success' do
+        expect(update_status.update).to eq([200, 'Success'])
       end
     end
 
@@ -118,6 +133,21 @@ describe Github::UpdateStatus do
         ci_jobs.each { |job| expect(job.reload.status).not_to eq('skipped') }
       end
     end
+
+    context 'when Ci Job TopoTest Part 0 update from in_progress -> invalid' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress') }
+      let(:ci_jobs) { create_list(:ci_job, 5, check_suite: ci_job.check_suite) }
+      let(:status) { 'success' }
+
+      before do
+        ci_jobs
+      end
+
+      it 'must returns success' do
+        expect(update_status.update).to eq([200, 'Success'])
+        ci_jobs.each { |job| expect(job.reload.status).not_to eq('skipped') }
+      end
+    end
   end
 
   describe 'Checking invalid commands' do
@@ -161,7 +191,11 @@ describe Github::UpdateStatus do
       let(:payload) do
         {
           'status' => 'queued',
-          'bamboo_ref' => ci_job.job_ref
+          'bamboo_ref' => ci_job.job_ref,
+          'output' => {
+            'title' => 'Title',
+            'summary' => 'Summary'
+          }
         }
       end
 

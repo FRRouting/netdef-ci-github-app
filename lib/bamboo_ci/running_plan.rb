@@ -12,7 +12,7 @@ module BambooCi
       @logger = Logger.new($stdout)
       resp = get_request(URI("https://127.0.0.1/rest/api/latest/result/#{plan_key}?expand=stages.stage.results"))
 
-      return [] if resp.nil?
+      return [] if resp.nil? or resp.empty?
 
       jobs = []
       resp.dig('stages', 'stage').each do |stage|

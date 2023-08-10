@@ -16,8 +16,8 @@ module BambooCi
     def self.rerun(plan_key)
       @logger = Logger.new($stdout)
       url = "https://127.0.0.1/rest/api/latest/queue/#{plan_key}?executeAllStages=true&orphanRemoval=true"
-      resp =
-        put_request(URI(url))
+      resp = put_request(URI(url))
+
       @logger.info "URL: #{url} -> (#{resp.code}) - #{resp.body}"
 
       resp.body

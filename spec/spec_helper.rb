@@ -3,7 +3,6 @@
 ENV['RACK_ENV'] = 'test'
 ENV['RAILS_ENV'] = 'test'
 
-require_relative '../app/github_app'
 require 'database_cleaner'
 require 'factory_bot'
 require 'faker'
@@ -13,6 +12,11 @@ require 'webmock/rspec'
 
 Dir["#{__dir__}/support/*.rb"].each { |file| require file }
 Dir["#{__dir__}/factories/*.rb"].each { |file| load file }
+
+require 'simplecov'
+SimpleCov.start
+
+require_relative '../app/github_app'
 
 def app
   GithubApp

@@ -7,7 +7,11 @@ workers 10
 threads_count = (ENV['RAILS_MAX_THREADS'] || 5).to_i
 threads 1, threads_count
 
-port ENV.fetch('PORT', 4667)
+if GithubApp.production?
+  port ENV.fetch('PORT', 4667)
+else
+  port ENV.fetch('PORT', 4668)
+end
 
 preload_app!
 

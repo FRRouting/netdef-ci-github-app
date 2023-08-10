@@ -42,10 +42,12 @@ describe Github::BuildPlan do
 
       allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
       allow(fake_plan_run).to receive(:start_plan).and_return(200)
-      allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+      allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-FIRST-1')
+      allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHECKOUT-1')
 
       allow(Github::Check).to receive(:new).and_return(fake_github_check)
       allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+      allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
 
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
@@ -53,7 +55,9 @@ describe Github::BuildPlan do
     context 'when action is opened' do
       let(:action) { 'opened' }
       let(:author) { 'Johnny Silverhand' }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, {name: 'CHECKOUT', job_ref: 'CHECKOUT-1'}]
+      end
 
       it 'must create a PR' do
         expect(build_plan.create).to eq([200, 'Pull Request created'])
@@ -67,8 +71,10 @@ describe Github::BuildPlan do
       let(:check_suite) { pull_request.check_suites.last }
       let(:ci_job) { check_suite.ci_jobs.last }
       let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:plan) { create(:plan, github_repo_name: repo) }
 
       before do
+        plan
         build_plan.create
       end
 
@@ -171,12 +177,22 @@ describe Github::BuildPlan do
       }
     end
 
-    context 'when receives a invalid action' do
+    context 'when receives an invalid action' do
       let(:action) { 'fake' }
       let(:author) { 'Jack The Ripper' }
 
       it 'must returns an error' do
         expect(build_plan.create).to eq([405, "Not dealing with action \"#{payload['action']}\" for Pull Request"])
+      end
+    end
+
+    context 'when receives an empty payload' do
+      let(:action) { 'fake' }
+      let(:author) { 'Jack The Ripper' }
+      let(:payload) { {} }
+
+      it 'must returns an error' do
+        expect{ build_plan.create }.to raise_error(StandardError)
       end
     end
 

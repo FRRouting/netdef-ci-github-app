@@ -9,6 +9,7 @@ require 'sinatra'
 require 'octokit'
 require 'netrc'
 require 'date'
+require 'yaml'
 
 require_relative '../database_loader'
 require_relative '../lib/github/build_plan'
@@ -27,7 +28,16 @@ class GithubApp < Sinatra::Base
 
   class << self
     def sinatra_logger_level
-      @sinatra_logger_level ||= Logger::INFO
+      config = configuration
+      enabled_debug = (config.key? 'debug' and config['debug'])
+      @sinatra_logger_level = enabled_debug ? Logger::DEBUG : Logger::INFO
+    end
+
+    def configuration
+      path =
+        File.expand_path("config/#{ENV.fetch('RAILS_ENV', 'development')}/config.yml",
+                         "#{File.dirname(__FILE__)}/..")
+      YAML.load_file(path)
     end
 
     attr_writer :sinatra_logger_level
@@ -35,20 +45,6 @@ class GithubApp < Sinatra::Base
 
   get '/ping' do
     halt 200, 'Pong'
-  end
-
-  get '/debug/on' do
-    GithubApp.sinatra_logger_level = Logger::DEBUG
-    halt 200, 'Enabling debugging'
-  end
-
-  get '/debug/off' do
-    GithubApp.sinatra_logger_level = Logger::WARN
-    halt 200, 'Disabling debugging'
-  end
-
-  get '/logger/status' do
-    halt 200, GithubApp.sinatra_logger_level.to_s
   end
 
   post '/update/status' do
@@ -60,7 +56,7 @@ class GithubApp < Sinatra::Base
 
     logger.debug "Received event UpdateStatus: #{@payload}"
 
-    auth_signature
+    authenticate_request
 
     github = Github::UpdateStatus.new(@payload)
 
@@ -79,7 +75,8 @@ class GithubApp < Sinatra::Base
 
     @payload_raw = body
     payload = JSON.parse(@payload_raw)
-    authenticate_request(payload)
+
+    authenticate_request
 
     logger.debug "Received event: #{request.env['HTTP_X_GITHUB_EVENT']}"
 

@@ -34,7 +34,7 @@ describe 'GithubApp' do
         {}
       end
 
-      let(:config) { YAML.load_file('config.yml') }
+      let(:config) { GithubApp.configuration }
 
       let(:signature) do
         OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
@@ -50,12 +50,16 @@ describe 'GithubApp' do
         allow(fake).to receive(:update).and_return([200, 'Success'])
       end
 
-      it 'must returns error' do
+      it 'must returns success' do
         post '/update/status', payload.to_json, { 'HTTP_ACCEPT' => 'application/json', 'HTTP_SIGNATURE' => header }
 
         expect(last_response.status).to eq 200
         expect(last_response.body).to eq('Success')
       end
     end
+  end
+
+  describe '#Commands' do
+
   end
 end

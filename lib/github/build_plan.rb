@@ -65,7 +65,7 @@ module Github
 
       @logger.info "Updating plan: #{fetch_plan}"
 
-      @pull_request.update(plan: fetch_plan)
+      @pull_request.update(plan: fetch_plan, branch_name: @payload.dig('pull_request', 'head', 'ref'))
     end
 
     def github_pr
@@ -90,7 +90,6 @@ module Github
     end
 
     def stop_previous_execution
-      return if @pull_request.new?
       return if @last_check_suite.nil? or @last_check_suite.finished?
 
       @logger.info 'Stopping previous execution'

@@ -37,5 +37,6 @@ group :test do
   gem 'faker'
   gem 'rack-test'
   gem 'rspec'
+  gem 'simplecov', require: false
   gem 'webmock', require: 'webmock/rspec'
 end
