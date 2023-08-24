@@ -35,11 +35,10 @@ module Github
 
         loop do
           output = @github_check.fetch_pull_request_commits(@pr_id, @repo, page)
-          last = output.max_by { |entry| entry[:date] }
 
-          break if last.nil?
+          break if output.last.nil?
 
-          last_commit = last
+          last_commit = output.last
           page += 1
         end
 
