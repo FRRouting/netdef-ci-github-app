@@ -34,7 +34,7 @@ describe 'GithubApp' do
         {}
       end
 
-      let(:config) { GithubApp.configuration }
+      let(:config) { Configuration.instance.config }
 
       let(:signature) do
         OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),

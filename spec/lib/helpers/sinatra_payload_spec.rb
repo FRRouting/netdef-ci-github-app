@@ -38,7 +38,7 @@ describe Sinatra::Payload do
 
     context 'when receives HTTP_X_HUB_SIGNATURE_256 with valid password' do
       let(:fake_github_check) { Github::Check.new(nil) }
-      let(:config) { GithubApp.configuration }
+      let(:config) { Configuration.instance.config }
       let(:id) { 123 }
       let(:env) { { 'HTTP_X_HUB_SIGNATURE_256' => "sha256=#{signature}" } }
 
