@@ -2,3 +2,7 @@
 config.yml
 database.yml
 private_key.pem
+
+config/development/*
+config/production/*
+config/test/*
