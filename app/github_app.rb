@@ -11,7 +11,8 @@ require 'netrc'
 require 'date'
 require 'yaml'
 
-require_relative '../database_loader'
+require_relative '../config/setup'
+
 require_relative '../lib/github/build_plan'
 require_relative '../lib/github/check'
 require_relative '../lib/github/re_run'
@@ -28,16 +29,9 @@ class GithubApp < Sinatra::Base
 
   class << self
     def sinatra_logger_level
-      config = configuration
-      enabled_debug = (config.key? 'debug' and config['debug'])
-      @sinatra_logger_level = enabled_debug ? Logger::DEBUG : Logger::INFO
-    end
+      ::Configuration.instance.reload
 
-    def configuration
-      path =
-        File.expand_path("config/#{ENV.fetch('RAILS_ENV', 'development')}/config.yml",
-                         "#{File.dirname(__FILE__)}/..")
-      YAML.load_file(path)
+      @sinatra_logger_level = ::Configuration.instance.debug? ? Logger::DEBUG : Logger::INFO
     end
 
     attr_writer :sinatra_logger_level
@@ -126,9 +120,5 @@ class GithubApp < Sinatra::Base
     end
   end
 
-  if __FILE__ == $PROGRAM_NAME
-    GithubApp.sinatra_logger_level = Logger::INFO
-
-    run!
-  end
+  run! if __FILE__ == $PROGRAM_NAME
 end

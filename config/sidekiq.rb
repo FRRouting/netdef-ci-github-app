@@ -3,7 +3,7 @@
 require 'sidekiq'
 require 'yaml'
 
-config_yaml = GithubApp.configuration
+config_yaml = ::Configuration.instance.config
 
 Sidekiq.configure_server do |config|
   config.redis = { url: "redis://#{config_yaml.dig('redis', 'host')}:#{config_yaml.dig('redis', 'port')}" }
