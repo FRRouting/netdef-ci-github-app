@@ -1,10 +1,13 @@
+debug:
+
+port:
+
 auth_signature:
   password:
 
 github_app:
-  login:
-  installation_id:
-  cert:
+  - login:
+    cert:
 
 redis:
   host:
