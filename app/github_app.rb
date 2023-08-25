@@ -29,9 +29,8 @@ class GithubApp < Sinatra::Base
 
   class << self
     def sinatra_logger_level
-      ::Configuration.instance.reload
-
-      @sinatra_logger_level = ::Configuration.instance.debug? ? Logger::DEBUG : Logger::INFO
+      GitHubApp::Configuration.instance.reload
+      @sinatra_logger_level = GitHubApp::Configuration.instance.debug? ? Logger::DEBUG : Logger::INFO
     end
 
     attr_writer :sinatra_logger_level

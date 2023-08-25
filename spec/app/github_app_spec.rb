@@ -33,8 +33,7 @@ describe 'GithubApp' do
       let(:payload) do
         {}
       end
-
-      let(:config) { Configuration.instance.config }
+      let(:config) { GitHubApp::Configuration.instance.config }
 
       let(:signature) do
         OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
@@ -57,9 +56,5 @@ describe 'GithubApp' do
         expect(last_response.body).to eq('Success')
       end
     end
-  end
-
-  describe '#Commands' do
-
   end
 end

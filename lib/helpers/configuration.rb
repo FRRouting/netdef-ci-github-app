@@ -2,29 +2,28 @@
 
 require 'singleton'
 require 'yaml'
+module GitHubApp
+  class Configuration
+    include Singleton
+    attr_reader :config
 
-class Configuration
-  include Singleton
+    def initialize
+      configuration
+    end
 
-  attr_reader :config
+    def reload
+      configuration
+    end
 
-  def initialize
-    configuration
-  end
+    def debug?
+      config.key? 'debug' and config['debug']
+    end
 
-  def reload
-    configuration
-  end
+    private
 
-  def debug?
-    config.key? 'debug' and config['debug']
-  end
-
-  private
-
-  def configuration
-    path = File.expand_path('config.yml', "#{File.dirname(__FILE__)}/../..")
-
-    @config = YAML.load_file(path)
+    def configuration
+      path = File.expand_path('config.yml', "#{File.dirname(__FILE__)}/../..")
+      @config = YAML.load_file(path)
+    end
   end
 end

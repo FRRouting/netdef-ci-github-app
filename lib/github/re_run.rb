@@ -56,27 +56,25 @@ module Github
       pull_request = fetch_or_create_pr(pull_request_info)
 
       fetch_old_check_suite(commit[:sha])
-
-      check_suite =
-        CheckSuite.create(
-          pull_request: pull_request,
-          author: @payload.dig('comment', 'user', 'login'),
-          commit_sha_ref: commit[:sha],
-          work_branch: pull_request_info.dig(:head, :ref),
-          base_sha_ref: pull_request_info.dig(:base, :sha),
-          merge_branch: pull_request_info.dig(:base, :ref),
-          re_run: true
-        )
-
-      unless check_suite.persisted?
-        @logger.error "CheckSuite errors: #{check_suite.errors.inspect}"
-
-        return nil
-      end
+      check_suite = create_check_suite_by_commit(commit, pull_request, pull_request_info)
+      @logger.info "CheckSuite errors: #{check_suite.inspect}"
+      return nil unless check_suite.persisted?
 
       @github_check = Github::Check.new(check_suite)
 
       check_suite
+    end
+
+    def create_check_suite_by_commit(commit, pull_request, pull_request_info)
+      CheckSuite.create(
+        pull_request: pull_request,
+        author: @payload.dig('comment', 'user', 'login'),
+        commit_sha_ref: commit[:sha],
+        work_branch: pull_request_info.dig(:head, :ref),
+        base_sha_ref: pull_request_info.dig(:base, :sha),
+        merge_branch: pull_request_info.dig(:base, :ref),
+        re_run: true
+      )
     end
 
     def fetch_or_create_pr(pull_request_info)
@@ -86,20 +84,22 @@ module Github
                          .last
 
       return last_check_suite.pull_request unless last_check_suite.nil?
-
-      pull_request =
-        PullRequest.create(
-          author: @payload.dig('issue', 'user', 'login'),
-          github_pr_id: pr_id,
-          branch_name: pull_request_info.dig(:head, :ref),
-          repository: repo,
-          plan: fetch_plan
-        )
+      pull_request = create_pull_request(pull_request_info)
 
       @logger.debug ">>> Created a new pull request: #{pull_request}"
       @logger.error "Error: #{pull_request.errors.inspect}" unless pull_request.persisted?
 
       pull_request
+    end
+
+    def create_pull_request(pull_request_info)
+      PullRequest.create(
+        author: @payload.dig('issue', 'user', 'login'),
+        github_pr_id: pr_id,
+        branch_name: pull_request_info.dig(:head, :ref),
+        repository: repo,
+        plan: fetch_plan
+      )
     end
 
     def sha256_flow

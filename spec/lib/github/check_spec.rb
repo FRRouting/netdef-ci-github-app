@@ -230,7 +230,7 @@ describe Github::Check do
       end
 
       it 'must returns raise' do
-        expect{ check.installation_id }.to raise_error(StandardError)
+        expect { check.installation_id }.to raise_error(StandardError)
       end
     end
 
@@ -240,7 +240,7 @@ describe Github::Check do
       end
 
       it 'must returns raise' do
-        expect{ check.installation_id }.to raise_error(StandardError)
+        expect { check.installation_id }.to raise_error(StandardError)
       end
     end
 
@@ -250,7 +250,7 @@ describe Github::Check do
       end
 
       it 'must returns raise' do
-        expect{ check.installation_id }.to raise_error(StandardError)
+        expect { check.installation_id }.to raise_error(StandardError)
       end
     end
   end

@@ -12,16 +12,22 @@ module Sinatra
       return halt 401 unless @payload_raw.present?
 
       sha = OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
-                                    ::Configuration.instance.config.dig('auth_signature', 'password'),
+                                    GitHubApp::Configuration.instance.config.dig('auth_signature', 'password'),
                                     @payload_raw)
 
       signature = "sha256=#{sha}"
-      http_signature = request.env['HTTP_SIGNATURE'] || request.env['HTTP_X_HUB_SIGNATURE_256']
+      http_signature = fetch_signature
 
       return halt 404, 'Signature not found' if http_signature.nil? or http_signature.empty?
       return halt 401, "Signatures didn't match!" unless Rack::Utils.secure_compare(signature, http_signature)
 
       @installation_client = Octokit::Client.new(bearer_token: signature)
+    end
+
+    private
+
+    def fetch_signature
+      request.env['HTTP_SIGNATURE'] || request.env['HTTP_X_HUB_SIGNATURE_256']
     end
   end
 

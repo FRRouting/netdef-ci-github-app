@@ -13,7 +13,7 @@ module Github
 
     def initialize(check_suite)
       @check_suite = check_suite
-      @config = ::Configuration.instance.config
+      @config = GitHubApp::Configuration.instance.config
       @logger = Logger.new($stdout)
 
       authenticate_app

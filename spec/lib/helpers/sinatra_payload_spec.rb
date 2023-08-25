@@ -5,13 +5,11 @@ class Dummy
 
   attr_accessor :payload_raw
 
-  def request
-  end
+  def request; end
 
-  def env
-  end
+  def env; end
 
-  def halt(_, _opt=nil)
+  def halt(_, _opt = nil)
     false
   end
 end
@@ -38,7 +36,7 @@ describe Sinatra::Payload do
 
     context 'when receives HTTP_X_HUB_SIGNATURE_256 with valid password' do
       let(:fake_github_check) { Github::Check.new(nil) }
-      let(:config) { Configuration.instance.config }
+      let(:config) { GitHubApp::Configuration.instance.config }
       let(:id) { 123 }
       let(:env) { { 'HTTP_X_HUB_SIGNATURE_256' => "sha256=#{signature}" } }
 

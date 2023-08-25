@@ -56,7 +56,7 @@ describe Github::BuildPlan do
       let(:action) { 'opened' }
       let(:author) { 'Johnny Silverhand' }
       let(:ci_jobs) do
-        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, {name: 'CHECKOUT', job_ref: 'CHECKOUT-1'}]
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'CHECKOUT', job_ref: 'CHECKOUT-1' }]
       end
 
       it 'must create a PR' do
@@ -192,7 +192,7 @@ describe Github::BuildPlan do
       let(:payload) { {} }
 
       it 'must returns an error' do
-        expect{ build_plan.create }.to raise_error(StandardError)
+        expect { build_plan.create }.to raise_error(StandardError)
       end
     end
 
