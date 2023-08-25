@@ -92,6 +92,7 @@ module Github
                          .last
 
       return last_check_suite.pull_request unless last_check_suite.nil?
+
       pull_request = create_pull_request(pull_request_info)
 
       @logger.debug ">>> Created a new pull request: #{pull_request}"

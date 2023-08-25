@@ -7,6 +7,7 @@
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
 #  frozen_string_literal: true
+
 # !/usr/bin/env ruby
 
 require 'logger'

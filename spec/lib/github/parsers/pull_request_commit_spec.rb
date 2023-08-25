@@ -27,8 +27,8 @@ describe Github::Parsers::PullRequestCommit do
 
       before do
         allow(fake_client).to receive(:pull_request_commits)
-                                .with(repo, pr_id, per_page: 100, page: 1)
-                                .and_return(output)
+          .with(repo, pr_id, per_page: 100, page: 1)
+          .and_return(output)
       end
 
       it 'must returns nil' do
@@ -41,8 +41,8 @@ describe Github::Parsers::PullRequestCommit do
 
       before do
         allow(fake_client).to receive(:pull_request_commits)
-                                .with(repo, pr_id, per_page: 100, page: 1)
-                                .and_return(output)
+          .with(repo, pr_id, per_page: 100, page: 1)
+          .and_return(output)
       end
 
       it 'must returns nil' do
@@ -59,12 +59,12 @@ describe Github::Parsers::PullRequestCommit do
 
       before do
         allow(fake_client).to receive(:pull_request_commits)
-                                .with(repo, pr_id, per_page: 100, page: 1)
-                                .and_return(output)
+          .with(repo, pr_id, per_page: 100, page: 1)
+          .and_return(output)
 
         allow(fake_client).to receive(:pull_request_commits)
-                                .with(repo, pr_id, per_page: 100, page: 2)
-                                .and_return([])
+          .with(repo, pr_id, per_page: 100, page: 2)
+          .and_return([])
       end
 
       it 'must returns nil' do
@@ -81,12 +81,12 @@ describe Github::Parsers::PullRequestCommit do
 
       before do
         allow(fake_client).to receive(:pull_request_commits)
-                                .with(repo, pr_id, per_page: 100, page: 1)
-                                .and_return(output)
+          .with(repo, pr_id, per_page: 100, page: 1)
+          .and_return(output)
 
         allow(fake_client).to receive(:pull_request_commits)
-                                .with(repo, pr_id, per_page: 100, page: 2)
-                                .and_return([])
+          .with(repo, pr_id, per_page: 100, page: 2)
+          .and_return([])
       end
 
       it 'must returns nil' do

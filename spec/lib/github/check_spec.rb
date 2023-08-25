@@ -41,8 +41,8 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:pull_request_commits)
-                              .with(repo, pr_id, per_page: 100, page: page)
-                              .and_return(pr_info)
+        .with(repo, pr_id, per_page: 100, page: page)
+        .and_return(pr_info)
     end
 
     it 'must returns pull request info' do
@@ -87,9 +87,9 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:create_check_run)
-                              .with(check_suite.pull_request.repository, name,
-                                    check_suite.commit_sha_ref, accept: 'application/vnd.github+json')
-                              .and_return(pr_info)
+        .with(check_suite.pull_request.repository, name,
+              check_suite.commit_sha_ref, accept: 'application/vnd.github+json')
+        .and_return(pr_info)
     end
 
     it 'must returns success' do
@@ -104,13 +104,13 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:update_check_run)
-                              .with(check_suite.pull_request.repository,
-                                    id,
-                                    {
-                                      status: status,
-                                      accept: 'application/vnd.github+json'
-                                    })
-                              .and_return(pr_info)
+        .with(check_suite.pull_request.repository,
+              id,
+              {
+                status: status,
+                accept: 'application/vnd.github+json'
+              })
+        .and_return(pr_info)
     end
 
     it 'must returns success' do
@@ -126,14 +126,14 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:update_check_run)
-                              .with(check_suite.pull_request.repository,
-                                    id,
-                                    {
-                                      status: status,
-                                      output: output,
-                                      accept: 'application/vnd.github+json'
-                                    })
-                              .and_return(pr_info)
+        .with(check_suite.pull_request.repository,
+              id,
+              {
+                status: status,
+                output: output,
+                accept: 'application/vnd.github+json'
+              })
+        .and_return(pr_info)
     end
 
     it 'must returns success' do
@@ -148,14 +148,14 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:update_check_run)
-                              .with(check_suite.pull_request.repository,
-                                    id,
-                                    {
-                                      status: status,
-                                      conclusion: conclusion,
-                                      accept: 'application/vnd.github+json'
-                                    })
-                              .and_return(true)
+        .with(check_suite.pull_request.repository,
+              id,
+              {
+                status: status,
+                conclusion: conclusion,
+                accept: 'application/vnd.github+json'
+              })
+        .and_return(true)
     end
 
     it 'must returns success' do
@@ -170,14 +170,14 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:update_check_run)
-                              .with(check_suite.pull_request.repository,
-                                    id,
-                                    {
-                                      status: status,
-                                      conclusion: conclusion,
-                                      accept: 'application/vnd.github+json'
-                                    })
-                              .and_return(true)
+        .with(check_suite.pull_request.repository,
+              id,
+              {
+                status: status,
+                conclusion: conclusion,
+                accept: 'application/vnd.github+json'
+              })
+        .and_return(true)
     end
 
     it 'must returns success' do
@@ -193,15 +193,15 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:update_check_run)
-                              .with(check_suite.pull_request.repository,
-                                    id,
-                                    {
-                                      status: status,
-                                      conclusion: conclusion,
-                                      output: output,
-                                      accept: 'application/vnd.github+json'
-                                    })
-                              .and_return(true)
+        .with(check_suite.pull_request.repository,
+              id,
+              {
+                status: status,
+                conclusion: conclusion,
+                output: output,
+                accept: 'application/vnd.github+json'
+              })
+        .and_return(true)
     end
 
     it 'must returns success' do
@@ -216,14 +216,14 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:update_check_run)
-                              .with(check_suite.pull_request.repository,
-                                    id,
-                                    {
-                                      status: status,
-                                      conclusion: conclusion,
-                                      accept: 'application/vnd.github+json'
-                                    })
-                              .and_return(true)
+        .with(check_suite.pull_request.repository,
+              id,
+              {
+                status: status,
+                conclusion: conclusion,
+                accept: 'application/vnd.github+json'
+              })
+        .and_return(true)
     end
 
     it 'must returns success' do
