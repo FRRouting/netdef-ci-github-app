@@ -1,4 +1,12 @@
-# frozen_string_literal: true
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  20230606163828_create_pull_request.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
 
 class CreatePullRequest < ActiveRecord::Migration[6.0]
   def change

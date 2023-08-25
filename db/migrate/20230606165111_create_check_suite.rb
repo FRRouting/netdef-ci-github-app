@@ -1,4 +1,12 @@
-# frozen_string_literal: true
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  20230606165111_create_check_suite.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
 
 class CreateCheckSuite < ActiveRecord::Migration[6.0]
   def change

@@ -1,4 +1,12 @@
-# frozen_string_literal: true
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  plan_run_spec.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
 
 describe BambooCi::PlanRun do
   let(:plan_run) { described_class.new(check_suite) }

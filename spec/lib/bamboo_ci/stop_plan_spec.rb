@@ -1,4 +1,12 @@
-# frozen_string_literal: true
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  stop_plan_spec.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
 
 describe BambooCi::StopPlan do
   context 'when call stop' do

@@ -1,4 +1,12 @@
-# frozen_string_literal: true
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Rakefile
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
 
 require 'bundler/setup'
 load 'tasks/otr-activerecord.rake'

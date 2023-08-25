@@ -1,4 +1,13 @@
 # frozen_string_literal: true
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  puma.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+
 require_relative '../config/setup'
 require 'puma'
 
