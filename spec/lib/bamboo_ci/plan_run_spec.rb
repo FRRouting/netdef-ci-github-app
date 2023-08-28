@@ -12,6 +12,8 @@ describe BambooCi::PlanRun do
   let(:plan_run) { described_class.new(check_suite) }
 
   before do
+    allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+
     stub_request(:post, "https://127.0.0.1/rest/api/latest/queue/#{check_suite.pull_request.plan}?" \
                         "bamboo.variable.github_base_sha=#{check_suite.base_sha_ref}" \
                         "&bamboo.variable.github_branch=#{check_suite.merge_branch}&" \
@@ -23,7 +25,7 @@ describe BambooCi::PlanRun do
         headers: {
           'Accept' => %w[*/* application/json],
           'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
-          'Authorization' => 'Basic Z2l0aHViOkMzWHZpanQ5YlRkeXA0bWJeQ295',
+          'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
           'Host' => '127.0.0.1',
           'User-Agent' => 'Ruby'
         }
@@ -52,7 +54,7 @@ describe BambooCi::PlanRun do
           headers: {
             'Accept' => %w[*/* application/json],
             'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
-            'Authorization' => 'Basic Z2l0aHViOkMzWHZpanQ5YlRkeXA0bWJeQ295',
+            'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
             'Content-Type' => 'application/xml',
             'Host' => '127.0.0.1',
             'User-Agent' => 'Ruby'

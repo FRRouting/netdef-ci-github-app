@@ -25,6 +25,11 @@ end
 describe Sinatra::Payload do
   let(:dummy) { Dummy.new }
 
+  before do
+    allow(File).to receive(:read).and_return('')
+    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+  end
+
   describe '.authenticate_request' do
     let(:fake_client) { Octokit::Client.new }
 
