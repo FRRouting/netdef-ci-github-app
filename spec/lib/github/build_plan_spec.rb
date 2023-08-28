@@ -15,6 +15,11 @@ describe Github::BuildPlan do
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
   let(:fake_check_run) { create(:check_suite) }
 
+  before do
+    allow(File).to receive(:read).and_return('')
+    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+  end
+
   describe 'Valid commands' do
     let(:pr_number) { rand(1_000_000) }
     let(:repo) { 'UnitTest/repo' }
