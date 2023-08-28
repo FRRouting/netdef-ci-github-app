@@ -19,6 +19,11 @@ describe 'GithubApp' do
   end
 
   describe '#UpdateStatus' do
+    before do
+      allow(File).to receive(:read).and_return('')
+      allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+    end
+
     context 'when signature does not send' do
       it 'must returns error' do
         post '/update/status', {}.to_json, { 'HTTP_ACCEPT' => 'application/json' }

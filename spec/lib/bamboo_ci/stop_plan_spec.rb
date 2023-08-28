@@ -15,12 +15,14 @@ describe BambooCi::StopPlan do
     let(:url) { "https://127.0.0.1/rest/api/latest/queue/#{job_key}" }
 
     before do
+      allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+
       stub_request(:delete, url)
         .with(
           headers: {
             'Accept' => %w[*/*],
             'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
-            'Authorization' => 'Basic Z2l0aHViOkMzWHZpanQ5YlRkeXA0bWJeQ295',
+            'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
             'Host' => '127.0.0.1',
             'User-Agent' => 'Ruby'
           }

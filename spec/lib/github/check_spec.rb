@@ -17,6 +17,8 @@ describe Github::Check do
     allow(Octokit::Client).to receive(:new).and_return(fake_client)
     allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
     allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+    allow(File).to receive(:read).and_return('')
+    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
   end
 
   context 'when call pull_request_info' do
