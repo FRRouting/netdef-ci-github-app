@@ -94,16 +94,12 @@ class GithubApp < Sinatra::Base
 
       halt resp.first, resp.last
     when 'check_run'
-      logger.debug "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
-      logger.debug payload['action']
-      logger.debug payload['action'].downcase.match?('rerequested')
+      logger.debug "Check Run #{payload.dig('check_run', 'id')} - #{payload['action']}"
 
-      if payload['action'].downcase.match?('rerequested')
-        re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
-        halt re_run.start
-      end
+      halt 200, 'OK' unless  payload['action'].downcase.match?('rerequested')
 
-      halt 200, 'OK'
+      re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
+      halt re_run.start
     when 'installation'
       logger.debug '>>> Received a new installation policy'
       halt 202, 'Updated'
@@ -128,5 +124,7 @@ class GithubApp < Sinatra::Base
     end
   end
 
+  # :nocov:
   run! if __FILE__ == $PROGRAM_NAME
+  # :nocov:
 end
