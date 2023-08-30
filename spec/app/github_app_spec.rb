@@ -117,7 +117,6 @@ describe 'GithubApp' do
 
       let(:payload) { { 'x' => 1 } }
 
-
       it 'must returns error' do
         post '/', payload.to_json, headers
 
