@@ -1,0 +1,9 @@
+check_name: "RuboCop Results"
+versions:
+  - rubocop
+  - rubocop-rails
+  - rubocop-minitest
+  - rubocop-performance: "1.5.1"
+  - rubocop-rspec: "1.37.0"
+rubocop_config_path: ".rubocop.yml"
+rubocop_fail_level: "refactor"

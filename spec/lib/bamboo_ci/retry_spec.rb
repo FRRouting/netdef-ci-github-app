@@ -9,6 +9,10 @@
 #  frozen_string_literal: true
 
 describe BambooCi::Retry do
+  before do
+    allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+  end
+
   context 'when call restart' do
     let(:service) { described_class.restart(plan_key) }
     let(:plan_key) { 1 }
@@ -20,7 +24,7 @@ describe BambooCi::Retry do
           headers: {
             'Accept' => %w[*/* application/json],
             'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
-            'Authorization' => 'Basic Z2l0aHViOkMzWHZpanQ5YlRkeXA0bWJeQ295',
+            'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
             'Host' => '127.0.0.1',
             'User-Agent' => 'Ruby'
           }
@@ -44,7 +48,7 @@ describe BambooCi::Retry do
           headers: {
             'Accept' => %w[*/* application/json],
             'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
-            'Authorization' => 'Basic Z2l0aHViOkMzWHZpanQ5YlRkeXA0bWJeQ295',
+            'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
             'Host' => '127.0.0.1',
             'User-Agent' => 'Ruby'
           }

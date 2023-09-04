@@ -10,7 +10,7 @@
 
 source 'https://rubygems.org'
 
-ruby '~> 3.0.0'
+ruby '3.0.2'
 
 # Token
 gem 'jwt', '2.2.2'
@@ -32,13 +32,11 @@ gem 'netrc'
 
 gem 'puma', '5.5.2'
 
+gem 'rake', '13.0.6'
+
 # Code lint
-gem 'rubocop', group: %i[development test]
+gem 'rubocop', '1.56.1', group: %i[development test]
 gem 'rubocop-performance', group: %i[development test]
-
-gem 'sidekiq'
-gem 'sidekiq-cron'
-
 group :test do
   gem 'database_cleaner'
   gem 'factory_bot'

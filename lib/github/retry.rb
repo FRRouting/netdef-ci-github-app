@@ -30,6 +30,7 @@ module Github
 
       job = CiJob.find_by_check_ref(@payload.dig('check_run', 'id'))
 
+      return [404, 'Job not found'] if job.nil?
       return [304, 'Already enqueued this execution'] if job.queued? or job.in_progress?
 
       @logger.debug "Running Job #{job.inspect}"

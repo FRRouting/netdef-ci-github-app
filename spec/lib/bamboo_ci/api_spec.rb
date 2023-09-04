@@ -20,6 +20,8 @@ describe BambooCi::Api do
   let(:dummy) { Dummy.new }
 
   before do
+    allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+
     stub_request(http_method, url)
       .with(
         headers: {

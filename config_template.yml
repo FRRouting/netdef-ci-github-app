@@ -1,11 +1,11 @@
-debug:
+debug: true
 
-port:
+port: 4667
 
 auth_signature:
-  password:
+  password: ok
 
-github_app:
+github_apps:
   - login:
     cert:
 

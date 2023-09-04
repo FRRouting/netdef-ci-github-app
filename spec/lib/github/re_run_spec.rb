@@ -14,6 +14,11 @@ describe Github::ReRun do
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
 
+  before do
+    allow(File).to receive(:read).and_return('')
+    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+  end
+
   describe 'Invalid payload' do
     context 'when receives an empty payload' do
       let(:payload) { {} }
