@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 #  SPDX-License-Identifier: BSD-2-Clause
 #
 #  console.rb
@@ -6,9 +7,8 @@
 #  Copyright (c) 2023 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
-#  frozen_string_literal: true
+# frozen_string_literal: true
 
-# !/usr/bin/env ruby
 require 'irb'
 
 ENV['RAILS_ENV'] = ARGV.shift || 'production'
