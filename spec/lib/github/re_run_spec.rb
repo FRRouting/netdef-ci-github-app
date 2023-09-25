@@ -125,6 +125,82 @@ describe Github::ReRun do
       end
     end
 
+    context 'when has two opened PRs' do
+      let(:first_pr) { create(:pull_request, github_pr_id: 12, id: 11, repository: 'test') }
+      let(:second_pr) { create(:pull_request, github_pr_id: 13, id: 12, repository: 'test') }
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: first_pr) }
+      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: check_suite.commit_sha_ref, re_run: true) }
+      let(:another_check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: second_pr) }
+
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => {
+            'body' => 'CI:rerun potato',
+            'user' => { 'login' => 'John' }
+          },
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+
+      let(:pull_request_info) do
+        {
+          head: {
+            ref: 'master'
+          },
+          base: {
+            ref: 'test',
+            sha: check_suite.base_sha_ref
+          }
+        }
+      end
+
+      let(:pull_request_commits) do
+        [
+          { sha: check_suite.commit_sha_ref, date: Time.now }
+        ]
+      end
+
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+        allow(fake_client).to receive(:pull_request_commits).and_return(pull_request_commits, [])
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(check_suite)
+        allow(fake_github_check).to receive(:add_comment)
+        allow(fake_github_check).to receive(:cancelled)
+        allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive(:start_plan).and_return(200)
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+
+        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+
+        another_check_suite
+      end
+
+      it 'must returns success' do
+        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(check_suite_rerun).not_to be_nil
+      end
+
+      it 'must have 2 CheckSuites in first PR' do
+        rerun.start
+        expect(first_pr.check_suites.size).to eq(2)
+      end
+
+      it 'must have 1 CheckSuites in second PR' do
+        rerun.start
+        expect(second_pr.check_suites.size).to eq(1)
+      end
+    end
+
     context 'when you receive an comment' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
       let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }

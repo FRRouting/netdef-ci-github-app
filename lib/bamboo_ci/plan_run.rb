@@ -23,10 +23,22 @@ module BambooCi
     attr_accessor :checks_run, :ci_variables
 
     def initialize(check_suite, logger_level: Logger::INFO)
+      @logger_manager = []
+      @logger_level = logger_level
+
+      logger_class = Logger.new('github_plan_run.log', 0, 1_024_000)
+      logger_class.level = logger_level
+
+      logger_app = Logger.new('github_app.log', 1, 1_024_000)
+      logger_app.level = logger_level
+
+      @logger_manager << logger_class
+      @logger_manager << logger_app
+
+      logger(Logger::INFO, "BambooCi::PlanRun - CheckSuite: #{check_suite.inspect}")
+
       @check_suite = check_suite
       @ci_variables = []
-      @logger = Logger.new($stdout)
-      @logger.level = logger_level
     end
 
     def start_plan
@@ -38,10 +50,10 @@ module BambooCi
       when 400..500
         failed(@response)
       when 0
-        @logger.unknown 'HTTP Request error'
+        logger(Logger::UNKNOWN, 'HTTP Request error')
         418
       else
-        @logger.unknown "Unmapped HTTP error (Bamboo): #{@response.code.to_i}\nPR: #{@check_suite.inspect}"
+        logger(Logger::UNKNOWN, "Unmapped HTTP error (Bamboo): #{@response.code.to_i}\nPR: #{@check_suite.inspect}")
         failed(@response)
       end
     end
@@ -57,21 +69,21 @@ module BambooCi
     def success(response)
       hash = JSON.parse(response.body)
 
-      @logger.debug "\nCI Submitted:\n#{hash}"
+      logger(Logger::DEBUG, "\nCI Submitted:\n#{hash}")
 
       @ci_key = hash['buildResultKey']
 
       response = generate_comment
 
-      @logger.debug "Comment Submit response: #{response.inspect}"
+      logger(Logger::DEBUG, "Comment Submit response: #{response.inspect}")
 
       200
     end
 
     def failed(response)
-      @logger.debug ''
-      @logger.debug "ci submission failed: #{response.body}"
-      @logger.debug "Error #{response.code}"
+      logger(Logger::DEBUG, '')
+      logger(Logger::DEBUG, "ci submission failed: #{response.body}")
+      logger(Logger::DEBUG, "Error #{response.code}")
 
       return 429 if response.body.include?('reached the maximum number of concurrent builds')
 
@@ -86,9 +98,15 @@ module BambooCi
       comment += "Merge Git Commit ID #{@check_suite.commit_sha_ref}"
       comment += " on top of base Git Commit ID #{@check_suite.base_sha_ref}"
 
-      @logger.debug comment
+      logger(Logger::DEBUG, comment)
 
       add_comment_to_ci(@ci_key, comment)
+    end
+
+    def logger(severity, message)
+      @logger_manager.each do |logger_object|
+        logger_object.add(severity, message)
+      end
     end
   end
 end

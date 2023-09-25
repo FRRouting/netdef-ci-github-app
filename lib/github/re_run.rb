@@ -20,10 +20,17 @@ require_relative 'check'
 module Github
   class ReRun
     def initialize(payload, logger_level: Logger::INFO)
-      @logger = Logger.new($stdout)
-      @logger.level = logger_level
+      @logger_manager = []
+      @logger_level = logger_level
 
-      @logger.debug payload.to_json
+      logger_class = Logger.new('github_rerun.log', 0, 1_024_000)
+      logger_class.level = logger_level
+
+      logger_app = Logger.new('github_app.log', 1, 1_024_000)
+      logger_app.level = logger_level
+
+      @logger_manager << logger_class
+      @logger_manager << logger_app
 
       @payload = payload
     end
@@ -32,9 +39,11 @@ module Github
       return [422, 'Payload can not be blank'] if @payload.nil? or @payload.empty?
       return [404, 'Action not found'] unless action?
 
+      logger(Logger::DEBUG, ">>> Github::ReRun - sha256: #{sha256.inspect}, payload: #{@payload.inspect}")
+
       check_suite = sha256_or_comment?
 
-      @logger.debug ">>> Check suite: #{check_suite.inspect}"
+      logger(Logger::DEBUG, ">>> Check suite: #{check_suite.inspect}")
 
       return [404, 'Failed to create a check suite'] if check_suite.nil?
 
@@ -65,7 +74,7 @@ module Github
 
       fetch_old_check_suite(commit[:sha])
       check_suite = create_check_suite_by_commit(commit, pull_request, pull_request_info)
-      @logger.info "CheckSuite errors: #{check_suite.inspect}"
+      logger(Logger::INFO, "CheckSuite errors: #{check_suite.inspect}")
       return nil unless check_suite.persisted?
 
       @github_check = Github::Check.new(check_suite)
@@ -88,15 +97,15 @@ module Github
     def fetch_or_create_pr(pull_request_info)
       last_check_suite = CheckSuite
                          .joins(:pull_request)
-                         .where(pull_request: { id: pr_id, repository: repo })
+                         .where(pull_request: { github_pr_id: pr_id, repository: repo })
                          .last
 
       return last_check_suite.pull_request unless last_check_suite.nil?
 
       pull_request = create_pull_request(pull_request_info)
 
-      @logger.debug ">>> Created a new pull request: #{pull_request}"
-      @logger.error "Error: #{pull_request.errors.inspect}" unless pull_request.persisted?
+      logger(Logger::DEBUG, ">>> Created a new pull request: #{pull_request}")
+      logger(Logger::ERROR, "Error: #{pull_request.errors.inspect}") unless pull_request.persisted?
 
       pull_request
     end
@@ -141,7 +150,8 @@ module Github
     def fetch_old_check_suite(sha = sha256)
       return if sha.nil?
 
-      @logger.debug ">>> fetch_old_check_suite SHA: #{sha}"
+      logger(Logger::DEBUG, ">>> fetch_old_check_suite SHA: #{sha}")
+
       @old_check_suite =
         CheckSuite
         .joins(:pull_request)
@@ -190,7 +200,7 @@ module Github
     end
 
     def start_new_execution(check_suite)
-      bamboo_plan_run = BambooCi::PlanRun.new(check_suite, logger_level: @logger.level)
+      bamboo_plan_run = BambooCi::PlanRun.new(check_suite, logger_level: @logger_level)
       bamboo_plan_run.ci_variables = ci_vars
       bamboo_plan_run.start_plan
       bamboo_plan_run
@@ -207,21 +217,21 @@ module Github
       CheckSuite
         .joins(:pull_request)
         .joins(:ci_jobs)
-        .where(pull_request: { id: pr_id, repository: repo }, ci_jobs: { status: 1 })
+        .where(pull_request: { github_pr_id: pr_id, repository: repo }, ci_jobs: { status: 1 })
         .uniq
     end
 
     def stop_previous_execution
       return if fetch_run_ci_by_pr.empty?
 
-      @logger.info 'Stopping previous execution'
-      @logger.info fetch_run_ci_by_pr.inspect
+      logger(Logger::INFO, 'Stopping previous execution')
+      logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
       fetch_run_ci_by_pr.each do |check_suite|
         check_suite.ci_jobs.each do |ci_job|
           BambooCi::StopPlan.stop(ci_job.job_ref)
 
-          @logger.warn("Cancelling Job #{ci_job.inspect}")
+          logger(Logger::WARN, "Cancelling Job #{ci_job.inspect}")
           ci_job.cancelled(@github_check)
         end
       end
@@ -243,11 +253,15 @@ module Github
           job_ref: job[:job_ref]
         )
 
-        @logger.debug ">>> CI Job: #{ci_job.inspect}"
+        logger(Logger::DEBUG, ">>> CI Job: #{ci_job.inspect}")
         next unless ci_job.persisted?
 
         ci_job.enqueue(@github_check)
-        ci_job.in_progress(@github_check) if ci_job.checkout_code?
+
+        next unless ci_job.checkout_code?
+
+        url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+        ci_job.in_progress(@github_check, output: { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
       end
     end
 
@@ -258,6 +272,12 @@ module Github
 
       # Default plan
       'TESTING-FRRCRAS'
+    end
+
+    def logger(severity, message)
+      @logger_manager.each do |logger_object|
+        logger_object.add(severity, message)
+      end
     end
   end
 end
