@@ -261,7 +261,7 @@ module Github
         next unless ci_job.checkout_code?
 
         url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-        ci_job.in_progress(@github_check, output: { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
+        ci_job.in_progress(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
       end
     end
 

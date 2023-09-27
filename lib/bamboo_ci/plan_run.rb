@@ -91,9 +91,10 @@ module BambooCi
     end
 
     def generate_comment
-      comment = "GitHub Merge Request #{@check_suite.pull_request.github_pr_id}\n"
+      url = "https://github.com/#{@check_suite.pull_request.repository}/pull/#{@check_suite.pull_request.github_pr_id}"
+      comment = "GitHub Merge Request #{@check_suite.pull_request.github_pr_id} (#{url})\n"
       comment += "for GitHub Repo #{@check_suite.pull_request.repository}, " \
-                 "branch #{@check_suite.work_branch}\n\n"
+                 "branch #{@check_suite.merge_branch}\n\n"
       comment += "Request to merge from #{@check_suite.pull_request.repository}\n"
       comment += "Merge Git Commit ID #{@check_suite.commit_sha_ref}"
       comment += " on top of base Git Commit ID #{@check_suite.base_sha_ref}"
