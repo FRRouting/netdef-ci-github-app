@@ -37,11 +37,14 @@ describe BambooCi::PlanRun do
     let(:check_suite) { create(:check_suite) }
     let(:status) { 200 }
     let(:body) { '{"buildResultKey": 1}' }
+    let(:url) do
+      "https://github.com/#{check_suite.pull_request.repository}/pull/#{check_suite.pull_request.github_pr_id}"
+    end
 
     let(:comment) do
-      "<comment><content>GitHub Merge Request #{check_suite.pull_request.github_pr_id}\n" \
+      "<comment><content>GitHub Merge Request #{check_suite.pull_request.github_pr_id} (#{url})\n" \
         "for GitHub Repo #{check_suite.pull_request.repository}, " \
-        "branch #{check_suite.work_branch}\n\n" \
+        "branch #{check_suite.merge_branch}\n\n" \
         "Request to merge from #{check_suite.pull_request.repository}\n" \
         "Merge Git Commit ID #{check_suite.commit_sha_ref} " \
         "on top of base Git Commit ID #{check_suite.base_sha_ref}</content></comment>"
