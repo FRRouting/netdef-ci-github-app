@@ -24,7 +24,8 @@ require_relative '../config/setup'
 
 require_relative '../lib/github/build_plan'
 require_relative '../lib/github/check'
-require_relative '../lib/github/re_run'
+require_relative '../lib/github/re_run/comment'
+require_relative '../lib/github/re_run/command'
 require_relative '../lib/github/retry'
 require_relative '../lib/github/update_status'
 require_relative '../lib/helpers/sinatra_payload'
@@ -94,23 +95,24 @@ class GithubApp < Sinatra::Base
 
       halt resp.first, resp.last
     when 'check_run'
-      logger.debug "Check Run #{payload['check_run']['id']} (#{payload['check_run']['id']}) - #{payload['action']}"
-      logger.debug payload['action']
-      logger.debug payload['action'].downcase.match?('rerequested')
+      logger.debug "Check Run #{payload.dig('check_run', 'id')} - #{payload['action']}"
 
-      if payload['action'].downcase.match?('rerequested')
-        re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
-        halt re_run.start
-      end
+      halt 200, 'OK' unless payload['action'].downcase.match?('rerequested')
 
-      halt 200, 'OK'
+      re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
+      halt re_run.start
     when 'installation'
       logger.debug '>>> Received a new installation policy'
       halt 202, 'Updated'
     when 'issue_comment'
       logger.debug '>>> Received a new issue comment'
 
-      halt Github::ReRun.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+      halt Github::ReRun::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+    when 'check_suite'
+      logger.debug '>>> Received a new check_suite command'
+      halt 200, 'OK' unless payload['action'].downcase.match?('rerequested')
+
+      halt Github::ReRun::Command.new(payload, logger_level: GithubApp.sinatra_logger_level).start
     else
       logger.debug "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
       halt 401, 'Invalid request (4)'
@@ -128,5 +130,7 @@ class GithubApp < Sinatra::Base
     end
   end
 
+  # :nocov:
   run! if __FILE__ == $PROGRAM_NAME
+  # :nocov:
 end

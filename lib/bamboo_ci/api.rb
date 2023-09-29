@@ -32,7 +32,7 @@ module BambooCi
         url += "&bamboo.variable.github_#{variable[:name]}=#{variable[:value]}"
       end
 
-      @logger.debug "Submission URL:\n  #{url}"
+      logger(Logger::DEBUG, "Submission URL:\n  #{url}")
 
       # Fetch Request
       post_request(URI(url))
@@ -50,7 +50,7 @@ module BambooCi
     def add_comment_to_ci(key, comment)
       url = "https://127.0.0.1/rest/api/latest/result/#{key}/comment"
 
-      @logger.debug "Comment Submission URL:\n  #{url}"
+      logger(Logger::DEBUG, "Comment Submission URL:\n  #{url}")
 
       # Fetch Request
       post_request(URI(url), body: "<comment><content>#{comment}</content></comment>")
@@ -70,7 +70,7 @@ module BambooCi
 
       JSON.parse(http.request(req).body)
     rescue StandardError => e
-      @logger.error "HTTP GET Request failed (#{e.message}) for #{uri.host}"
+      logger(Logger::ERROR, "HTTP GET Request failed (#{e.message}) for #{uri.host}")
 
       nil
     end
@@ -86,7 +86,7 @@ module BambooCi
 
       # Fetch Request
       resp = http.request(req)
-      @logger.debug(resp)
+      logger(Logger::DEBUG, resp)
 
       resp
     end
@@ -105,11 +105,11 @@ module BambooCi
 
       # Fetch Request
       resp = http.request(req)
-      @logger.debug("#{resp.code} - #{resp.body.inspect}")
+      logger(Logger::DEBUG, "#{resp.code} - #{resp.body.inspect}")
 
       resp
     rescue StandardError => e
-      @logger.error "HTTP POST Request failed (#{e.message}) for #{uri.host}"
+      logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
 
       nil
     end
@@ -133,11 +133,11 @@ module BambooCi
 
       # Fetch Request
       resp = http.request(req)
-      @logger.debug(resp)
+      logger(Logger::DEBUG, resp)
 
       resp
     rescue StandardError => e
-      @logger.error "HTTP POST Request failed (#{e.message}) for #{uri.host}"
+      logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
 
       nil
     end
@@ -153,6 +153,14 @@ module BambooCi
     def fetch_user_pass
       netrc = Netrc.read
       netrc['ci1.netdef.org']
+    end
+
+    def logger(severity, message)
+      return if @logger_manager.nil?
+
+      @logger_manager.each do |logger_object|
+        logger_object.add(severity, message)
+      end
     end
   end
 end

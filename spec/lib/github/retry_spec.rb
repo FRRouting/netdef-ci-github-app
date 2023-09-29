@@ -11,6 +11,11 @@
 describe Github::Retry do
   let(:github_retry) { described_class.new(payload) }
 
+  before do
+    allow(File).to receive(:read).and_return('')
+    allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+  end
+
   context 'when receives an empty payload' do
     let(:payload) { {} }
 
