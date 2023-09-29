@@ -118,7 +118,7 @@ module Github
       end
 
       def pr_id
-        @payload.dig('issue', 'number') || @payload.dig('check_suite', 'pull_requests').last&.[]('number')
+        @payload.dig('issue', 'number') || @payload.dig('check_suite', 'pull_requests')&.last&.[]('number')
       end
 
       def repo
