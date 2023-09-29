@@ -61,36 +61,36 @@ module Github
       )
     end
 
-    def queued(id)
-      basic_status(id, 'queued', {})
+    def queued(check_ref, output = {})
+      basic_status(check_ref, 'queued', output)
     end
 
-    def in_progress(id, output = {})
-      basic_status(id, 'in_progress', output)
+    def in_progress(check_ref, output = {})
+      basic_status(check_ref, 'in_progress', output)
     end
 
-    def cancelled(id)
-      completed(id, 'completed', 'cancelled', {})
+    def cancelled(check_ref, output = {})
+      completed(check_ref, 'completed', 'cancelled', output)
     rescue Octokit::NotFound
-      @logger.error "ID ##{id} not found at GitHub"
+      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
-    def success(name, output = {})
-      completed(name, 'completed', 'success', output)
+    def success(check_ref, output = {})
+      completed(check_ref, 'completed', 'success', output)
     rescue Octokit::NotFound
-      @logger.error "ID ##{id} not found at GitHub"
+      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
-    def failure(name, output = {})
-      completed(name, 'completed', 'failure', output)
+    def failure(check_ref, output = {})
+      completed(check_ref, 'completed', 'failure', output)
     rescue Octokit::NotFound
-      @logger.error "ID ##{id} not found at GitHub"
+      @logger.error "check_ref #{check_ref} not found at GitHub"
     end
 
-    def skipped(name)
-      completed(name, 'completed', 'skipped', {})
+    def skipped(check_ref, output = {})
+      completed(check_ref, 'completed', 'skipped', output)
     rescue Octokit::NotFound
-      @logger.error "ID ##{id} not found at GitHub"
+      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def installation_id

@@ -25,6 +25,10 @@ class CiJob < ActiveRecord::Base
     name.downcase.match? 'checkout'
   end
 
+  def finished?
+    !%w[queued in_progress].include?(status.to_s)
+  end
+
   def create_check_run
     update(status: :queued)
   end
@@ -41,8 +45,8 @@ class CiJob < ActiveRecord::Base
     update(check_ref: check_run.id, status: :in_progress)
   end
 
-  def cancelled(github)
-    github.cancelled(check_ref)
+  def cancelled(github, output = {})
+    github.cancelled(check_ref, output)
 
     update(status: :cancelled)
   end
@@ -59,8 +63,8 @@ class CiJob < ActiveRecord::Base
     update(status: :success)
   end
 
-  def skipped(github)
-    github.skipped(check_ref)
+  def skipped(github, output = {})
+    github.skipped(check_ref, output)
 
     update(status: :skipped)
   end
