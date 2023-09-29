@@ -33,8 +33,9 @@ class CiJob < ActiveRecord::Base
     update(status: :queued)
   end
 
-  def enqueue(github)
+  def enqueue(github, output = {})
     check_run = github.create(name)
+    github.queued(check_run.id, output)
     update(check_ref: check_run.id, status: :queued)
   end
 

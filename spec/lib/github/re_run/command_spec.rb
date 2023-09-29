@@ -60,6 +60,7 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:add_comment)
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:in_progress)
+        allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
