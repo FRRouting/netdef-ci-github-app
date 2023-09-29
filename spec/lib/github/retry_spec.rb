@@ -61,6 +61,7 @@ describe Github::Retry do
 
         allow(Github::Check).to receive(:new).and_return(fake_github_check)
         allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
+        allow(fake_github_check).to receive(:queued)
 
         allow(BambooCi::StopPlan).to receive(:stop)
         allow(BambooCi::Retry).to receive(:restart)
