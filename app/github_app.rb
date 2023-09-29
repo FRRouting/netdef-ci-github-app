@@ -24,7 +24,8 @@ require_relative '../config/setup'
 
 require_relative '../lib/github/build_plan'
 require_relative '../lib/github/check'
-require_relative '../lib/github/re_run'
+require_relative '../lib/github/re_run/comment'
+require_relative '../lib/github/re_run/command'
 require_relative '../lib/github/retry'
 require_relative '../lib/github/update_status'
 require_relative '../lib/helpers/sinatra_payload'
@@ -106,7 +107,12 @@ class GithubApp < Sinatra::Base
     when 'issue_comment'
       logger.debug '>>> Received a new issue comment'
 
-      halt Github::ReRun.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+      halt Github::ReRun::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+    when 'check_suite'
+      logger.debug '>>> Received a new check_suite command'
+      halt 200, 'OK' unless payload['action'].downcase.match?('rerequested')
+
+      halt Github::ReRun::Command.new(payload, logger_level: GithubApp.sinatra_logger_level).start
     else
       logger.debug "Unknown request #{request.env['HTTP_X_GITHUB_EVENT'].downcase}"
       halt 401, 'Invalid request (4)'

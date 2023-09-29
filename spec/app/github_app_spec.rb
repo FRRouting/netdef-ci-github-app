@@ -216,6 +216,50 @@ describe 'GithubApp' do
           expect(last_response.status).to eq 404
         end
       end
+
+      context 'when receive HTTP_X_GITHUB_EVENT check_suite with empty payload' do
+        let(:headers) do
+          {
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_SIGNATURE' => header,
+            'HTTP_X_GITHUB_EVENT' => 'check_suite'
+          }
+        end
+
+        let(:payload) { { x: 1, 'action' => 'rerequested' } }
+
+        before do
+          allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+        end
+
+        it 'must returns error' do
+          post '/', payload.to_json, headers
+
+          expect(last_response.status).to eq 404
+        end
+      end
+
+      context 'when receive HTTP_X_GITHUB_EVENT check_suite with invalid command' do
+        let(:headers) do
+          {
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_SIGNATURE' => header,
+            'HTTP_X_GITHUB_EVENT' => 'check_suite'
+          }
+        end
+
+        let(:payload) { { x: 1, 'action' => 'potato' } }
+
+        before do
+          allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+        end
+
+        it 'must returns success' do
+          post '/', payload.to_json, headers
+
+          expect(last_response.status).to eq 200
+        end
+      end
     end
   end
 end
