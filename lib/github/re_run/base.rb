@@ -69,11 +69,12 @@ module Github
           logger(Logger::DEBUG, ">>> CI Job: #{ci_job.inspect}")
           next unless ci_job.persisted?
 
-          ci_job.enqueue(@github_check)
+          url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+
+          ci_job.enqueue(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
 
           next unless ci_job.checkout_code?
 
-          url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
           ci_job.in_progress(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
         end
       end
