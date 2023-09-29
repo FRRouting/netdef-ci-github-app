@@ -8,7 +8,7 @@
 #
 #  frozen_string_literal: true
 
-describe Github::ReRun do
+describe Github::ReRun::Comment do
   let(:rerun) { described_class.new(payload) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
@@ -76,7 +76,7 @@ describe Github::ReRun do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suites.size).to eq(2)
       end
     end
@@ -120,7 +120,7 @@ describe Github::ReRun do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suites.size).to eq(2)
       end
     end
@@ -186,7 +186,7 @@ describe Github::ReRun do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suite_rerun).not_to be_nil
       end
 
@@ -257,7 +257,7 @@ describe Github::ReRun do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suite_rerun).not_to be_nil
       end
     end
@@ -330,7 +330,7 @@ describe Github::ReRun do
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: commit_sha, re_run: true) }
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suite_rerun).not_to be_nil
       end
     end
@@ -431,7 +431,7 @@ describe Github::ReRun do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run'])
+        expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
       end
     end
   end
