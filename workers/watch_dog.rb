@@ -32,6 +32,7 @@ class WatchDog
       next if @result['state'] == 'Unknown'
 
       check_stages(check_suite)
+      clear_deleted_jobs(check_suite)
     end
   end
 
@@ -51,6 +52,16 @@ class WatchDog
 
   def fetch_ci_execution(check_suite)
     @result = get_status(check_suite.bamboo_ci_ref)
+  end
+
+  # This method will move all tests that no longer exist in BambooCI to the skipped state,
+  # because there are no executions for them.
+  def clear_deleted_jobs(check_suite)
+    github_check = Github::Check.new(check_suite)
+
+    check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
+      ci_job.skipped(github_check)
+    end
   end
 
   def check_stages(check_suite)
