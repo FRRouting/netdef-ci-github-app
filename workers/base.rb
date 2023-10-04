@@ -21,10 +21,10 @@ class Base
     @result = get_status(check_suite.bamboo_ci_ref)
   end
 
-  def check_stages(&block)
+  def check_stages
     @result.dig('stages', 'stage').each do |stage|
       stage.dig('results', 'result').each do |result|
-        yield result if block_given?
+        yield result if block
       end
     end
   end

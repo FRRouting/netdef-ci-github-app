@@ -23,9 +23,15 @@ class SingleSync < Base
       return
     end
 
-    github_check = Github::Check.new(check_suite)
-
     fetch_ci_execution(check_suite)
+
+    stages(check_suite)
+  end
+
+  private
+
+  def stages(check_suite)
+    github_check = Github::Check.new(check_suite)
 
     check_stages do |result|
       bamboo_ci_ref = result['buildResultKey']
@@ -41,8 +47,6 @@ class SingleSync < Base
       update_ci_job_status(github_check, ci_job, result['state'])
     end
   end
-
-  private
 
   def create_ci_job(check_suite, result, bamboo_ci_ref, github_check)
     ci_job = CiJob.create(check_suite: check_suite, name: result.dig('plan', 'shortName'), job_ref: bamboo_ci_ref)

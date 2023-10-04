@@ -57,14 +57,10 @@ class WatchDog < Base
     github_check = Github::Check.new(check_suite)
     @result.dig('stages', 'stage').each do |stage|
       stage.dig('results', 'result').each do |result|
-        bamboo_ci_ref = result['buildResultKey']
+        ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: check_suite.id)
 
-        ci_job = CiJob.find_by(job_ref: bamboo_ci_ref, check_suite_id: check_suite.id)
-
-        @logger.info ">>> CiJob: #{ci_job.inspect} - Finished? #{ci_job.finished?}"
+        @logger.info ">>> CiJob: #{ci_job.inspect}}"
         next if ci_job.finished? && !ci_job.job_ref.nil?
-
-        ci_job.enqueue(github_check) if ci_job.job_ref.nil?
 
         update_ci_job_status(github_check, ci_job, result['state'])
       end
@@ -72,6 +68,8 @@ class WatchDog < Base
   end
 
   def update_ci_job_status(github_check, ci_job, state)
+    ci_job.enqueue(github_check) if ci_job.job_ref.nil?
+
     url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
     output = {
       title: ci_job.name,
