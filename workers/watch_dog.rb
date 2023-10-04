@@ -9,16 +9,9 @@
 #  frozen_string_literal: true
 
 require 'logger'
-require_relative '../database_loader'
-require_relative '../lib/bamboo_ci/api'
-require_relative '../lib/github/check'
-require_relative '../lib/helpers/configuration'
+require_relative 'base'
 
-class WatchDog
-  ONE_HOUR = 1 * 60 * 60
-
-  include BambooCi::Api
-
+class WatchDog < Base
   def perform
     @logger = Logger.new('watch_dog.log', 0, 1_024_000)
     check_suites.each do |check_suite|
@@ -45,13 +38,9 @@ class WatchDog
   def check_suites_fetch_map
     CheckSuite
       .joins(:ci_jobs)
-      .where(ci_jobs: { status: %w[queued in_progress] }, created_at: [..Time.now - ONE_HOUR])
+      .where(ci_jobs: { status: %w[queued in_progress] }, created_at: [..Time.now])
       .map(&:id)
       .uniq
-  end
-
-  def fetch_ci_execution(check_suite)
-    @result = get_status(check_suite.bamboo_ci_ref)
   end
 
   # This method will move all tests that no longer exist in BambooCI to the skipped state,
@@ -68,12 +57,10 @@ class WatchDog
     github_check = Github::Check.new(check_suite)
     @result.dig('stages', 'stage').each do |stage|
       stage.dig('results', 'result').each do |result|
-        bamboo_ci_ref = result['buildResultKey']
+        ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: check_suite.id)
 
-        ci_job = CiJob.find_by(job_ref: bamboo_ci_ref, check_suite_id: check_suite.id)
-
-        @logger.info ">>> CiJob: #{ci_job.inspect} - Finished? #{ci_job.finished?}"
-        next if ci_job.finished?
+        @logger.info ">>> CiJob: #{ci_job.inspect}}"
+        next if ci_job.finished? && !ci_job.job_ref.nil?
 
         update_ci_job_status(github_check, ci_job, result['state'])
       end
@@ -81,6 +68,8 @@ class WatchDog
   end
 
   def update_ci_job_status(github_check, ci_job, state)
+    ci_job.enqueue(github_check) if ci_job.job_ref.nil?
+
     url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
     output = {
       title: ci_job.name,
