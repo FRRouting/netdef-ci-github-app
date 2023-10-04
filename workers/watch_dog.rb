@@ -64,7 +64,7 @@ class WatchDog < Base
         @logger.info ">>> CiJob: #{ci_job.inspect} - Finished? #{ci_job.finished?}"
         next if ci_job.finished? && !ci_job.job_ref.nil?
 
-        ci_job.enqueue(github_check) if ci_job.job_ref.nil? and !(ci_job.cancelled? or ci_job.skipped?)
+        ci_job.enqueue(github_check) if ci_job.job_ref.nil?
 
         update_ci_job_status(github_check, ci_job, result['state'])
       end
