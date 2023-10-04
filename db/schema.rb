@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_07_27_101236) do
+ActiveRecord::Schema[7.0].define(version: 2023_10_02_182445) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -27,6 +27,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_07_27_101236) do
     t.bigint "pull_request_id"
     t.boolean "re_run", default: false
     t.integer "retry", default: 0
+    t.boolean "sync", default: false
     t.index ["pull_request_id"], name: "index_check_suites_on_pull_request_id"
   end
 
