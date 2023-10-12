@@ -67,14 +67,6 @@ module Github
       end
     end
 
-    def can_rerun?(check_suite)
-      failure = check_suite.reload.ci_jobs.where(status: :failure).count
-
-      logger(Logger::INFO, ">> #{failure}")
-
-      !failure.positive?
-    end
-
     def enqueued(job)
       github_check = Github::Check.new(job.check_suite)
       previous_job = github_check.get_check_run(job.check_ref)

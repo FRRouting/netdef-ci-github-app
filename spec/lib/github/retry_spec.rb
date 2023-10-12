@@ -50,7 +50,9 @@ describe Github::Retry do
     end
 
     context 'when Ci Job is failure' do
-      let(:ci_job) { create(:ci_job, status: 'failure') }
+      let(:check_suite) { create(:check_suite) }
+      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
+      let(:ci_job_success) { create(:ci_job, check_suite: check_suite, status: 'failure', name: 'Checkout Code') }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
 
@@ -74,11 +76,45 @@ describe Github::Retry do
     end
 
     context 'when Ci Job is failure but has job running' do
+      let(:payload) do
+        {
+          'check_run' => {
+            'id' => ci_job1.check_ref
+          }
+        }
+      end
+      let(:payload2) do
+        {
+          'check_run' => {
+            'id' => ci_job2.check_ref
+          }
+        }
+      end
       let(:check_suite) { create(:check_suite) }
-      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
+      let(:ci_job1) { create(:ci_job, check_suite: check_suite, status: 'failure') }
+      let(:ci_job2) { create(:ci_job, check_suite: check_suite, status: 'failure') }
       let(:ci_job_running) { create(:ci_job, check_suite: check_suite, status: 'in_progress') }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
+      let(:output1) do
+        {
+          output:
+            {
+              title: '',
+              summary: 'Cannot rerun because there are still tests running'
+            }
+        }
+      end
+      let(:output2) do
+        {
+          output:
+            {
+              title: '',
+              summary: ''
+            }
+        }
+      end
+
 
       before do
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
@@ -89,17 +125,27 @@ describe Github::Retry do
         allow(fake_github_check).to receive(:create).and_return(check_suite)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:failure)
-        allow(fake_github_check).to receive(:get_check_run).and_return({ output: { title: '', summary: '' } })
+        allow(fake_github_check).to receive(:get_check_run).with(ci_job1.check_ref).and_return(output1)
+        allow(fake_github_check).to receive(:get_check_run).with(ci_job2.check_ref).and_return(output2)
 
         allow(BambooCi::StopPlan).to receive(:stop)
         allow(BambooCi::Retry).to receive(:restart)
 
+        ci_job1
+        ci_job2
         ci_job_running
       end
 
       it 'must not allow running again and set job as failure' do
         expect(github_retry.start).to eq([406, 'Cannot rerun because there are still tests running'])
-        expect(ci_job.reload.status).to eq('failure')
+        expect(ci_job1.reload.status).to eq('failure')
+        expect(ci_job2.reload.status).to eq('failure')
+      end
+
+      it do
+        described_class.new(payload2).start
+        expect(ci_job1.reload.status).to eq('failure')
+        expect(ci_job2.reload.status).to eq('failure')
       end
     end
   end
