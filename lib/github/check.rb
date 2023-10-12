@@ -93,6 +93,10 @@ module Github
       @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
+    def get_check_run(check_ref)
+      @app.check_run(@check_suite.pull_request.repository, check_ref).to_h
+    end
+
     def installation_id
       list = @authenticate_app.find_app_installations
 

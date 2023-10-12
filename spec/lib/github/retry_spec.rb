@@ -37,7 +37,7 @@ describe Github::Retry do
       let(:ci_job) { create(:ci_job) }
 
       it 'must returns not modified' do
-        expect(github_retry.start).to eq([304, 'Already enqueued this execution'])
+        expect(github_retry.start).to eq([406, 'Already enqueued this execution'])
       end
     end
 
@@ -45,7 +45,7 @@ describe Github::Retry do
       let(:ci_job) { create(:ci_job, status: 'in_progress') }
 
       it 'must returns not modified' do
-        expect(github_retry.start).to eq([304, 'Already enqueued this execution'])
+        expect(github_retry.start).to eq([406, 'Already enqueued this execution'])
       end
     end
 
@@ -70,6 +70,36 @@ describe Github::Retry do
       it 'must returns success' do
         expect(github_retry.start).to eq([200, 'Retrying failure jobs'])
         expect(ci_job.reload.status).to eq('queued')
+      end
+    end
+
+    context 'when Ci Job is failure but has job running' do
+      let(:check_suite) { create(:check_suite) }
+      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
+      let(:ci_job_running) { create(:ci_job, check_suite: check_suite, status: 'in_progress') }
+      let(:fake_client) { Octokit::Client.new }
+      let(:fake_github_check) { Github::Check.new(nil) }
+
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(check_suite)
+        allow(fake_github_check).to receive(:queued)
+        allow(fake_github_check).to receive(:failure)
+        allow(fake_github_check).to receive(:get_check_run).and_return({ output: { title: '', summary: '' } })
+
+        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::Retry).to receive(:restart)
+
+        ci_job_running
+      end
+
+      it 'must not allow running again and set job as failure' do
+        expect(github_retry.start).to eq([406, 'Cannot rerun because there are still tests running'])
+        expect(ci_job.reload.status).to eq('failure')
       end
     end
   end
