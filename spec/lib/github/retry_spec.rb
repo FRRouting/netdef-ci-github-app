@@ -115,7 +115,6 @@ describe Github::Retry do
         }
       end
 
-
       before do
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
         allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
