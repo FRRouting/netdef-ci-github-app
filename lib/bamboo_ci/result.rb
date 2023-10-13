@@ -17,7 +17,8 @@ module BambooCi
     extend BambooCi::Api
 
     def self.fetch(job_key)
-      get_request(URI("https://127.0.0.1/rest/api/latest/result/#{job_key}?expand=stages.stage.results"))
+      uri = URI("https://127.0.0.1/rest/api/latest/result/#{job_key}?expand=testResults.failedTests.testResult.errors")
+      get_request(uri)
     end
   end
 end
