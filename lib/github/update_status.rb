@@ -66,6 +66,8 @@ module Github
       end
     end
 
+    # The unable2find string must match the phrase defined in the ci-files repository file
+    # github_checks/hook_api.py method __topotest_title_summary
     def failure
       unable2find = "There was some test that failed, but I couldn't find the log."
       fetch_and_update_failures(unable2find) if !@output.empty? and @output[:summary].match?(unable2find)
