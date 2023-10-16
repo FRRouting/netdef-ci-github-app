@@ -20,4 +20,8 @@ class CheckSuite < ActiveRecord::Base
   def finished?
     ci_jobs.find_by_status(%i[queued in_progress]).nil?
   end
+
+  def in_progress?
+    !finished?
+  end
 end
