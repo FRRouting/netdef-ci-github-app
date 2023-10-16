@@ -159,6 +159,136 @@ describe Github::UpdateStatus do
         ci_jobs.each { |job| expect(job.reload.status).not_to eq('skipped') }
       end
     end
+
+    context 'when look for errors in Bamboo because it was not possible to read from the xml' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress') }
+      let(:status) { 'failure' }
+      let(:suite) { 'ospfv3_basic_functionality.test_ospfv3_ecmp' }
+
+      let(:payload) do
+        {
+          'status' => status,
+          'bamboo_ref' => ci_job.job_ref,
+          'output' => {
+            'title' => 'Failed test',
+            'summary' => "There was some test that failed, but I couldn't find the log."
+          },
+          'failures' => []
+        }
+      end
+
+      let(:expected_message) do
+        "AssertionError: Testcase test_ospfv3_ecmp_tc16_p0 : Failed \n
+Error: Nexthop {'fe80::48c7:9ff:fe98:52c8'} is Missing for route 2::1/128 in RIB of router r1\n
+\nassert \"Nexthop {'fe80::48c7:9ff:fe98:52c8'} is Missing for route 2::1/128 in RIB of router r1\\n\" is True
+\nE   AssertionError: Testcase test_ospfv3_ecmp_tc16_p0 : Failed \n
+Error: Nexthop {'fe80::48c7:9ff:fe98:52c8'} is Missing for route 2::1/128 in RIB of router r1\n
+\n    assert \"Nexthop {'fe80::48c7:9ff:fe98:52c8'} is Missing for route 2::1/128 in RIB of router r1\\n\" is True"
+      end
+
+      let(:fake_output) do
+        {
+          'expand' => 'changes,testResults,metadata,plan,artifacts,comments,labels,jiraIssues,variables,logFiles',
+          'testResults' =>
+            { 'expand' => "allTests,successfulTests,failedTests,newFailedTests,
+existingFailedTests,fixedTests,quarantinedTests,skippedTests",
+              'all' => 273,
+              'successful' => 272,
+              'failed' => 1,
+              'newFailed' => 1,
+              'existingFailed' => 0,
+              'fixed' => 0,
+              'quarantined' => 0,
+              'skipped' => 27,
+              'allTests' => { 'size' => 273, 'start-index' => 0, 'max-result' => 273 },
+              'successfulTests' => { 'size' => 272, 'start-index' => 0, 'max-result' => 272 },
+              'failedTests' =>
+                { 'size' => 1,
+                  'expand' => 'testResult',
+                  'testResult' =>
+                    [{ 'testCaseId' => 157_699_933,
+                       'expand' => 'errors',
+                       'className' => suite,
+                       'methodName' => 'test_ospfv3_ecmp_tc16_p0',
+                       'status' => 'failed',
+                       'duration' => 128_517,
+                       'durationInSeconds' => 128,
+                       'errors' =>
+                         { 'size' => 1,
+                           'error' =>
+                             [{ 'message' => expected_message }],
+                           'start-index' => 0,
+                           'max-result' => 1 } }],
+                  'start-index' => 0,
+                  'max-result' => 1 },
+              'newFailedTests' => { 'size' => 1, 'start-index' => 0, 'max-result' => 1 },
+              'existingFailedTests' => { 'size' => 0, 'start-index' => 0, 'max-result' => 0 },
+              'fixedTests' => { 'size' => 0, 'start-index' => 0, 'max-result' => 0 },
+              'quarantinedTests' => { 'size' => 0, 'start-index' => 0, 'max-result' => 0 },
+              'skippedTests' => { 'size' => 27, 'start-index' => 0, 'max-result' => 27 } }
+        }
+      end
+
+      let(:expected_output) do
+        {
+          title: 'Failed test',
+          summary: expected_message
+        }
+      end
+
+      let(:expected_topotest_failure) do
+        {
+          'suite' => suite,
+          'case' => 'test_ospfv3_ecmp_tc16_p0',
+          'message' => expected_message,
+          'execution_time' => 128
+        }
+      end
+
+      context 'when updated a test that failed and it has no error output' do
+        before do
+          allow(CiJob).to receive(:find_by).and_return(ci_job)
+          allow(ci_job).to receive(:failure)
+          allow(BambooCi::Result).to receive(:fetch).and_return(fake_output)
+
+          update_status.update
+        end
+
+        it 'must update the output' do
+          expect(ci_job).to have_received(:failure).with(fake_github_check, expected_output)
+        end
+
+        it 'must create TopoTestFailure' do
+          expect(TopotestFailure.all.size).to eq(1)
+          expect(TopotestFailure.last.to_h).to eq(expected_topotest_failure)
+        end
+      end
+
+      context 'When bamboo returns an empty hash' do
+        let(:expected_output) do
+          {
+            title: 'Failed test',
+            summary: "There was some test that failed, but I couldn't find the log."
+          }
+        end
+
+        before do
+          allow(CiJob).to receive(:find_by).and_return(ci_job)
+          allow(ci_job).to receive(:failure)
+          allow(BambooCi::Result).to receive(:fetch).and_return({})
+
+          update_status.update
+        end
+
+        it 'must maintain the same output' do
+          expect(ci_job).to have_received(:failure).with(fake_github_check, expected_output)
+        end
+
+        it 'must not create a TopoTestFailure' do
+          expect(TopotestFailure.all.size).to eq(0)
+        end
+      end
+    end
   end
 
   describe 'Checking invalid commands' do
