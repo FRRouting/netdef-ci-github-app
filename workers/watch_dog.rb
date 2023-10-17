@@ -34,14 +34,31 @@ class WatchDog < Base
       fetch_ci_execution(check_suite)
       build_status = fetch_build_status(check_suite)
 
-      @logger.info "Build status: #{build_status.inspect}"
+      @logger.info ">>> Build status: #{build_status.inspect}"
 
-      next if !build_status&.key?('message') or !build_status['finished']
-      next if build_status&.dig('progress', 'percentageCompleted').to_f < 2.0
+      next if in_progress?(build_status)
 
+      @logger.info ">>> Updating suite: #{check_suite.inspect}"
       check_stages(check_suite)
       clear_deleted_jobs(check_suite)
     end
+  end
+
+  def in_progress?(build_status)
+    return false if ci_stopped?(build_status)
+    return false if ci_hanged?(build_status)
+
+    true
+  end
+
+  def ci_stopped?(build_status)
+    build_status.key?('message') and !build_status.key? 'finished'
+  end
+
+  def ci_hanged?(build_status)
+    return false if build_status.key?('message') and !build_status.key? 'finished'
+
+    build_status.dig('progress', 'percentageCompleted').to_f >= 2.0
   end
 
   def check_suites
