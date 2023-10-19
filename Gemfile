@@ -21,6 +21,8 @@ gem 'octokit', '<= 4.17.0'
 gem 'sinatra', '2.0.8.1'
 
 gem 'rack', '2.1.4'
+gem 'rack-attack', '6.3.1'
+gem 'rack-protection', '2.0.8.1'
 
 # ActiveRecord
 gem 'otr-activerecord', '2.0.3'
