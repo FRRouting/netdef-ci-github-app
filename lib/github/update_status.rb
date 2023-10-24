@@ -12,6 +12,7 @@ require 'logger'
 
 require_relative '../../database_loader'
 require_relative '../../lib/bamboo_ci/result'
+require_relative '../slack_bot/slack_bot'
 
 module Github
   class UpdateStatus
@@ -74,6 +75,7 @@ module Github
 
       @job.failure(@github_check, @output)
       failures_stats if @job.name.downcase.match? 'topotest' and @failures.is_a? Array
+      slack_notify?
     end
 
     def fetch_and_update_failures(to_be_replaced)
@@ -108,6 +110,17 @@ module Github
 
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
         job.skipped(@github_check)
+      end
+    end
+
+    def slack_notify?
+      subscriptions =
+        PullRequestSubscribe.where(pull_request_id: @job.check_suite.pull_request_id, notification: 'error')
+
+      return false if subscriptions.empty?
+
+      subscriptions.each do |subscription|
+        SlackBot.instance.notify_error(@job, subscription)
       end
     end
   end

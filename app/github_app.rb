@@ -29,6 +29,7 @@ require_relative '../lib/github/re_run/command'
 require_relative '../lib/github/retry'
 require_relative '../lib/github/update_status'
 require_relative '../lib/helpers/sinatra_payload'
+require_relative '../lib/slack/subscribe'
 
 class GithubApp < Sinatra::Base
   set :bind, '0.0.0.0'
@@ -64,6 +65,26 @@ class GithubApp < Sinatra::Base
     github = Github::UpdateStatus.new(@payload)
 
     halt github.update
+  end
+
+  post '/slack' do
+    halt 401 unless slack_authentication
+
+    payload = JSON.parse(request.body.read)
+
+    logger.debug "Received Slack command: #{payload}"
+    puts "Received Slack command: #{payload}"
+
+    message =
+      case payload['event']
+      when 'subscribe'
+        Slack::Subscribe.new(payload).subscribe
+      else
+        msg = "Invalid payload: #{payload.inspect}"
+        logger.warn msg
+      end
+
+    halt 200, message
   end
 
   post '/*' do
@@ -127,6 +148,19 @@ class GithubApp < Sinatra::Base
       logger.debug '-' * 80
       logger.debug "\n#{JSON.pretty_generate(JSON.parse(body))}"
       logger.debug '======= POST DONE ========'
+    end
+
+    def slack_authentication
+      netrc = Netrc.read
+      user, passwd = netrc['slack_bot.netdef.org']
+
+      return false if basic_encode(user, passwd) != request.env['HTTP_AUTHORIZATION']
+
+      true
+    end
+
+    def basic_encode(account, password)
+      "Basic #{["#{account}:#{password}"].pack('m0')}"
     end
   end
 

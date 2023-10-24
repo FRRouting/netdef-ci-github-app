@@ -45,6 +45,13 @@ module Github
         repo,
         pr_id,
         comment
+      ).to_h
+    end
+
+    def remove_comment(comment_id, repo)
+      @app.delete_comment(
+        repo,
+        comment_id
       )
     end
 
