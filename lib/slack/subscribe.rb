@@ -10,37 +10,42 @@
 
 module Slack
   class Subscribe
-    def initialize(payload)
+    def call(payload)
       @payload = payload
-    end
 
-    def subscribe
-      pr = PullRequest.find_by(github_pr_id: @payload['pr_id'])
-
-      return 'PR not found' if pr.nil?
-
-      subscription = PullRequestSubscribe.find_by(pull_request: pr, slack_user_id: @payload['slack_user_id'])
-
-      if subscription.nil?
-        subscription =
-          PullRequestSubscribe.create(pull_request: pr,
-                                      slack_user_id: @payload['slack_user_id'],
-                                      notification: fetch_notification)
-
-        return subscription.persisted? ? "Subscription created #{subscription.id}" : 'Failed to subscribe'
-      end
-
-      subscription.update(notification: fetch_notification)
-
-      "Subscription updated #{subscription.id}"
+      fetch_subscription
+      unsubscribe?
+      subscribe
     end
 
     private
 
-    def fetch_notification
-      return 'error' if @payload['notification'].downcase.match? 'error'
+    def subscribe
+      if @subscription.nil?
+        @subscription =
+          PullRequestSubscribe.create(rule: @payload['rule'],
+                                      target: @payload['target'],
+                                      slack_user_id: @payload['slack_user_id'],
+                                      notification: @payload['notification'])
 
-      nil
+        return @subscription.persisted? ? "Subscription created #{@subscription.id}" : 'Failed to subscribe'
+      end
+
+      @subscription.update(notification: @payload['notification'])
+
+      "Subscription updated #{@subscription.id}"
+    end
+
+    def fetch_subscription
+      @subscription = PullRequestSubscribe.find_by(slack_user_id: @payload['slack_user_id'],
+                                                   rule: @payload['rule'],
+                                                   target: @payload['target'])
+    end
+
+    def unsubscribe?
+      return false if @subscription.nil? or !@payload['notification'].match? 'off'
+
+      @subscription&.destroy
     end
   end
 end

@@ -71,7 +71,7 @@ module Github
       github_check = Github::Check.new(job.check_suite)
       previous_job = github_check.get_check_run(job.check_ref)
 
-      SlackBot.instance.invalid_rerun(job)
+      slack_notification(job)
 
       output = { title: previous_job.dig(:output, :title).to_s, summary: previous_job.dig(:output, :summary).to_s }
 
@@ -79,6 +79,23 @@ module Github
       job.failure(github_check, output)
 
       [406, reason]
+    end
+
+    def slack_notification(job)
+      SlackBot.instance.invalid_rerun_group(job)
+
+      sub_pr =
+        PullRequestSubscribe.where(target: job.check_suite.pull_request_id,
+                                   notification: %w[all errors],
+                                   rule: 'notify')
+      sub_user =
+        PullRequestSubscribe.where(target: job.check_suite.pull_request.author,
+                                   notification: %w[all errors],
+                                   rule: 'notify')
+
+      (sub_pr + sub_user).uniq(&:slack_user_id).each do |subscription|
+        SlackBot.instance.invalid_rerun_dm(job, subscription)
+      end
     end
 
     def create_logger(logger_level)

@@ -60,10 +60,13 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check, @output)
+        slack_notify_in_progress
       when 'success'
         @job.success(@github_check, @output)
+        slack_notify_success
       else
         failure
+        slack_notify_failure
       end
     end
 
@@ -75,7 +78,6 @@ module Github
 
       @job.failure(@github_check, @output)
       failures_stats if @job.name.downcase.match? 'topotest' and @failures.is_a? Array
-      slack_notify?
     end
 
     def fetch_and_update_failures(to_be_replaced)
@@ -113,15 +115,35 @@ module Github
       end
     end
 
-    def slack_notify?
-      subscriptions =
-        PullRequestSubscribe.where(pull_request_id: @job.check_suite.pull_request_id, notification: 'error')
-
-      return false if subscriptions.empty?
-
-      subscriptions.each do |subscription|
-        SlackBot.instance.notify_error(@job, subscription)
+    def slack_notify_in_progress
+      fetch_subscriptions('all').each do |subscription|
+        SlackBot.instance.notify_in_progress(@job, subscription)
       end
+    end
+
+    def slack_notify_success
+      fetch_subscriptions(%w[all passs]).each do |subscription|
+        SlackBot.instance.notify_success(@job, subscription)
+      end
+    end
+
+    def slack_notify_failure
+      fetch_subscriptions(%w[all errors]).each do |subscription|
+        SlackBot.instance.notify_errors(@job, subscription)
+      end
+    end
+
+    def fetch_subscriptions(notification)
+      sub_pr =
+        PullRequestSubscribe.where(target: @job.check_suite.pull_request.github_pr_id,
+                                   notification: notification,
+                                   rule: 'notify')
+      sub_user =
+        PullRequestSubscribe.where(target: @job.check_suite.pull_request.author,
+                                   notification: notification,
+                                   rule: 'notify')
+
+      (sub_pr + sub_user).uniq(&:slack_user_id)
     end
   end
 end

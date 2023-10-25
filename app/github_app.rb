@@ -30,6 +30,7 @@ require_relative '../lib/github/retry'
 require_relative '../lib/github/update_status'
 require_relative '../lib/helpers/sinatra_payload'
 require_relative '../lib/slack/subscribe'
+require_relative '../lib/slack/settings'
 
 class GithubApp < Sinatra::Base
   set :bind, '0.0.0.0'
@@ -72,17 +73,21 @@ class GithubApp < Sinatra::Base
 
     payload = JSON.parse(request.body.read)
 
-    logger.debug "Received Slack command: #{payload}"
-    puts "Received Slack command: #{payload}"
+    logger.debug "Received Slack command: #{payload.inspect}"
 
-    message =
-      case payload['event']
-      when 'subscribe'
-        Slack::Subscribe.new(payload).subscribe
-      else
-        msg = "Invalid payload: #{payload.inspect}"
-        logger.warn msg
-      end
+    message = Slack::Subscribe.new.call(payload)
+
+    halt 200, message
+  end
+
+  post '/slack/settings' do
+    halt 401 unless slack_authentication
+
+    payload = JSON.parse(request.body.read)
+
+    logger.debug "Received Slack command: #{payload.inspect}"
+
+    message = Slack::Settings.new.call(payload)
 
     halt 200, message
   end
