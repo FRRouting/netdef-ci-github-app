@@ -15,6 +15,9 @@ module Slack
 
       fetch_subscription
       unsubscribe?
+
+      return 'Unsubscribed' if @subscription.nil? and @payload['notification'].match? 'off'
+
       subscribe
     end
 
@@ -28,12 +31,12 @@ module Slack
                                       slack_user_id: @payload['slack_user_id'],
                                       notification: @payload['notification'])
 
-        return @subscription.persisted? ? "Subscription created #{@subscription.id}" : 'Failed to subscribe'
+        return @subscription.persisted? ? 'Subscription created' : 'Failed to subscribe'
       end
 
       @subscription.update(notification: @payload['notification'])
 
-      "Subscription updated #{@subscription.id}"
+      'Subscription updated'
     end
 
     def fetch_subscription
@@ -46,6 +49,8 @@ module Slack
       return false if @subscription.nil? or !@payload['notification'].match? 'off'
 
       @subscription&.destroy
+
+      @subscription = nil
     end
   end
 end

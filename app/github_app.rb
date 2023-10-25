@@ -74,6 +74,7 @@ class GithubApp < Sinatra::Base
     payload = JSON.parse(request.body.read)
 
     logger.debug "Received Slack command: #{payload.inspect}"
+    puts "Received Slack command: #{payload.inspect}"
 
     message = Slack::Subscribe.new.call(payload)
 
