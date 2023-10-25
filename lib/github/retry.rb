@@ -84,18 +84,12 @@ module Github
     def slack_notification(job)
       SlackBot.instance.invalid_rerun_group(job)
 
-      sub_pr =
-        PullRequestSubscribe.where(target: job.check_suite.pull_request_id,
-                                   notification: %w[all errors],
-                                   rule: 'notify')
-      sub_user =
-        PullRequestSubscribe.where(target: job.check_suite.pull_request.author,
-                                   notification: %w[all errors],
-                                   rule: 'notify')
+      pull_request = job.check_suite.pull_request
 
-      (sub_pr + sub_user).uniq(&:slack_user_id).each do |subscription|
-        SlackBot.instance.invalid_rerun_dm(job, subscription)
-      end
+      PullRequestSubscribe
+        .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all errors])
+        .uniq(&:slack_user_id)
+        .each { |subscription| SlackBot.instance.invalid_rerun_dm(job, subscription) }
     end
 
     def create_logger(logger_level)

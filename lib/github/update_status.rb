@@ -134,16 +134,11 @@ module Github
     end
 
     def fetch_subscriptions(notification)
-      sub_pr =
-        PullRequestSubscribe.where(target: @job.check_suite.pull_request.github_pr_id,
-                                   notification: notification,
-                                   rule: 'notify')
-      sub_user =
-        PullRequestSubscribe.where(target: @job.check_suite.pull_request.author,
-                                   notification: notification,
-                                   rule: 'notify')
+      pull_request = @job.check_suite.pull_request
 
-      (sub_pr + sub_user).uniq(&:slack_user_id)
+      PullRequestSubscribe
+        .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
+        .uniq(&:slack_user_id)
     end
   end
 end
