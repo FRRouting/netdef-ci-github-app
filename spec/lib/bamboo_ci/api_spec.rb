@@ -12,7 +12,7 @@ class Dummy
   include BambooCi::Api
 
   def initialize
-    @logger = Logger.new('/dev/null')
+    @logger_manager = [Logger.new('/dev/null')]
   end
 end
 
@@ -20,6 +20,8 @@ describe BambooCi::Api do
   let(:dummy) { Dummy.new }
 
   before do
+    allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+
     stub_request(http_method, url)
       .with(
         headers: {
