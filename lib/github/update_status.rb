@@ -122,7 +122,7 @@ module Github
     end
 
     def slack_notify_success
-      fetch_subscriptions(%w[all passs]).each do |subscription|
+      fetch_subscriptions(%w[all pass]).each do |subscription|
         SlackBot.instance.notify_success(@job, subscription)
       end
     end
@@ -136,7 +136,7 @@ module Github
     def fetch_subscriptions(notification)
       pull_request = @job.check_suite.pull_request
 
-      PullRequestSubscribe
+      PullRequestSubscription
         .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
         .uniq(&:slack_user_id)
     end

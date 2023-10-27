@@ -30,8 +30,6 @@ module GitHubApp
       JSON.parse(http.request(req).body)
     rescue StandardError => e
       logger(Logger::ERROR, "HTTP GET Request failed (#{e.message}) for #{uri.host}")
-
-      nil
     end
 
     def delete_request(uri)
@@ -69,8 +67,6 @@ module GitHubApp
       resp
     rescue StandardError => e
       logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
-
-      nil
     end
 
     def post_request(uri, body: nil)
@@ -97,8 +93,6 @@ module GitHubApp
       resp
     rescue StandardError => e
       logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
-
-      nil
     end
 
     def create_http(uri)

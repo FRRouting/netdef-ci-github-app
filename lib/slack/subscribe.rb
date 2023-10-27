@@ -8,6 +8,8 @@
 #
 #  frozen_string_literal: true
 
+require_relative '../github/check'
+
 module Slack
   class Subscribe
     def call(payload)
@@ -15,6 +17,8 @@ module Slack
 
       fetch_subscription
       unsubscribe?
+
+      return 'Invalid GitHub username' if invalid_github_user?
 
       return 'Unsubscribed' if @subscription.nil? and @payload['notification'].match? 'off'
 
@@ -26,10 +30,10 @@ module Slack
     def subscribe
       if @subscription.nil?
         @subscription =
-          PullRequestSubscribe.create(rule: @payload['rule'],
-                                      target: @payload['target'],
-                                      slack_user_id: @payload['slack_user_id'],
-                                      notification: @payload['notification'])
+          PullRequestSubscription.create(rule: @payload['rule'],
+                                         target: @payload['target'],
+                                         slack_user_id: @payload['slack_user_id'],
+                                         notification: @payload['notification'])
 
         return @subscription.persisted? ? 'Subscription created' : 'Failed to subscribe'
       end
@@ -40,17 +44,28 @@ module Slack
     end
 
     def fetch_subscription
-      @subscription = PullRequestSubscribe.find_by(slack_user_id: @payload['slack_user_id'],
-                                                   rule: @payload['rule'],
-                                                   target: @payload['target'])
+      @subscription = PullRequestSubscription.find_by(slack_user_id: @payload['slack_user_id'],
+                                                      rule: @payload['rule'],
+                                                      target: @payload['target'])
     end
 
     def unsubscribe?
       return false if @subscription.nil? or !@payload['notification'].match? 'off'
 
-      @subscription&.destroy
+      @subscription.destroy
 
       @subscription = nil
+    end
+
+    def invalid_github_user?
+      return false if @payload['rule'].match? 'notify'
+
+      github = Github::Check.new(nil)
+      user = github.fetch_username(@payload['target'])
+
+      return true unless user
+
+      false
     end
   end
 end

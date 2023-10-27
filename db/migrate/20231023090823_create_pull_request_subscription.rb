@@ -8,9 +8,9 @@
 #
 #  frozen_string_literal: true
 
-class CreatePullRequestSubscribe < ActiveRecord::Migration[6.0]
+class CreatePullRequestSubscription < ActiveRecord::Migration[6.0]
   def change
-    create_table :pull_request_subscribes do |t|
+    create_table :pull_request_subscriptions do |t|
       t.string :slack_user_id, null: false # Slack user who will receive the notification
       t.string :rule, null: false          # Rule type filter
       t.string :target, null: false        # Subscription type - PR or GitHub user

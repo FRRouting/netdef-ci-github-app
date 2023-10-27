@@ -52,7 +52,7 @@ describe Github::Retry do
     context 'when Ci Job is failure' do
       let(:check_suite) { create(:check_suite) }
       let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
-      let(:ci_job_success) { create(:ci_job, check_suite: check_suite, status: 'failure', name: 'Checkout Code') }
+      let(:ci_job_checkout_code) { create(:ci_job, :checkout_code, check_suite: check_suite, status: 'failure') }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
 
@@ -67,11 +67,17 @@ describe Github::Retry do
 
         allow(BambooCi::StopPlan).to receive(:stop)
         allow(BambooCi::Retry).to receive(:restart)
+
+        ci_job_checkout_code
       end
 
       it 'must returns success' do
         expect(github_retry.start).to eq([200, 'Retrying failure jobs'])
         expect(ci_job.reload.status).to eq('queued')
+      end
+
+      it 'must still have its previous status' do
+        expect(ci_job_checkout_code.reload.status).to eq('failure')
       end
     end
 
@@ -90,12 +96,15 @@ describe Github::Retry do
           }
         }
       end
+      let(:pr_number) { check_suite.pull_request.github_pr_id }
       let(:check_suite) { create(:check_suite) }
-      let(:ci_job1) { create(:ci_job, check_suite: check_suite, status: 'failure') }
+      let(:ci_job1) { create(:ci_job, :checkout_code, check_suite: check_suite, status: 'failure') }
       let(:ci_job2) { create(:ci_job, check_suite: check_suite, status: 'failure') }
       let(:ci_job_running) { create(:ci_job, check_suite: check_suite, status: 'in_progress') }
+      let(:fake_config) { GitHubApp::Configuration.instance }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
+      let(:url) { 'https://test.free' }
       let(:output1) do
         {
           output:
@@ -114,8 +123,18 @@ describe Github::Retry do
             }
         }
       end
+      let(:reason) do
+        "PR <https://github.com/Unit/Test/pull/#{pr_number}|##{pr_number}> " \
+          'tried to perform a partial rerun, but there were still tests running.'
+      end
 
       before do
+        stub_request(:post, "#{url}/github/comment").to_return(status: 200, body: '', headers: {})
+        stub_request(:post, "#{url}/github/user").to_return(status: 200, body: '', headers: {})
+
+        allow(GitHubApp::Configuration).to receive(:instance).and_return(fake_config)
+        allow(fake_config).to receive(:config).and_return({ 'slack_bot_url' => url, 'github_apps' => [{}] })
+
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
         allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
         allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
@@ -130,18 +149,20 @@ describe Github::Retry do
         allow(BambooCi::StopPlan).to receive(:stop)
         allow(BambooCi::Retry).to receive(:restart)
 
+        create(:pull_request_subscription, pull_request: check_suite.pull_request, target: pr_number)
+
         ci_job1
         ci_job2
         ci_job_running
       end
 
       it 'must not allow running again and set job as failure' do
-        expect(github_retry.start).to eq([406, 'Cannot rerun because there are still tests running'])
+        expect(github_retry.start).to eq([406, reason])
         expect(ci_job1.reload.status).to eq('failure')
         expect(ci_job2.reload.status).to eq('failure')
       end
 
-      it do
+      it 'must not change tests status' do
         described_class.new(payload2).start
         expect(ci_job1.reload.status).to eq('failure')
         expect(ci_job2.reload.status).to eq('failure')

@@ -10,6 +10,6 @@
 
 require 'otr-activerecord'
 
-class PullRequestSubscribe < ActiveRecord::Base
+class PullRequestSubscription < ActiveRecord::Base
   belongs_to :pull_request
 end

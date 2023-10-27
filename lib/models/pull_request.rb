@@ -17,7 +17,7 @@ class PullRequest < ActiveRecord::Base
   validates :repository, presence: true
 
   has_many :check_suites, dependent: :delete_all
-  has_many :pull_request_subscribes, dependent: :delete_all
+  has_many :pull_request_subscriptions, dependent: :delete_all
 
   def new?
     check_suites.nil? or check_suites.empty?
