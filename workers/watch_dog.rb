@@ -129,6 +129,8 @@ class WatchDog < Base
     PullRequestSubscription
       .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
       .uniq(&:slack_user_id)
+  rescue StandardError
+    []
   end
 
   def slack_notify_success(job)
