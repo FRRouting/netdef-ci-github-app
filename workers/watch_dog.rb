@@ -15,22 +15,52 @@ require_relative '../lib/slack_bot/slack_bot'
 class WatchDog < Base
   def perform
     @logger = Logger.new('watch_dog.log', 0, 1_024_000)
-    check_suites.each do |check_suite|
+    @logger.info '>>> Running watchdog'
+
+    suites = check_suites
+
+    @logger.info ">>> Suites that need to be updated: #{suites.size}"
+
+    check(suites)
+
+    @logger.info '>>> Stopping watchdog'
+  end
+
+  private
+
+  def check(suites)
+    suites.each do |check_suite|
       @logger.info ">>> CheckSuite: #{check_suite.inspect}"
 
       fetch_ci_execution(check_suite)
+      build_status = fetch_build_status(check_suite)
 
-      @logger.info ">>> Status: #{@result['state']}"
+      @logger.info ">>> Build status: #{build_status.inspect}"
 
-      next if @result['status-code'] == 404
-      next if @result['state'] == 'Unknown'
+      next if in_progress?(build_status)
 
+      @logger.info ">>> Updating suite: #{check_suite.inspect}"
       check_stages(check_suite)
       clear_deleted_jobs(check_suite)
     end
   end
 
-  private
+  def in_progress?(build_status)
+    return false if ci_stopped?(build_status)
+    return false if ci_hanged?(build_status)
+
+    true
+  end
+
+  def ci_stopped?(build_status)
+    build_status.key?('message') and !build_status.key? 'finished'
+  end
+
+  def ci_hanged?(build_status)
+    return false if build_status.key?('message') and !build_status.key? 'finished'
+
+    build_status.dig('progress', 'percentageCompleted').to_f >= 2.0
+  end
 
   def check_suites
     CheckSuite.where(id: check_suites_fetch_map)
