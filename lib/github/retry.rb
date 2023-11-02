@@ -71,18 +71,27 @@ module Github
       github_check = Github::Check.new(job.check_suite)
       previous_job = github_check.get_check_run(job.check_ref)
 
-      reason = 'Cannot rerun because there are still tests running'
+      reason = slack_notification(job)
 
-      logger(Logger::INFO, "enqueued - #{job.inspect} -> #{previous_job[:output]}. Reason: #{reason}")
-
-      summary = previous_job.dig(:output, :summary).to_s
-      summary = "## :warning:#{reason}:warning:\n\n#{summary}"[0..65_535] unless summary.match? reason
-      output = { title: previous_job.dig(:output, :title).to_s, summary: summary }
+      output = { title: previous_job.dig(:output, :title).to_s, summary: previous_job.dig(:output, :summary).to_s }
 
       job.enqueue(github_check)
       job.failure(github_check, output)
 
       [406, reason]
+    end
+
+    def slack_notification(job)
+      reason = SlackBot.instance.invalid_rerun_group(job)
+
+      pull_request = job.check_suite.pull_request
+
+      PullRequestSubscription
+        .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all errors])
+        .uniq(&:slack_user_id)
+        .each { |subscription| SlackBot.instance.invalid_rerun_dm(job, subscription) }
+
+      reason
     end
 
     def create_logger(logger_level)

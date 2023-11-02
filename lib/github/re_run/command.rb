@@ -32,7 +32,9 @@ module Github
         return [404, 'Failed to fetch a check suite'] if check_suite.nil?
 
         @github_check = Github::Check.new(check_suite)
+
         stop_previous_execution
+
         bamboo_plan = start_new_execution(check_suite)
         ci_jobs(check_suite, bamboo_plan)
 
