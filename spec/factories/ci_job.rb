@@ -16,5 +16,9 @@ FactoryBot.define do
     check_ref { rand(1_000_000) }
 
     check_suite
+
+    trait :checkout_code do
+      name { 'Checkout Code' }
+    end
   end
 end

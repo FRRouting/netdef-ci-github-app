@@ -9,14 +9,10 @@
 #  frozen_string_literal: true
 
 require_relative 'app/github_app'
-require_relative 'config/sidekiq'
 
 require 'puma'
 require 'rack/handler/puma'
 require 'rack/session/cookie'
-
-require 'sidekiq'
-require 'sidekiq/web'
 
 File.write('.session.key', SecureRandom.hex(32))
 

@@ -262,4 +262,101 @@ describe 'GithubApp' do
       end
     end
   end
+
+  describe 'Slack commands' do
+    let(:config) { GitHubApp::Configuration.instance.config }
+    let(:account) { 'admin' }
+    let(:password) { 'admin' }
+    let(:auth) { "Basic #{["#{account}:#{password}"].pack('m0')}" }
+
+    before do
+      allow(Netrc).to receive(:read).and_return({ 'slack_bot.netdef.org' => [account, password] })
+    end
+
+    context 'when create a subscription' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'rule' => 'notify',
+          'target' => 1,
+          'notification' => 'all',
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+      end
+    end
+
+    context 'when create a subscription but send wrong auth' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => ''
+        }
+      end
+
+      let(:payload) do
+        {
+          'rule' => 'notify',
+          'target' => 1,
+          'notification' => 'all',
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 401
+      end
+    end
+
+    context 'when fetch settings' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack/settings', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+      end
+    end
+
+    context 'when fetch settings but using wrong auth' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => ''
+        }
+      end
+
+      let(:payload) do
+        {
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack/settings', payload.to_json, headers
+
+        expect(last_response.status).to eq 401
+      end
+    end
+  end
 end
