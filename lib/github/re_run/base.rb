@@ -14,6 +14,7 @@ require_relative '../../bamboo_ci/stop_plan'
 require_relative '../parsers/pull_request_commit'
 
 require_relative '../check'
+require_relative '../build/action'
 
 module Github
   module ReRun
@@ -47,7 +48,7 @@ module Github
         logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
         fetch_run_ci_by_pr.each do |check_suite|
-          check_suite.ci_jobs.each do |ci_job|
+          check_suite.ci_jobs.skip_stages.each do |ci_job|
             BambooCi::StopPlan.stop(ci_job.job_ref)
 
             logger(Logger::WARN, "Cancelling Job #{ci_job.inspect}")
@@ -59,24 +60,9 @@ module Github
       def create_ci_jobs(bamboo_plan, check_suite)
         jobs = BambooCi::RunningPlan.fetch(bamboo_plan.bamboo_reference)
 
-        jobs.each do |job|
-          ci_job = CiJob.create(
-            check_suite: check_suite,
-            name: job[:name],
-            job_ref: job[:job_ref]
-          )
-
-          logger(Logger::DEBUG, ">>> CI Job: #{ci_job.inspect}")
-          next unless ci_job.persisted?
-
-          url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-
-          ci_job.enqueue(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
-
-          next unless ci_job.checkout_code?
-
-          ci_job.in_progress(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
-        end
+        action = Github::Build::Action.new(check_suite, @github_check)
+        action.create_jobs(jobs, rerun: true)
+        action.create_summary
       end
 
       def fetch_plan

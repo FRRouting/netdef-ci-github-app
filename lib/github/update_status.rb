@@ -13,6 +13,7 @@ require 'logger'
 require_relative '../../database_loader'
 require_relative '../../lib/bamboo_ci/result'
 require_relative '../slack_bot/slack_bot'
+require_relative 'build/summary'
 
 module Github
   class UpdateStatus
@@ -68,6 +69,10 @@ module Github
         failure
         slack_notify_failure
       end
+
+      summary = Github::Build::Summary.new(@job, @status)
+      summary.build_summary(Github::Build::Action::BUILD_STAGE) if @job.build?
+      summary.build_summary(Github::Build::Action::TESTS_STAGE) if @job.test?
     end
 
     # The unable2find string must match the phrase defined in the ci-files repository file
@@ -108,10 +113,11 @@ module Github
     end
 
     def skipping_jobs
-      return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
+      return if @job.checkout_code? or @job.test?
+      return unless @job.build? and @status == 'failure'
 
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        job.skipped(@github_check)
+        job.cancelled(@github_check)
       end
     end
 

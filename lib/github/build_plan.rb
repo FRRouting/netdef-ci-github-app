@@ -15,6 +15,7 @@ require_relative '../bamboo_ci/stop_plan'
 require_relative '../bamboo_ci/running_plan'
 require_relative '../bamboo_ci/plan_run'
 require_relative 'check'
+require_relative 'build/action'
 
 module Github
   class BuildPlan
@@ -104,7 +105,7 @@ module Github
       @logger.info @last_check_suite.inspect
       @logger.info @check_suite.inspect
 
-      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
+      @last_check_suite.ci_jobs.skip_stages.where(status: %w[queued in_progress]).each do |ci_job|
         BambooCi::StopPlan.stop(ci_job.job_ref)
 
         @logger.warn("Cancelling Job #{ci_job.inspect}")
@@ -141,24 +142,11 @@ module Github
 
       return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
 
-      create_ci_jobs(jobs)
+      action = Github::Build::Action.new(@check_suite, @github_check)
+      action.create_jobs(jobs)
+      action.create_summary
 
       [200, 'Pull Request created']
-    end
-
-    def create_ci_jobs(jobs)
-      jobs.each do |job|
-        ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
-
-        next unless ci_job.persisted?
-
-        ci_job.create_check_run
-
-        next unless ci_job.checkout_code?
-
-        url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-        ci_job.in_progress(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
-      end
     end
 
     def ci_vars

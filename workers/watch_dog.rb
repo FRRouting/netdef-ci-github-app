@@ -42,6 +42,27 @@ class WatchDog < Base
       @logger.info ">>> Updating suite: #{check_suite.inspect}"
       check_stages(check_suite)
       clear_deleted_jobs(check_suite)
+      finish_stages(check_suite)
+    end
+  end
+
+  def finish_stages(check_suite)
+    check_suite.ci_jobs.where(stage: true).each do |ci_job|
+      if ci_job.build?
+        stt = check_suite.ci_jobs.where("name ~ '.* (B|b)uild'").where(status: 'failure').empty? ? 'success' : 'failure'
+        ci_job.update(status: stt)
+
+        next
+      end
+
+      stt =
+        if check_suite.ci_jobs.skip_checkout_code.where(status: %w[failure skipped cancelled]).empty?
+          'success'
+        else
+          'failure'
+        end
+
+      ci_job.update(status: stt)
     end
   end
 

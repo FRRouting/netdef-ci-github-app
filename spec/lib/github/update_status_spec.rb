@@ -35,6 +35,7 @@ describe Github::UpdateStatus do
       allow(fake_github_check).to receive(:failure).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:in_progress).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:skipped).and_return(ci_job.check_suite)
+      allow(fake_github_check).to receive(:cancelled).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:success).and_return(ci_job.check_suite)
     end
 
@@ -49,7 +50,7 @@ describe Github::UpdateStatus do
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
-        ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+        ci_jobs.each { |job| expect(job.reload.status).to eq('queued') }
       end
     end
 
@@ -78,7 +79,7 @@ describe Github::UpdateStatus do
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
-        ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+        ci_jobs.each { |job| expect(job.reload.status).to eq('cancelled') }
       end
     end
 
@@ -286,6 +287,178 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must not create a TopoTestFailure' do
           expect(TopotestFailure.all.size).to eq(0)
+        end
+      end
+    end
+
+    describe 'Build Stage' do
+      let(:payload) do
+        {
+          'status' => status,
+          'bamboo_ref' => ci_job.job_ref
+        }
+      end
+
+      context 'when Ci Job AMD Build update from queued -> in_progress' do
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'queued') }
+        let(:build) { create(:ci_job, :build_stage, status: 'queued', check_suite: ci_job.check_suite) }
+        let(:tests) { create(:ci_job, :tests_stage, status: 'queued', check_suite: ci_job.check_suite) }
+        let(:status) { 'in_progress' }
+
+        before do
+          ci_job
+          tests
+          build
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+
+        it 'must update Build Job' do
+          update_status.update
+          expect(build.reload.status).to eq(status)
+        end
+
+        it 'must keep Tests enqueued' do
+          update_status.update
+          expect(tests.reload.status).to eq('queued')
+        end
+      end
+
+      context 'when Ci Job TopoTest Part 0 update from queued -> in_progress' do
+        let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued') }
+        let(:status) { 'in_progress' }
+        let(:build) { create(:ci_job, :build_stage, status: 'queued', check_suite: ci_job.check_suite) }
+        let(:tests) { create(:ci_job, :tests_stage, status: 'queued', check_suite: ci_job.check_suite) }
+
+        before do
+          ci_job
+          tests
+          build
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+
+        it 'must update Build Job' do
+          update_status.update
+          expect(build.reload.status).to eq('success')
+        end
+
+        it 'must keep Tests enqueued' do
+          update_status.update
+          expect(tests.reload.status).to eq(status)
+        end
+      end
+
+      context 'when Ci Job TopoTest Part 0 update from in_progress -> success' do
+        let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress') }
+        let(:status) { 'success' }
+        let(:tests) { create(:ci_job, :tests_stage, status: 'in_progress', check_suite: ci_job.check_suite) }
+
+        before do
+          ci_job
+          tests
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+
+        it 'must change Tests to success' do
+          update_status.update
+          expect(tests.reload.status).to eq(status)
+        end
+      end
+
+      context 'when Ci Job TopoTest Part 0 update from in_progress -> failure' do
+        let(:ci_job) { create(:ci_job, :topotest_failure, name: 'TopoTest Part 0', status: 'in_progress') }
+        let(:status) { 'failure' }
+        let(:tests) { create(:ci_job, :tests_stage, status: 'in_progress', check_suite: ci_job.check_suite) }
+
+        let(:test_failure) do
+          create(:ci_job,
+                 :topotest_failure,
+                 name: 'TopoTest Part 1',
+                 status: 'failure',
+                 check_suite: ci_job.check_suite)
+        end
+
+        before do
+          ci_job
+          test_failure
+          tests
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+
+        it 'must change Tests to success' do
+          update_status.update
+          expect(tests.reload.status).to eq(status)
+        end
+      end
+
+      context 'when Ci Job AMD Build update from in_progress -> failure' do
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
+        let(:arm) { create(:ci_job, name: 'ARM8 Build', status: 'failure') }
+        let(:test) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress', check_suite: ci_job.check_suite) }
+        let(:build) { create(:ci_job, :build_stage, status: 'in_progress', check_suite: ci_job.check_suite) }
+        let(:tests) { create(:ci_job, :tests_stage, status: 'queued', check_suite: ci_job.check_suite) }
+        let(:status) { 'failure' }
+
+        before do
+          ci_job
+          test
+          tests
+          build
+          arm
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+
+        it 'must update Build Job' do
+          update_status.update
+          expect(build.reload.status).to eq(status)
+        end
+
+        it 'must keep Tests skipped' do
+          update_status.update
+          expect(tests.reload.status).to eq('cancelled')
+        end
+      end
+
+      context 'when Ci Job AMD Build update from in_progress -> success' do
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
+        let(:test) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued', check_suite: ci_job.check_suite) }
+        let(:build) { create(:ci_job, :build_stage, status: 'in_progress', check_suite: ci_job.check_suite) }
+        let(:tests) { create(:ci_job, :tests_stage, name: 'Tests', status: 'queued', check_suite: ci_job.check_suite) }
+        let(:status) { 'success' }
+
+        before do
+          ci_job
+          test
+          tests
+          build
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+
+        it 'must update Build Job' do
+          update_status.update
+          expect(build.reload.status).to eq(status)
+        end
+
+        it 'must keep Tests enqueued' do
+          update_status.update
+          expect(tests.reload.status).to eq('queued')
         end
       end
     end

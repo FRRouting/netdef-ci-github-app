@@ -56,7 +56,7 @@ module Github
     def create_ci_jobs(check_suite)
       github_check = Github::Check.new(check_suite)
 
-      check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
+      check_suite.ci_jobs.skip_stages.where.not(status: :success).each do |ci_job|
         next if ci_job.checkout_code?
 
         ci_job.enqueue(github_check)

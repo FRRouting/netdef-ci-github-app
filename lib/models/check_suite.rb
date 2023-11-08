@@ -18,7 +18,18 @@ class CheckSuite < ActiveRecord::Base
   has_many :ci_jobs, dependent: :delete_all
 
   def finished?
-    ci_jobs.find_by_status(%i[queued in_progress]).nil?
+    ci_jobs
+      .skip_stages
+      .where(status: %i[queued in_progress])
+      .empty?
+  end
+
+  def build_stage_finished?
+    ci_jobs
+      .skip_stages
+      .where("name ILIKE '% build'")
+      .where(status: %i[queued in_progress])
+      .empty?
   end
 
   def in_progress?

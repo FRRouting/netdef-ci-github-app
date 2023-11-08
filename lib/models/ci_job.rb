@@ -20,9 +20,20 @@ class CiJob < ActiveRecord::Base
   has_many :topotest_failures, dependent: :delete_all
 
   scope :sha256, ->(sha) { joins(:check_suite).where(check_suite: { commit_sha_ref: sha }) }
+  scope :filter_by, ->(filter) { where("name ~ ?", filter) }
+  scope :skip_stages, -> { where(stage: false) }
+  scope :skip_checkout_code, -> { where.not(name: 'Checkout Code') }
 
   def checkout_code?
     name.downcase.match? 'checkout'
+  end
+
+  def build?
+    name.downcase.match? 'build'
+  end
+
+  def test?
+    !build? and !checkout_code?
   end
 
   def finished?

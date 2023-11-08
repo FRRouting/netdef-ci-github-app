@@ -61,6 +61,7 @@ describe Github::BuildPlan do
       allow(Github::Check).to receive(:new).and_return(fake_github_check)
       allow(fake_github_check).to receive(:create).and_return(fake_check_run)
       allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
+      allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
 
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
@@ -82,7 +83,7 @@ describe Github::BuildPlan do
       let(:author) { 'Johnny Silverhand' }
       let(:pull_request) { PullRequest.last }
       let(:check_suite) { pull_request.check_suites.last }
-      let(:ci_job) { check_suite.ci_jobs.last }
+      let(:ci_job) { check_suite.ci_jobs.find_by(name: 'First Test') }
       let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
       let(:plan) { create(:plan, github_repo_name: repo) }
 

@@ -20,5 +20,19 @@ FactoryBot.define do
     trait :checkout_code do
       name { 'Checkout Code' }
     end
+
+    trait :build_stage do
+      name { Github::Build::Action::BUILD_STAGE }
+    end
+
+    trait :tests_stage do
+      name { Github::Build::Action::TESTS_STAGE }
+    end
+
+    trait :topotest_failure do
+      after(:create) do |ci_job|
+        create(:topotest_failure, ci_job: ci_job)
+      end
+    end
   end
 end
