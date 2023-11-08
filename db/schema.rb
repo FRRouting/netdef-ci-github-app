@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_10_23_090823) do
+ActiveRecord::Schema[7.0].define(version: 2023_11_08_100757) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -40,6 +40,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_10_23_090823) do
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
     t.integer "retry", default: 0
+    t.boolean "stage", default: false
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
   end
 

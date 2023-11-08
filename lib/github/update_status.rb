@@ -70,7 +70,7 @@ module Github
         slack_notify_failure
       end
 
-      summary = Github::Build::Summary.new(@job, @status)
+      summary = Github::Build::Summary.new(@job)
       summary.build_summary(Github::Build::Action::BUILD_STAGE) if @job.build?
       summary.build_summary(Github::Build::Action::TESTS_STAGE) if @job.test?
     end

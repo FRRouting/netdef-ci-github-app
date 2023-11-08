@@ -61,8 +61,8 @@ module Github
         jobs = BambooCi::RunningPlan.fetch(bamboo_plan.bamboo_reference)
 
         action = Github::Build::Action.new(check_suite, @github_check)
-        action.create_jobs(jobs, rerun: true)
         action.create_summary
+        action.create_jobs(jobs, rerun: true)
       end
 
       def fetch_plan

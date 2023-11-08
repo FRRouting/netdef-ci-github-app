@@ -13,10 +13,9 @@ require_relative '../../github/check'
 module Github
   module Build
     class Summary
-      def initialize(job, status, logger_level: Logger::INFO)
-        @job = job
-        @status = status
-        @check_suite = @job.reload.check_suite
+      def initialize(job, logger_level: Logger::INFO)
+        @job = job.reload
+        @check_suite = @job.check_suite
         @github = Github::Check.new(@check_suite)
         @loggers = []
 
@@ -35,25 +34,55 @@ module Github
 
         update_summary(stage, name)
         finished_summary(stage, @check_suite)
-        missing_stage(@check_suite)
+        missing_stage(stage, @check_suite)
       end
 
-      def missing_stage(check_suite)
-        name = nil
-        name = Github::Build::Action::BUILD_STAGE if check_suite.build_stage_finished?
-        name = Github::Build::Action::TESTS_STAGE if check_suite.finished?
+      def missing_stage(stage, check_suite)
+        missing_test_stage(stage, check_suite)
+        missing_build_stage(check_suite)
+      end
 
-        stage = check_suite.ci_jobs.find_by(name: name)
+      def missing_test_stage(stage, check_suite)
+        tests_stage = check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
+        tests_failure = {
+          title: "#{Github::Build::Action::TESTS_STAGE} summary",
+          summary: 'Build Stage failed so it will not be possible to run the tests'
+        }
 
-        return if stage.nil? or stage.failure?
+        return tests_stage.failure(@github, tests_failure) if stage.build? and stage.failure?
+        return tests_stage.in_progress(@github) if stage.build? and stage.success?
 
-        stage.success(@github)
+        return unless stage.test?
+        return unless check_suite.finished?
+
+        update_tests_stage(stage)
+      end
+
+      def missing_build_stage(check_suite)
+        build_stage = check_suite.ci_jobs.find_by(name: Github::Build::Action::BUILD_STAGE)
+        failure = {
+          title: "#{Github::Build::Action::BUILD_STAGE} summary",
+          summary: 'Build stage failure. Please check Bamboo CI'
+        }
+
+        return if build_stage.nil?
+        return unless build_stage.in_progress? or build_stage.queued?
+        return unless check_suite.build_stage_finished?
+
+        check_suite.build_stage_success? ? build_stage.success(@github) : build_stage.failure(@github, failure)
+      end
+
+      def update_tests_stage(stage)
+        success = @check_suite.ci_jobs.skip_checkout_code.where(status: %w[failure cancelled]).empty?
+
+        output = { title: "#{stage.name} summary", summary: summary_failures_message(stage.name) }
+
+        success ? stage.success(@github) : stage.failure(@github, output)
       end
 
       def finished_summary(stage, check_suite)
-        logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@status}")
-        return if @status.match? 'in_progress'
-        return if stage.failure?
+        logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
+        return if @job.status.match? 'in_progress' or stage.failure?
 
         finished_build_summary(stage, check_suite)
         finished_tests_summary(stage, check_suite)
@@ -63,6 +92,8 @@ module Github
         return unless stage.build?
         return unless check_suite.build_stage_finished?
 
+        logger(Logger::INFO, "finished_build_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
+
         stage.success(@github)
       end
 
@@ -70,18 +101,20 @@ module Github
         return unless stage.test?
         return unless check_suite.finished?
 
+        logger(Logger::INFO, "finished_tests_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
+
         stage.success(@github)
       end
 
       def update_summary(stage, name)
-        return unless %w[failure in_progress].include? @status
+        return unless %w[failure in_progress].include? @job.status
 
-        logger(Logger::INFO, "Updating summary status -> @status: #{@status}")
+        logger(Logger::INFO, "Updating summary status #{stage.inspect} -> @job.status: #{@job.status}")
 
         output = { title: "#{name} summary", summary: summary_failures_message(name) }
-        stage.in_progress(@github, output) if stage.queued? and @status.match? 'in_progress'
+        stage.in_progress(@github, output) if stage.queued? and @job.status.match? 'in_progress'
 
-        return unless @status.match? 'failure'
+        return unless @job.status.match? 'failure'
 
         stage.failure(@github, output)
       end
@@ -91,7 +124,7 @@ module Github
 
         @check_suite.ci_jobs.skip_checkout_code.filter_by(filter).where(status: :failure).map do |job|
           generate_message(name, job)
-        end.join("\n")
+        end.join("\n")[0..65_535]
       end
 
       private
@@ -103,9 +136,9 @@ module Github
       end
 
       def tests_message(job)
-        job.topotest_failures.map do |failure|
-          "\t- #{failure.test_suite} #{failure.test_case} -> ```#{failure.message}```"
-        end
+        failure = job.topotest_failures.first
+
+        "\t :no_entry_sign: #{failure.test_suite} #{failure.test_case} \n```\n#{failure.message}\n```\n"
       end
 
       def logger(severity, message)

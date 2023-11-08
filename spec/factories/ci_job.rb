@@ -23,10 +23,12 @@ FactoryBot.define do
 
     trait :build_stage do
       name { Github::Build::Action::BUILD_STAGE }
+      stage { true }
     end
 
     trait :tests_stage do
       name { Github::Build::Action::TESTS_STAGE }
+      stage { true }
     end
 
     trait :topotest_failure do

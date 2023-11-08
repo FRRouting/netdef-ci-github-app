@@ -30,13 +30,19 @@ module Github
 
       def create_summary
         SUMMARY.each do |name|
-          ci_job = CiJob.create(check_suite: @check_suite, name: name, job_ref: name, stage: true)
+          ci_job = CiJob.find_by(name: name, check_suite: @check_suite)
+
+          logger(Logger::INFO, "STAGE #{name} #{ci_job.inspect}")
+
+          ci_job = CiJob.create(check_suite: @check_suite, name: name, job_ref: name, stage: true) if ci_job.nil?
 
           unless ci_job.persisted?
-            logger(Logger::ERROR, "Failed to created: #{ci_job.inspect} -> #{ci_job.errors.messages.inspect}")
+            logger(Logger::ERROR, "Failed to created: #{ci_job.inspect} -> #{ci_job.errors.inspect}")
 
             next
           end
+
+          logger(Logger::INFO, ">>> Enqueued #{ci_job.inspect}")
 
           ci_job.enqueue(@github)
         end

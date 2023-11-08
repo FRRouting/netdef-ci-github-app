@@ -429,7 +429,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must keep Tests skipped' do
           update_status.update
-          expect(tests.reload.status).to eq('cancelled')
+          expect(tests.reload.status).to eq('failure')
         end
       end
 
@@ -437,7 +437,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
         let(:test) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued', check_suite: ci_job.check_suite) }
         let(:build) { create(:ci_job, :build_stage, status: 'in_progress', check_suite: ci_job.check_suite) }
-        let(:tests) { create(:ci_job, :tests_stage, name: 'Tests', status: 'queued', check_suite: ci_job.check_suite) }
+        let(:tests) { create(:ci_job, :tests_stage, status: 'queued', check_suite: ci_job.check_suite) }
         let(:status) { 'success' }
 
         before do
@@ -458,7 +458,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must keep Tests enqueued' do
           update_status.update
-          expect(tests.reload.status).to eq('queued')
+          expect(tests.reload.status).to eq('in_progress')
         end
       end
     end
