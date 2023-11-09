@@ -66,9 +66,9 @@ module Github
         }
 
         return if build_stage.nil?
-        return unless build_stage.in_progress? or build_stage.queued?
         return unless check_suite.build_stage_finished?
 
+        build_stage.enqueue(@github)
         check_suite.build_stage_success? ? build_stage.success(@github) : build_stage.failure(@github, failure)
       end
 
@@ -77,6 +77,7 @@ module Github
 
         output = { title: "#{stage.name} summary", summary: summary_failures_message(stage.name) }
 
+        stage.enqueue(@github)
         success ? stage.success(@github) : stage.failure(@github, output)
       end
 

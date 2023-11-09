@@ -37,6 +37,7 @@ describe Github::UpdateStatus do
       allow(fake_github_check).to receive(:skipped).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:cancelled).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:success).and_return(ci_job.check_suite)
+      allow(fake_github_check).to receive(:queued).and_return(ci_job.check_suite)
     end
 
     context 'when Ci Job Checkout Code update from queued -> failure' do
