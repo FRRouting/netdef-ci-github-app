@@ -47,23 +47,11 @@ class WatchDog < Base
   end
 
   def finish_stages(check_suite)
-    check_suite.ci_jobs.where(stage: true).each do |ci_job|
-      if ci_job.build?
-        stt = check_suite.ci_jobs.where("name ~ '.* (B|b)uild'").where(status: 'failure').empty? ? 'success' : 'failure'
-        ci_job.update(status: stt)
+    ci_job = check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
 
-        next
-      end
-
-      stt =
-        if check_suite.ci_jobs.skip_checkout_code.where(status: %w[failure skipped cancelled]).empty?
-          'success'
-        else
-          'failure'
-        end
-
-      ci_job.update(status: stt)
-    end
+    summary = Github::Build::Summary.new(ci_job)
+    summary.missing_build_stage(check_suite)
+    summary.update_tests_stage(ci_job)
   end
 
   def in_progress?(build_status)
@@ -100,7 +88,7 @@ class WatchDog < Base
   def clear_deleted_jobs(check_suite)
     github_check = Github::Check.new(check_suite)
 
-    check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
+    check_suite.skip_stages.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
       ci_job.skipped(github_check)
     end
   end
