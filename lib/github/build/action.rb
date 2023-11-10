@@ -32,7 +32,7 @@ module Github
         SUMMARY.each do |name|
           stage = CiJob.find_by(name: name, check_suite: @check_suite)
 
-          logger(Logger::INFO, "STAGE #{name} #{ci_job.inspect}")
+          logger(Logger::INFO, "STAGE #{name} #{stage.inspect}")
 
           stage = create_stage(name) if stage.nil?
 
@@ -45,8 +45,10 @@ module Github
       end
 
       def create_stage(name)
+        bamboo_ci = @check_suite.bamboo_ci_ref.split('-').last
+
         stage =
-          CiJob.create(check_suite: @check_suite, name: name, job_ref: "#{name}-#{rand(10_000)}", stage: true)
+          CiJob.create(check_suite: @check_suite, name: name, job_ref: "#{name}-#{bamboo_ci}", stage: true)
 
         return stage if stage.persisted?
 

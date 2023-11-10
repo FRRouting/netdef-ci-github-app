@@ -145,6 +145,8 @@ module Github
       def tests_message(job)
         failure = job.topotest_failures.first
 
+        return '' if failure.nil?
+
         "\t :no_entry_sign: #{failure.test_suite} #{failure.test_case} \n```\n#{failure.message}\n```\n"
       end
 

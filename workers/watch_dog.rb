@@ -11,6 +11,8 @@
 require 'logger'
 require_relative 'base'
 require_relative '../lib/slack_bot/slack_bot'
+require_relative '../lib/github/build/action'
+require_relative '../lib/github/build/summary'
 
 class WatchDog < Base
   def perform
@@ -50,7 +52,7 @@ class WatchDog < Base
     ci_job = check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
 
     summary = Github::Build::Summary.new(ci_job)
-    summary.missing_build_stage(check_suite)
+    summary.missing_build_stage
     summary.update_tests_stage(ci_job)
   end
 
@@ -88,7 +90,7 @@ class WatchDog < Base
   def clear_deleted_jobs(check_suite)
     github_check = Github::Check.new(check_suite)
 
-    check_suite.skip_stages.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
+    check_suite.ci_jobs.skip_stages.where(status: %w[queued in_progress]).each do |ci_job|
       ci_job.skipped(github_check)
     end
   end
