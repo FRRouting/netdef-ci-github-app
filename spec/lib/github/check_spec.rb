@@ -157,11 +157,11 @@ describe Github::Check do
                 conclusion: conclusion,
                 accept: 'application/vnd.github+json'
               })
-        .and_return(true)
+        .and_return({})
     end
 
     it 'must returns success' do
-      expect(check.cancelled(id)).to be_truthy
+      expect(check.cancelled(id)).to eq({})
     end
   end
 
@@ -179,11 +179,11 @@ describe Github::Check do
                 conclusion: conclusion,
                 accept: 'application/vnd.github+json'
               })
-        .and_return(true)
+        .and_return({})
     end
 
     it 'must returns success' do
-      expect(check.success(id)).to be_truthy
+      expect(check.success(id)).to eq({})
     end
   end
 
@@ -203,11 +203,11 @@ describe Github::Check do
                 output: output,
                 accept: 'application/vnd.github+json'
               })
-        .and_return(true)
+        .and_return({})
     end
 
     it 'must returns success' do
-      expect(check.failure(id, output)).to be_truthy
+      expect(check.failure(id, output)).to eq({})
     end
   end
 
@@ -225,11 +225,11 @@ describe Github::Check do
                 conclusion: conclusion,
                 accept: 'application/vnd.github+json'
               })
-        .and_return(true)
+        .and_return({})
     end
 
     it 'must returns success' do
-      expect(check.skipped(id)).to be_truthy
+      expect(check.skipped(id)).to eq({})
     end
   end
 
