@@ -30,22 +30,29 @@ module Github
 
       def create_summary
         SUMMARY.each do |name|
-          ci_job = CiJob.find_by(name: name, check_suite: @check_suite)
+          stage = CiJob.find_by(name: name, check_suite: @check_suite)
 
           logger(Logger::INFO, "STAGE #{name} #{ci_job.inspect}")
 
-          ci_job = CiJob.create(check_suite: @check_suite, name: name, job_ref: name, stage: true) if ci_job.nil?
+          stage = create_stage(name) if stage.nil?
 
-          unless ci_job.persisted?
-            logger(Logger::ERROR, "Failed to created: #{ci_job.inspect} -> #{ci_job.errors.inspect}")
+          next if stage.nil?
 
-            next
-          end
+          logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
 
-          logger(Logger::INFO, ">>> Enqueued #{ci_job.inspect}")
-
-          ci_job.enqueue(@github)
+          stage.enqueue(@github)
         end
+      end
+
+      def create_stage(name)
+        stage =
+          CiJob.create(check_suite: @check_suite, name: name, job_ref: "#{name}-#{rand(10_000)}", stage: true)
+
+        return stage if stage.persisted?
+
+        logger(Logger::ERROR, "Failed to created: #{stage.inspect} -> #{stage.errors.inspect}")
+
+        nil
       end
 
       def create_jobs(jobs, rerun: false)

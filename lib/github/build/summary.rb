@@ -33,17 +33,17 @@ module Github
         return if stage.nil?
 
         update_summary(stage, name)
-        finished_summary(stage, @check_suite)
-        missing_stage(stage, @check_suite)
+        finished_summary(stage)
+        missing_stage(stage)
       end
 
-      def missing_stage(stage, check_suite)
-        missing_test_stage(stage, check_suite)
-        missing_build_stage(check_suite)
+      def missing_stage(stage)
+        missing_test_stage(stage)
+        missing_build_stage
       end
 
-      def missing_test_stage(stage, check_suite)
-        tests_stage = check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
+      def missing_test_stage(stage)
+        tests_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
         tests_failure = {
           title: "#{Github::Build::Action::TESTS_STAGE} summary",
           summary: 'Build Stage failed so it will not be possible to run the tests'
@@ -53,23 +53,26 @@ module Github
         return tests_stage.in_progress(@github) if stage.build? and stage.success?
 
         return unless stage.test?
-        return unless check_suite.finished?
+        return unless @check_suite.finished?
 
-        update_tests_stage(stage)
+        update_tests_stage(tests_stage)
       end
 
-      def missing_build_stage(check_suite)
-        build_stage = check_suite.ci_jobs.find_by(name: Github::Build::Action::BUILD_STAGE)
+      def missing_build_stage
+        build_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::BUILD_STAGE)
         failure = {
           title: "#{Github::Build::Action::BUILD_STAGE} summary",
           summary: 'Build stage failure. Please check Bamboo CI'
         }
 
         return if build_stage.nil?
-        return unless check_suite.build_stage_finished?
+        return if build_stage.success? or build_stage.failure?
+        return unless @check_suite.build_stage_finished?
 
-        build_stage.enqueue(@github)
-        check_suite.build_stage_success? ? build_stage.success(@github) : build_stage.failure(@github, failure)
+        success = @check_suite.build_stage_success?
+        logger(Logger::INFO, "missing_build_stage: #{build_stage.inspect}, success: #{success}")
+
+        success ? build_stage.success(@github) : build_stage.failure(@github, failure)
       end
 
       def update_tests_stage(stage)
@@ -77,30 +80,31 @@ module Github
 
         output = { title: "#{stage.name} summary", summary: summary_failures_message(stage.name) }
 
-        stage.enqueue(@github)
+        logger(Logger::INFO, "update_tests_stage: #{stage.inspect}, success: #{success}")
+
         success ? stage.success(@github) : stage.failure(@github, output)
       end
 
-      def finished_summary(stage, check_suite)
+      def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        return if @job.status.match? 'in_progress' or stage.failure?
+        return if @job.in_progress? or stage.failure?
 
-        finished_build_summary(stage, check_suite)
-        finished_tests_summary(stage, check_suite)
+        finished_build_summary(stage)
+        finished_tests_summary(stage)
       end
 
-      def finished_build_summary(stage, check_suite)
+      def finished_build_summary(stage)
         return unless stage.build?
-        return unless check_suite.build_stage_finished?
+        return unless @check_suite.build_stage_finished?
 
         logger(Logger::INFO, "finished_build_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
         stage.success(@github)
       end
 
-      def finished_tests_summary(stage, check_suite)
+      def finished_tests_summary(stage)
         return unless stage.test?
-        return unless check_suite.finished?
+        return unless @check_suite.finished?
 
         logger(Logger::INFO, "finished_tests_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
@@ -113,9 +117,11 @@ module Github
         logger(Logger::INFO, "Updating summary status #{stage.inspect} -> @job.status: #{@job.status}")
 
         output = { title: "#{name} summary", summary: summary_failures_message(name) }
-        stage.in_progress(@github, output) if stage.queued? and @job.status.match? 'in_progress'
+        stage.in_progress(@github, output) if stage.queued? and @job.in_progress?
 
-        return unless @job.status.match? 'failure'
+        return unless @job.failure?
+
+        logger(Logger::INFO, "(Failure) #{stage.inspect} -> @job.status: #{@job.status}")
 
         stage.failure(@github, output)
       end
