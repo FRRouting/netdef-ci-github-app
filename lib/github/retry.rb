@@ -58,10 +58,15 @@ module Github
 
       enqueued_stages(check_suite, github_check)
 
+      enqueued_failure_tests(check_suite, github_check)
+    end
+
+    def enqueued_failure_tests(check_suite, github)
       check_suite.ci_jobs.skip_stages.where.not(status: :success).each do |ci_job|
         next if ci_job.checkout_code?
 
-        ci_job.enqueue(github_check)
+        logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
+        ci_job.enqueue(github)
         ci_job.update(retry: ci_job.retry + 1)
 
         logger(Logger::WARN, "Stopping Job: #{ci_job.job_ref}")
@@ -71,7 +76,7 @@ module Github
 
     def enqueued_stages(check_suite, github_check)
       check_suite.ci_jobs.stages.each do |ci_job|
-        logger(Logger::WARN, "Retrying #{ci_job.inspect}")
+        logger(Logger::WARN, "Enqueue stages: #{ci_job.inspect}")
         ci_job.enqueue(github_check)
         ci_job.update(retry: ci_job.retry + 1)
       end

@@ -52,31 +52,38 @@ class CiJob < ActiveRecord::Base
   end
 
   def in_progress(github, output = {})
-    check_run = save_check_run(github)
-    github.in_progress(check_run.id, output)
+    create_github_check
 
-    update(check_ref: check_run.id, status: :in_progress)
+    github.in_progress(check_ref, output)
+    update(status: :in_progress)
   end
 
   def cancelled(github, output = {})
+    create_github_check
+
     github.cancelled(check_ref, output)
 
     update(status: :cancelled)
   end
 
   def failure(github, output = {})
+    create_github_check
+
     github.failure(check_ref, output)
 
     update(status: :failure)
   end
 
   def success(github, output = {})
+    create_github_check
     github.success(check_ref, output)
 
     update(status: :success)
   end
 
   def skipped(github, output = {})
+    create_github_check
+
     github.skipped(check_ref, output)
 
     update(status: :skipped)
@@ -84,7 +91,10 @@ class CiJob < ActiveRecord::Base
 
   private
 
-  def save_check_run(github)
-    github.create(name)
+  def create_github_check
+    return unless check_ref.nil?
+
+    check_run = github.create(name)
+    update(check_ref: check_run.id)
   end
 end
