@@ -36,5 +36,13 @@ FactoryBot.define do
         create(:topotest_failure, ci_job: ci_job)
       end
     end
+
+    trait :in_progress do
+      status { 'in_progress' }
+    end
+
+    trait :failure do
+      status { 'failure' }
+    end
   end
 end
