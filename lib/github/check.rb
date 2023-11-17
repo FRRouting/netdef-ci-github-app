@@ -45,7 +45,7 @@ module Github
         repo,
         pr_id,
         comment
-      )
+      ).to_h
     end
 
     def comment_reaction_thumb_up(repo, comment_id)
@@ -71,26 +71,18 @@ module Github
 
     def cancelled(check_ref, output = {})
       completed(check_ref, 'completed', 'cancelled', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def success(check_ref, output = {})
       completed(check_ref, 'completed', 'success', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def failure(check_ref, output = {})
       completed(check_ref, 'completed', 'failure', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref #{check_ref} not found at GitHub"
     end
 
     def skipped(check_ref, output = {})
       completed(check_ref, 'completed', 'skipped', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def get_check_run(check_ref)
@@ -107,6 +99,12 @@ module Github
 
     def signature
       @config.dig('auth_signature', 'password')
+    end
+
+    def fetch_username(username)
+      @app.user(username)
+    rescue StandardError
+      false
     end
 
     private
@@ -142,6 +140,8 @@ module Github
         name,
         opts
       )
+    rescue Octokit::NotFound
+      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def authenticate_app

@@ -12,6 +12,7 @@ require 'logger'
 
 require_relative '../../database_loader'
 require_relative '../../lib/bamboo_ci/result'
+require_relative '../slack_bot/slack_bot'
 
 module Github
   class UpdateStatus
@@ -59,10 +60,13 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check, @output)
+        slack_notify_in_progress
       when 'success'
         @job.success(@github_check, @output)
+        slack_notify_success
       else
         failure
+        slack_notify_failure
       end
     end
 
@@ -109,6 +113,32 @@ module Github
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
         job.skipped(@github_check)
       end
+    end
+
+    def slack_notify_in_progress
+      fetch_subscriptions('all').each do |subscription|
+        SlackBot.instance.notify_in_progress(@job, subscription)
+      end
+    end
+
+    def slack_notify_success
+      fetch_subscriptions(%w[all pass]).each do |subscription|
+        SlackBot.instance.notify_success(@job, subscription)
+      end
+    end
+
+    def slack_notify_failure
+      fetch_subscriptions(%w[all errors]).each do |subscription|
+        SlackBot.instance.notify_errors(@job, subscription)
+      end
+    end
+
+    def fetch_subscriptions(notification)
+      pull_request = @job.check_suite.pull_request
+
+      PullRequestSubscription
+        .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
+        .uniq(&:slack_user_id)
     end
   end
 end
