@@ -82,7 +82,7 @@ class GithubApp < Sinatra::Base
       when 'running'
         Slack::Running.new.call(payload)
       else
-        Slack::Settings.new.call(payload)
+        'I am a teapot'
       end
 
     halt 200, message
