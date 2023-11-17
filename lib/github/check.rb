@@ -126,7 +126,7 @@ module Github
 
     # PS: Conclusion and status are the same name from GitHub Check doc.
     # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#update-a-check-run
-    def completed(name, status, conclusion, output)
+    def completed(check_ref, status, conclusion, output)
       opts = {
         status: status,
         conclusion: conclusion,
@@ -137,7 +137,7 @@ module Github
 
       @logger.info @app.update_check_run(
         @check_suite.pull_request.repository,
-        name,
+        check_ref,
         opts
       )
     rescue Octokit::NotFound
