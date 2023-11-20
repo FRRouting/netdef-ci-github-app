@@ -29,6 +29,7 @@ require_relative '../lib/github/re_run/command'
 require_relative '../lib/github/retry'
 require_relative '../lib/github/update_status'
 require_relative '../lib/helpers/sinatra_payload'
+require_relative '../lib/slack/slack'
 
 class GithubApp < Sinatra::Base
   set :bind, '0.0.0.0'
@@ -66,6 +67,39 @@ class GithubApp < Sinatra::Base
     halt github.update
   end
 
+  post '/slack' do
+    halt 401 unless slack_authentication
+
+    payload = JSON.parse(request.body.read)
+
+    logger.debug "Received Slack command: #{payload.inspect}"
+    puts "Received Slack command: #{payload.inspect}"
+
+    message =
+      case payload['event']
+      when 'subscribe'
+        Slack::Subscribe.new.call(payload)
+      when 'running'
+        Slack::Running.new.call(payload)
+      else
+        'I am a teapot'
+      end
+
+    halt 200, message
+  end
+
+  post '/slack/settings' do
+    halt 401 unless slack_authentication
+
+    payload = JSON.parse(request.body.read)
+
+    logger.debug "Received Slack command: #{payload.inspect}"
+
+    message = Slack::Settings.new.call(payload)
+
+    halt 200, message
+  end
+
   post '/*' do
     content_type :text
 
@@ -97,7 +131,7 @@ class GithubApp < Sinatra::Base
     when 'check_run'
       logger.debug "Check Run #{payload.dig('check_run', 'id')} - #{payload['action']}"
 
-      halt 200, 'OK' unless payload['action'].downcase.match?('rerequested')
+      halt 200, 'OK' unless %w[created rerequested].include? payload['action'].downcase
 
       re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
       halt re_run.start
@@ -127,6 +161,19 @@ class GithubApp < Sinatra::Base
       logger.debug '-' * 80
       logger.debug "\n#{JSON.pretty_generate(JSON.parse(body))}"
       logger.debug '======= POST DONE ========'
+    end
+
+    def slack_authentication
+      netrc = Netrc.read
+      user, passwd = netrc['slack_bot.netdef.org']
+
+      return false if basic_encode(user, passwd) != request.env['HTTP_AUTHORIZATION']
+
+      true
+    end
+
+    def basic_encode(account, password)
+      "Basic #{["#{account}:#{password}"].pack('m0')}"
     end
   end
 

@@ -21,6 +21,10 @@ class Base
     @result = get_status(check_suite.bamboo_ci_ref)
   end
 
+  def fetch_build_status(check_suite)
+    get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{check_suite.bamboo_ci_ref}"))
+  end
+
   def check_stages
     @result.dig('stages', 'stage').each do |stage|
       stage.dig('results', 'result').each do |result|

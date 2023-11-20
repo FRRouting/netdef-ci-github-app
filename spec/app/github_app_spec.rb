@@ -262,4 +262,158 @@ describe 'GithubApp' do
       end
     end
   end
+
+  describe 'Slack commands' do
+    let(:config) { GitHubApp::Configuration.instance.config }
+    let(:account) { 'admin' }
+    let(:password) { 'admin' }
+    let(:auth) { "Basic #{["#{account}:#{password}"].pack('m0')}" }
+
+    before do
+      allow(Netrc).to receive(:read).and_return({ 'slack_bot.netdef.org' => [account, password] })
+    end
+
+    context 'when create a subscription' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'rule' => 'notify',
+          'target' => 1,
+          'notification' => 'all',
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+      end
+    end
+
+    context 'when create a subscription but send wrong auth' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => ''
+        }
+      end
+
+      let(:payload) do
+        {
+          'rule' => 'notify',
+          'target' => 1,
+          'notification' => 'all',
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 401
+      end
+    end
+
+    context 'when fetch settings' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack/settings', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+      end
+    end
+
+    context 'when fetch running PRs' do
+      let(:ci_job) { create(:ci_job, :in_progress) }
+
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'event' => 'running',
+          'github_user' => ci_job.check_suite.pull_request.author,
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      before do
+        create(:ci_job, :in_progress)
+      end
+
+      it 'must return a table' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+      end
+    end
+
+    context 'when fetch running PRs, but does not have any PR' do
+      let(:ci_job) { create(:ci_job, :failure) }
+
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'event' => 'running',
+          'github_user' => ci_job.check_suite.pull_request.author,
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      before do
+        create(:ci_job, :in_progress)
+      end
+
+      it 'must return a table' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+        expect(last_response.body).to eq 'No running PR'
+      end
+    end
+
+    context 'when fetch settings but using wrong auth' do
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => ''
+        }
+      end
+
+      let(:payload) do
+        {
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      it 'must create a subscription' do
+        post '/slack/settings', payload.to_json, headers
+
+        expect(last_response.status).to eq 401
+      end
+    end
+  end
 end

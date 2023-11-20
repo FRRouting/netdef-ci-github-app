@@ -45,7 +45,7 @@ module Github
         repo,
         pr_id,
         comment
-      )
+      ).to_h
     end
 
     def comment_reaction_thumb_up(repo, comment_id)
@@ -71,26 +71,22 @@ module Github
 
     def cancelled(check_ref, output = {})
       completed(check_ref, 'completed', 'cancelled', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def success(check_ref, output = {})
       completed(check_ref, 'completed', 'success', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def failure(check_ref, output = {})
       completed(check_ref, 'completed', 'failure', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref #{check_ref} not found at GitHub"
     end
 
     def skipped(check_ref, output = {})
       completed(check_ref, 'completed', 'skipped', output)
-    rescue Octokit::NotFound
-      @logger.error "check_ref ##{check_ref} not found at GitHub"
+    end
+
+    def get_check_run(check_ref)
+      @app.check_run(@check_suite.pull_request.repository, check_ref).to_h
     end
 
     def installation_id
@@ -103,6 +99,12 @@ module Github
 
     def signature
       @config.dig('auth_signature', 'password')
+    end
+
+    def fetch_username(username)
+      @app.user(username)
+    rescue StandardError
+      false
     end
 
     private
@@ -124,7 +126,7 @@ module Github
 
     # PS: Conclusion and status are the same name from GitHub Check doc.
     # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#update-a-check-run
-    def completed(name, status, conclusion, output)
+    def completed(check_ref, status, conclusion, output)
       opts = {
         status: status,
         conclusion: conclusion,
@@ -135,9 +137,11 @@ module Github
 
       @logger.info @app.update_check_run(
         @check_suite.pull_request.repository,
-        name,
+        check_ref,
         opts
       )
+    rescue Octokit::NotFound
+      @logger.error "check_ref ##{check_ref} not found at GitHub"
     end
 
     def authenticate_app
