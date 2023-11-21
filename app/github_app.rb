@@ -29,8 +29,7 @@ require_relative '../lib/github/re_run/command'
 require_relative '../lib/github/retry'
 require_relative '../lib/github/update_status'
 require_relative '../lib/helpers/sinatra_payload'
-require_relative '../lib/slack/subscribe'
-require_relative '../lib/slack/settings'
+require_relative '../lib/slack/slack'
 
 class GithubApp < Sinatra::Base
   set :bind, '0.0.0.0'
@@ -76,7 +75,11 @@ class GithubApp < Sinatra::Base
     logger.debug "Received Slack command: #{payload.inspect}"
     puts "Received Slack command: #{payload.inspect}"
 
-    message = Slack::Subscribe.new.call(payload)
+    message = if payload.key? 'event'
+                Slack::Running.new.call(payload)
+              else
+                Slack::Subscribe.new.call(payload)
+              end
 
     halt 200, message
   end

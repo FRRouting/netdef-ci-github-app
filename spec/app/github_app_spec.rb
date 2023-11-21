@@ -339,6 +339,63 @@ describe 'GithubApp' do
       end
     end
 
+    context 'when fetch running PRs' do
+      let(:ci_job) { create(:ci_job, :in_progress) }
+
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'event' => 'running',
+          'github_user' => ci_job.check_suite.pull_request.author,
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      before do
+        create(:ci_job, :in_progress)
+      end
+
+      it 'must return a table' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+      end
+    end
+
+    context 'when fetch running PRs, but does not have any PR' do
+      let(:ci_job) { create(:ci_job, :failure) }
+
+      let(:headers) do
+        {
+          'HTTP_AUTHORIZATION' => auth
+        }
+      end
+
+      let(:payload) do
+        {
+          'event' => 'running',
+          'github_user' => ci_job.check_suite.pull_request.author,
+          'slack_user_id' => 'ABC'
+        }
+      end
+
+      before do
+        create(:ci_job, :in_progress)
+      end
+
+      it 'must return a table' do
+        post '/slack', payload.to_json, headers
+
+        expect(last_response.status).to eq 200
+        expect(last_response.body).to eq 'No running PR'
+      end
+    end
+
     context 'when fetch settings but using wrong auth' do
       let(:headers) do
         {

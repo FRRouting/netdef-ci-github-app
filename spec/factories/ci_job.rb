@@ -20,5 +20,13 @@ FactoryBot.define do
     trait :checkout_code do
       name { 'Checkout Code' }
     end
+
+    trait :in_progress do
+      status { 'in_progress' }
+    end
+
+    trait :failure do
+      status { 'failure' }
+    end
   end
 end
