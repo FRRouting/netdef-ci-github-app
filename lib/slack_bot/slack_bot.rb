@@ -73,7 +73,7 @@ class SlackBot
 
   def generate_notification_message(job, status)
     pr = job.check_suite.pull_request
-    pr_url = "https://github.com/#{pr.repository}/pull/#{pr.github_pr_id}"
+    pr_url = "https://github.com/#{pr.repository}/pull/#{pr.github_pr_id}/checks?check_run_id=#{job.check_ref}"
     bamboo_link = "https://ci1.netdef.org/browse/#{job.job_ref}"
 
     "PR <#{pr_url}|##{pr.github_pr_id}>. <#{bamboo_link}|#{job.name} - #{status}> "
