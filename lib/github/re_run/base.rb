@@ -112,6 +112,8 @@ module Github
         check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
 
         create_ci_jobs(bamboo_plan, check_suite)
+
+        SlackBot.instance.execution_started_notification(check_suite)
       end
 
       def action
