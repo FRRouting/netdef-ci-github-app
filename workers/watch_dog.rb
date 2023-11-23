@@ -42,6 +42,7 @@ class WatchDog < Base
       @logger.info ">>> Updating suite: #{check_suite.inspect}"
       check_stages(check_suite)
       clear_deleted_jobs(check_suite)
+      SlackBot.instance.execution_finished_notification(check_suite)
     end
   end
 

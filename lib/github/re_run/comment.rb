@@ -44,6 +44,8 @@ module Github
 
         ci_jobs(check_suite, bamboo_plan)
 
+        SlackBot.instance.execution_started_notification(check_suite)
+
         [201, 'Starting re-run (comment)']
       end
 

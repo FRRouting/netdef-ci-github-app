@@ -38,6 +38,8 @@ module Github
         bamboo_plan = start_new_execution(check_suite)
         ci_jobs(check_suite, bamboo_plan)
 
+        SlackBot.instance.execution_started_notification(check_suite)
+
         [201, 'Starting re-run (command)']
       end
 

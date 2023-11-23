@@ -18,10 +18,14 @@ class CheckSuite < ActiveRecord::Base
   has_many :ci_jobs, dependent: :delete_all
 
   def finished?
-    ci_jobs.find_by_status(%i[queued in_progress]).nil?
+    ci_jobs.where(status: %i[queued in_progress]).empty?
   end
 
   def in_progress?
     !finished?
+  end
+
+  def execution_started?
+    ci_jobs.where(status: :in_progress).size < 2
   end
 end
