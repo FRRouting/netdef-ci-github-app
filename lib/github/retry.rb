@@ -50,6 +50,8 @@ module Github
 
       BambooCi::Retry.restart(check_suite.bamboo_ci_ref)
 
+      SlackBot.instance.execution_started_notification(check_suite)
+
       [200, 'Retrying failure jobs']
     end
 

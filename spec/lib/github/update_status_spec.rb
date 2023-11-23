@@ -49,7 +49,7 @@ describe Github::UpdateStatus do
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
-        ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+        ci_jobs.each { |job| expect(job.reload.status).to eq('queued') }
       end
     end
 

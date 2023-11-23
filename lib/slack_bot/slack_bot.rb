@@ -29,7 +29,9 @@ class SlackBot
     reason = invalid_rerun_message(job)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/comment"
-    post_request(URI(url), body: reason)
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: reason)
 
     reason
   end
@@ -38,38 +40,77 @@ class SlackBot
     reason = invalid_rerun_message(job)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url), body: { message: reason, slack_user_id: subscription.slack_user_id }.to_json)
-  end
-
-  def notify_in_progress(job, subscription)
-    message = generate_notification_message(job, 'In Progress')
-
-    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url), body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: reason, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
   def notify_errors(job, subscription)
     message = generate_notification_message(job, 'Failed')
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url), body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
   def notify_cancelled(job, subscription)
     message = generate_notification_message(job, 'Cancelled')
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url), body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
   def notify_success(job, subscription)
     message = generate_notification_message(job, 'Success')
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url), body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+  end
+
+  def execution_started_notification(check_suite)
+    PullRequestSubscription
+      .where(target: [check_suite.pull_request.github_pr_id, check_suite.pull_request.author])
+      .uniq(&:slack_user_id)
+      .each do |subscription|
+      started_finished_notification(check_suite, subscription)
+    end
+  end
+
+  def execution_finished_notification(check_suite)
+    pull_request = check_suite.pull_request
+
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author])
+      .uniq(&:slack_user_id)
+      .each do |subscription|
+      started_finished_notification(check_suite, subscription, started_or_finished: 'Finished')
+    end
   end
 
   private
+
+  def started_finished_notification(check_suite, subscription, started_or_finished: 'Started')
+    message = pull_request_message(check_suite, started_or_finished)
+
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+  end
+
+  def pull_request_message(check_suite, status)
+    pr = check_suite.pull_request
+
+    pr_url = "https://github.com/#{pr.repository}/pull/#{pr.github_pr_id}"
+    bamboo_link = "https://ci1.netdef.org/browse/#{check_suite.bamboo_ci_ref}"
+
+    "PR <#{pr_url}|##{pr.github_pr_id}>. <#{bamboo_link}|#{status}> "
+  end
 
   def generate_notification_message(job, status)
     pr = job.check_suite.pull_request
@@ -77,11 +118,6 @@ class SlackBot
     bamboo_link = "https://ci1.netdef.org/browse/#{job.job_ref}"
 
     "PR <#{pr_url}|##{pr.github_pr_id}>. <#{bamboo_link}|#{job.name} - #{status}> "
-  end
-
-  def fetch_user_pass
-    netrc = Netrc.read
-    netrc['slack_bot.netdef.org']
   end
 
   def logger(severity, message)
