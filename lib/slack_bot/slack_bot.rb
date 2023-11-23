@@ -72,20 +72,12 @@ class SlackBot
                  body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
-  def notify_execution_started(check_suite, subscription)
-    started_finished_notification(check_suite, subscription)
-  end
-
-  def notify_execution_finished(check_suite, subscription)
-    started_finished_notification(check_suite, subscription, started_or_finished: 'Finished')
-  end
-
   def execution_started_notification(check_suite)
     PullRequestSubscription
       .where(target: [check_suite.pull_request.github_pr_id, check_suite.pull_request.author])
       .uniq(&:slack_user_id)
       .each do |subscription|
-      SlackBot.instance.notify_execution_started(check_suite, subscription)
+      started_finished_notification(check_suite, subscription)
     end
   end
 
@@ -96,7 +88,7 @@ class SlackBot
       .where(target: [pull_request.github_pr_id, pull_request.author])
       .uniq(&:slack_user_id)
       .each do |subscription|
-      SlackBot.instance.notify_execution_finished(check_suite, subscription)
+      started_finished_notification(check_suite, subscription, started_or_finished: 'Finished')
     end
   end
 

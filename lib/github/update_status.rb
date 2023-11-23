@@ -28,7 +28,7 @@ module Github
         end
 
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
-      @check_suite = @job.check_suite
+      @check_suite = @job&.check_suite
       @failures = payload['failures']
     end
 
@@ -73,11 +73,9 @@ module Github
       finished_execution?
     end
 
-    private
-
     def finished_execution?
-      return unless current_execution?
-      return unless @check_suite.finished?
+      return false unless current_execution?
+      return false unless @check_suite.finished?
 
       @logger.info ">>> @check_suite#{@check_suite.inspect} -> finished? #{@check_suite.finished?}"
       @logger.info @check_suite.ci_jobs.last.inspect
