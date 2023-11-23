@@ -75,15 +75,11 @@ class GithubApp < Sinatra::Base
     logger.debug "Received Slack command: #{payload.inspect}"
     puts "Received Slack command: #{payload.inspect}"
 
-    message =
-      case payload['event']
-      when 'subscribe'
-        Slack::Subscribe.new.call(payload)
-      when 'running'
-        Slack::Running.new.call(payload)
-      else
-        'I am a teapot'
-      end
+    message = if payload.key? 'event'
+                Slack::Running.new.call(payload)
+              else
+                Slack::Subscribe.new.call(payload)
+              end
 
     halt 200, message
   end
