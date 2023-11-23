@@ -43,4 +43,8 @@ class CheckSuite < ActiveRecord::Base
   def in_progress?
     !finished?
   end
+
+  def execution_started?
+    ci_jobs.where(status: :in_progress).size < 2
+  end
 end

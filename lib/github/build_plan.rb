@@ -146,6 +146,9 @@ module Github
       action.create_jobs(jobs)
       action.create_summary
 
+      @logger.info '>>> Execution started'
+      SlackBot.instance.execution_started_notification(@check_suite)
+
       [200, 'Pull Request created']
     end
 

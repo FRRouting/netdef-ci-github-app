@@ -45,6 +45,7 @@ class WatchDog < Base
       check_stages(check_suite)
       clear_deleted_jobs(check_suite)
       finish_stages(check_suite)
+      SlackBot.instance.execution_finished_notification(check_suite)
     end
   end
 
