@@ -37,28 +37,31 @@ class CiJob < ActiveRecord::Base
     !build? and !checkout_code?
   end
 
-  def finished?
-    !%w[queued in_progress].include?(status.to_s)
-  end
-
   def create_check_run
     update(status: :queued)
   end
 
   def enqueue(github, output = {})
-    check_run = github.create(name)
+    return update(status: :queued) unless stage
+
+    github_check_run_name = checkout_code? ? Github::Build::Action::SOURCE_CODE : name
+
+    check_run = github.create(github_check_run_name)
     github.queued(check_run.id, output)
     update(check_ref: check_run.id, status: :queued)
   end
 
   def in_progress(github, output = {})
-    create_github_check(github)
+    return update(status: :in_progress) unless stage
 
+    create_github_check(github)
     github.in_progress(check_ref, output)
     update(status: :in_progress)
   end
 
   def cancelled(github, output = {})
+    return update(status: :cancelled) unless stage
+
     create_github_check(github)
 
     github.cancelled(check_ref, output)
@@ -67,27 +70,19 @@ class CiJob < ActiveRecord::Base
   end
 
   def failure(github, output = {})
+    return update(status: :failure) unless stage
+
     create_github_check(github)
-
     github.failure(check_ref, output)
-
     update(status: :failure)
   end
 
   def success(github, output = {})
-    create_github_check(github)
+    return update(status: :success) unless stage
 
+    create_github_check(github)
     github.success(check_ref, output)
-
     update(status: :success)
-  end
-
-  def skipped(github, output = {})
-    create_github_check(github)
-
-    github.skipped(check_ref, output)
-
-    update(status: :skipped)
   end
 
   private
@@ -95,7 +90,9 @@ class CiJob < ActiveRecord::Base
   def create_github_check(github)
     return unless check_ref.nil?
 
-    check_run = github.create(name)
+    github_check_run_name = checkout_code? ? Github::Build::Action::SOURCE_CODE : name
+
+    check_run = github.create(github_check_run_name)
     update(check_ref: check_run.id)
   end
 end

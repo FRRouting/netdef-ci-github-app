@@ -13,6 +13,7 @@ require 'logger'
 require_relative '../../database_loader'
 require_relative '../bamboo_ci/retry'
 require_relative '../bamboo_ci/stop_plan'
+require_relative '../github/build/retry'
 
 require_relative 'check'
 
@@ -58,30 +59,10 @@ module Github
     def create_ci_jobs(check_suite)
       github_check = Github::Check.new(check_suite)
 
-      enqueued_stages(check_suite, github_check)
+      build_retry = Github::Build::Retry.new(check_suite, github_check)
 
-      enqueued_failure_tests(check_suite, github_check)
-    end
-
-    def enqueued_failure_tests(check_suite, github)
-      check_suite.ci_jobs.skip_stages.where.not(status: :success).each do |ci_job|
-        next if ci_job.checkout_code?
-
-        logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
-        ci_job.enqueue(github)
-        ci_job.update(retry: ci_job.retry + 1)
-
-        logger(Logger::WARN, "Stopping Job: #{ci_job.job_ref}")
-        BambooCi::StopPlan.stop(ci_job.job_ref)
-      end
-    end
-
-    def enqueued_stages(check_suite, github_check)
-      check_suite.ci_jobs.stages.each do |ci_job|
-        logger(Logger::WARN, "Enqueue stages: #{ci_job.inspect}")
-        ci_job.enqueue(github_check)
-        ci_job.update(retry: ci_job.retry + 1)
-      end
+      build_retry.enqueued_stages
+      build_retry.enqueued_failure_tests
     end
 
     def enqueued(job)
@@ -100,6 +81,8 @@ module Github
 
     def slack_notification(job)
       reason = SlackBot.instance.invalid_rerun_group(job)
+
+      logger(Logger::WARN, ">>> #{job.inspect} #{reason}")
 
       pull_request = job.check_suite.pull_request
 

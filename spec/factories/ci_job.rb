@@ -19,6 +19,7 @@ FactoryBot.define do
 
     trait :checkout_code do
       name { 'Checkout Code' }
+      stage { true }
     end
 
     trait :build_stage do

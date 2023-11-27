@@ -23,6 +23,8 @@ describe Github::UpdateStatus do
     let(:fake_github_check) { Github::Check.new(nil) }
 
     before do
+      allow(SlackBot.instance).to receive(:notify_success)
+      allow(SlackBot.instance).to receive(:notify_success)
       allow(File).to receive(:read).and_return('')
       allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
 
@@ -430,7 +432,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must keep Tests skipped' do
           update_status.update
-          expect(tests.reload.status).to eq('failure')
+          expect(tests.reload.status).to eq('cancelled')
         end
       end
 
@@ -460,6 +462,42 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         it 'must keep Tests enqueued' do
           update_status.update
           expect(tests.reload.status).to eq('in_progress')
+        end
+      end
+    end
+
+    describe '#current_execution' do
+      let(:pull_request) { create(:pull_request) }
+      let(:check_suite_1) { create(:check_suite, pull_request: pull_request) }
+      let(:check_suite_2) { create(:check_suite, pull_request: pull_request) }
+      let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite_1) }
+      let(:ci_job_new) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite_2) }
+
+      context 'when old execution fails' do
+        let(:status) { 'failure' }
+
+        before do
+          ci_job
+          ci_job_new
+        end
+
+        it 'must not generate slack message' do
+          update_status.update
+          expect(ci_job.reload.status).to eq(status)
+        end
+      end
+
+      context 'when old execution passes' do
+        let(:status) { 'success' }
+
+        before do
+          ci_job
+          ci_job_new
+        end
+
+        it 'must not generate slack message' do
+          update_status.update
+          expect(ci_job.reload.status).to eq(status)
         end
       end
     end

@@ -88,11 +88,6 @@ module Github
       SlackBot.instance.execution_finished_notification(@check_suite)
     end
 
-    def fetch_last_check_suite
-      pull_request = @check_suite.pull_request
-      pull_request.check_suites.all.order(:created_at).last
-    end
-
     def current_execution?
       pull_request = @check_suite.pull_request
       last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
@@ -114,10 +109,18 @@ module Github
     end
 
     def fetch_and_update_failures(to_be_replaced)
-      output = BambooCi::Result.fetch(@job.job_ref)
-      return if output.nil? or output.empty?
+      count = 0
+      begin
+        output = BambooCi::Result.fetch(@job.job_ref)
+        return if output.nil? or output.empty?
 
-      @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
+        @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
+      rescue NoMethodError => e
+        @logger.error "#{e.class} #{e.message}"
+        count += 1
+        sleep 5
+        retry if count <= 10
+      end
     end
 
     def fetch_failures(output)
@@ -152,25 +155,13 @@ module Github
     def slack_notify_success
       return unless current_execution?
 
-      fetch_subscriptions(%w[all pass]).each do |subscription|
-        SlackBot.instance.notify_success(@job, subscription)
-      end
+      SlackBot.instance.notify_success(@job)
     end
 
     def slack_notify_failure
       return unless current_execution?
 
-      fetch_subscriptions(%w[all errors]).each do |subscription|
-        SlackBot.instance.notify_errors(@job, subscription)
-      end
-    end
-
-    def fetch_subscriptions(notification)
-      pull_request = @job.check_suite.pull_request
-
-      PullRequestSubscription
-        .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
-        .uniq(&:slack_user_id)
+      SlackBot.instance.notify_errors(@job)
     end
   end
 end

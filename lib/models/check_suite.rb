@@ -40,6 +40,10 @@ class CheckSuite < ActiveRecord::Base
       .empty?
   end
 
+  def success?
+    ci_jobs.skip_stages.where(status: %i[failure cancelled skipped]).empty?
+  end
+
   def in_progress?
     !finished?
   end

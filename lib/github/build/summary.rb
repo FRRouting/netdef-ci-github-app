@@ -44,12 +44,13 @@ module Github
 
       def missing_test_stage(stage)
         tests_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
+        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         tests_failure = {
           title: "#{Github::Build::Action::TESTS_STAGE} summary",
-          summary: 'Build Stage failed so it will not be possible to run the tests'
+          summary: "Build Stage failed so it will not be possible to run the tests.\nDetails at [#{url}](#{url})."
         }
 
-        return tests_stage.failure(@github, tests_failure) if stage.build? and stage.failure?
+        return tests_stage.cancelled(@github, tests_failure) if stage.build? and stage.failure?
         return tests_stage.in_progress(@github) if stage.build? and stage.success?
 
         return unless stage.test?
@@ -60,14 +61,16 @@ module Github
 
       def missing_build_stage
         build_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::BUILD_STAGE)
-        failure = {
-          title: "#{Github::Build::Action::BUILD_STAGE} summary",
-          summary: 'Build stage failure. Please check Bamboo CI'
-        }
 
         return if build_stage.nil?
         return if build_stage.success? or build_stage.failure?
         return unless @check_suite.build_stage_finished?
+
+        url = "https://ci1.netdef.org/browse/#{build_stage.check_suite.bamboo_ci_ref}"
+        failure = {
+          title: "#{Github::Build::Action::BUILD_STAGE} summary",
+          summary: "Build stage failure. Please check Bamboo CI.\nDetails at [#{url}](#{url})."
+        }
 
         success = @check_suite.build_stage_success?
         logger(Logger::INFO, "missing_build_stage: #{build_stage.inspect}, success: #{success}")
@@ -87,7 +90,7 @@ module Github
 
       def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        return if @job.in_progress? or stage.failure?
+        return if @job.in_progress?
 
         finished_build_summary(stage)
         finished_tests_summary(stage)
@@ -99,7 +102,16 @@ module Github
 
         logger(Logger::INFO, "finished_build_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
-        stage.success(@github)
+        name = Github::Build::Action::BUILD_STAGE
+        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        output = {
+          title: "#{name} summary",
+          summary: "#{summary_failures_message(name)}\nDetails at [#{url}](#{url})."
+        }
+
+        logger(Logger::DEBUG, output)
+
+        @check_suite.build_stage_success? ? stage.success(@github) : stage.failure(@github, output)
       end
 
       def finished_tests_summary(stage)
@@ -108,7 +120,14 @@ module Github
 
         logger(Logger::INFO, "finished_tests_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
-        stage.success(@github)
+        name = Github::Build::Action::TESTS_STAGE
+        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        output = {
+          title: "#{name} summary",
+          summary: "#{summary_failures_message(name)}\nDetails at [#{url}](#{url})."
+        }
+
+        @check_suite.success? ? stage.success(@github) : stage.failure(@github, output)
       end
 
       def update_summary(stage, name)
@@ -123,7 +142,7 @@ module Github
 
         logger(Logger::INFO, "(Failure) #{stage.inspect} -> @job.status: #{@job.status}")
 
-        stage.failure(@github, output)
+        stage.in_progress(@github, output)
       end
 
       def summary_failures_message(name)
