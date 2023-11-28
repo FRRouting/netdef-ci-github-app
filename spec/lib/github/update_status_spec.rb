@@ -468,10 +468,10 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
     describe '#current_execution' do
       let(:pull_request) { create(:pull_request) }
-      let(:check_suite_1) { create(:check_suite, pull_request: pull_request) }
-      let(:check_suite_2) { create(:check_suite, pull_request: pull_request) }
-      let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite_1) }
-      let(:ci_job_new) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite_2) }
+      let(:check_suite1) { create(:check_suite, pull_request: pull_request) }
+      let(:check_suite2) { create(:check_suite, pull_request: pull_request) }
+      let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite1) }
+      let(:ci_job_new) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite2) }
 
       context 'when old execution fails' do
         let(:status) { 'failure' }
