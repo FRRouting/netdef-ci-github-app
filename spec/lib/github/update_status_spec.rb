@@ -412,8 +412,51 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         let(:build) { create(:ci_job, :build_stage, status: 'in_progress', check_suite: ci_job.check_suite) }
         let(:tests) { create(:ci_job, :tests_stage, status: 'queued', check_suite: ci_job.check_suite) }
         let(:status) { 'failure' }
+        let(:url) do
+          "https://127.0.0.1/rest/api/latest/result/#{ci_job.job_ref}?" \
+            'expand=testResults.failedTests.testResult.errors,artifacts'
+        end
+
+        let(:response) do
+          {
+            'artifacts' => {
+              'artifact' => [
+                {
+                  'name' => 'ErrorLog',
+                  'link' => {
+                    'href' => 'https://127.0.0.1/ok.log'
+                  }
+                }
+              ]
+            }
+          }
+        end
 
         before do
+          stub_request(:get, url)
+            .with(
+              headers: {
+                'Accept' => %w[*/* application/json],
+                'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
+                'Authorization' => 'Basic Og==',
+                'Host' => '127.0.0.1',
+                'User-Agent' => 'Ruby'
+              }
+            )
+            .to_return(status: 200, body: response.to_json, headers: {})
+
+          stub_request(:get, 'https://127.0.0.1/ok.log')
+            .with(
+              headers: {
+                'Accept' => '*/*',
+                'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
+                'Authorization' => 'Basic Og==',
+                'Host' => '127.0.0.1',
+                'User-Agent' => 'Ruby'
+              }
+            )
+            .to_return(status: 200, body: 'make: *** [all] Error 2', headers: {})
+
           ci_job
           test
           tests

@@ -32,19 +32,13 @@ module Github
       end
 
       def create_summary
+        logger(Logger::INFO, "SUMMARY #{SUMMARY.inspect}")
+
         SUMMARY.each do |name|
-          stage = CiJob.find_by(name: name, check_suite_id: @check_suite.id)
-
-          logger(Logger::INFO, "STAGE #{name} #{stage.inspect} - @#{@check_suite.inspect}")
-
-          stage = create_stage(name) if stage.nil?
-
-          next if stage.nil? or stage.checkout_code? or stage.success?
-
-          logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
-
-          stage.enqueue(@github, output: initial_output(stage))
+          create_check_run_stage(name)
         end
+      rescue StandardError => e
+        logger(Logger::Error, "#{e.class} - #{e.message}")
       end
 
       def create_stage(name)
@@ -84,6 +78,20 @@ module Github
       end
 
       private
+
+      def create_check_run_stage(name)
+        stage = CiJob.find_by(name: name, check_suite_id: @check_suite.id)
+
+        logger(Logger::INFO, "STAGE #{name} #{stage.inspect} - @#{@check_suite.inspect}")
+
+        stage = create_stage(name) if stage.nil?
+
+        return if stage.nil? or stage.checkout_code? or stage.success?
+
+        logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
+
+        stage.enqueue(@github, initial_output(stage))
+      end
 
       def initial_output(ci_job)
         output = { title: '', summary: '' }

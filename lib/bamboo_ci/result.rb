@@ -1,6 +1,6 @@
 #  SPDX-License-Identifier: BSD-2-Clause
 #
-#  stop_plan.rb
+#  result.rb
 #  Part of NetDEF CI System
 #
 #  Copyright (c) 2023 by
@@ -16,8 +16,8 @@ module BambooCi
   class Result
     extend BambooCi::Api
 
-    def self.fetch(job_key)
-      uri = URI("https://127.0.0.1/rest/api/latest/result/#{job_key}?expand=testResults.failedTests.testResult.errors")
+    def self.fetch(job_key, expand: 'testResults.failedTests.testResult.errors')
+      uri = URI("https://127.0.0.1/rest/api/latest/result/#{job_key}?expand=#{expand}")
       get_request(uri)
     end
   end

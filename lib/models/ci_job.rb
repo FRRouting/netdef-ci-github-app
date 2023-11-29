@@ -46,9 +46,17 @@ class CiJob < ActiveRecord::Base
 
     github_check_run_name = checkout_code? ? Github::Build::Action::SOURCE_CODE : name
 
-    check_run = github.create(github_check_run_name)
-    github.queued(check_run.id, output)
-    update(check_ref: check_run.id, status: :queued)
+    count = 0
+    begin
+      check_run = github.create(github_check_run_name)
+      github.queued(check_run.id, output)
+      update(check_ref: check_run.id, status: :queued)
+    rescue StandardError
+      count += 1
+      sleep 1
+
+      retry if count <= 5
+    end
   end
 
   def in_progress(github, output = {})

@@ -9,6 +9,7 @@
 #  frozen_string_literal: true
 
 require_relative '../../github/check'
+require_relative '../../bamboo_ci/download'
 
 module Github
   module Build
@@ -156,7 +157,7 @@ module Github
       private
 
       def generate_message(name, job)
-        failures = name.downcase.match?('build') ? '' : tests_message(job)
+        failures = name.downcase.match?('build') ? build_message(job) : tests_message(job)
 
         "- #{job.name} #{job.status} -> https://ci1.netdef.org/browse/#{job.job_ref}\n#{failures}"
       end
@@ -167,6 +168,15 @@ module Github
         return '' if failure.nil?
 
         "\t :no_entry_sign: #{failure.test_suite} #{failure.test_case} \n```\n#{failure.message}\n```\n"
+      end
+
+      def build_message(job)
+        output = BambooCi::Result.fetch(job.job_ref, expand: 'testResults.failedTests.testResult.errors,artifacts')
+        entry = output.dig('artifacts', 'artifact').find { |elem| elem['name'] == 'ErrorLog' }
+
+        body = BambooCi::Download.build_log(entry.dig('link', 'href'))
+
+        "```\n#{body}\n```\n"
       end
 
       def logger(severity, message)
