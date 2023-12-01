@@ -10,10 +10,12 @@
 
 describe Github::Retry do
   let(:github_retry) { described_class.new(payload) }
+  let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
   before do
     allow(File).to receive(:read).and_return('')
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+    allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
   end
 
   context 'when receives an empty payload' do
@@ -67,6 +69,8 @@ describe Github::Retry do
 
         allow(BambooCi::StopPlan).to receive(:stop)
         allow(BambooCi::Retry).to receive(:restart)
+
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
 
         ci_job_checkout_code
       end

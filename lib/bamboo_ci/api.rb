@@ -12,6 +12,7 @@ require 'net/http'
 require 'net/https'
 require 'netrc'
 require 'json'
+require 'multipart/post'
 
 require_relative '../helpers/request'
 

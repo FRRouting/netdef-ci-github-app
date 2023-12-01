@@ -13,10 +13,14 @@ describe Github::ReRun::Comment do
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
+  let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
   before do
     allow(File).to receive(:read).and_return('')
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+
+    allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
+    allow(fake_unavailable).to receive(:update).and_return([])
   end
 
   describe 'Invalid payload' do

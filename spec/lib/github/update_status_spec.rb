@@ -10,6 +10,7 @@
 
 describe Github::UpdateStatus do
   let(:update_status) { described_class.new(payload) }
+  let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
   describe 'Validates different Ci Job status' do
     let(:payload) do
@@ -36,6 +37,9 @@ describe Github::UpdateStatus do
       allow(fake_github_check).to receive(:in_progress).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:skipped).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:success).and_return(ci_job.check_suite)
+      allow(fake_github_check).to receive(:cancelled).and_return(ci_job.check_suite)
+
+      allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
     end
 
     context 'when Ci Job Checkout Code update from queued -> failure' do
@@ -78,7 +82,7 @@ describe Github::UpdateStatus do
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
-        ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+        ci_jobs.each { |job| expect(job.reload.status).to eq('cancelled') }
       end
     end
 
