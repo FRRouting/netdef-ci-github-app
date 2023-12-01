@@ -83,11 +83,6 @@ module Github
       SlackBot.instance.execution_finished_notification(@check_suite)
     end
 
-    def fetch_last_check_suite
-      pull_request = @check_suite.pull_request
-      pull_request.check_suites.all.order(:created_at).last
-    end
-
     def current_execution?
       pull_request = @check_suite.pull_request
       last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
