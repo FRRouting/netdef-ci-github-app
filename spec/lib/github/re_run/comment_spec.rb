@@ -72,7 +72,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
       end
 
@@ -113,7 +113,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
 
         allow(CiJob).to receive(:create).and_return(fake_ci_job)
@@ -181,7 +181,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
 
         another_check_suite
@@ -255,7 +255,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
       end
 
@@ -287,7 +287,7 @@ describe Github::ReRun::Comment do
       allow(fake_plan_run).to receive(:start_plan).and_return(200)
       allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
-      allow(BambooCi::StopPlan).to receive(:stop)
+      allow(BambooCi::StopPlan).to receive(:build)
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(bamboo_jobs)
     end
 

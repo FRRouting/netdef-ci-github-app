@@ -20,5 +20,9 @@ module BambooCi
       @logger = Logger.new($stdout)
       delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{job_key}"))
     end
+
+    def self.build(ci_key)
+      get_request(URI("https://127.0.0.1/build/admin/stopPlan.action?planResultKey=#{ci_key}"))
+    end
   end
 end

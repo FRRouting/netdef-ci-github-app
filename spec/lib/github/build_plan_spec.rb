@@ -114,7 +114,7 @@ describe Github::BuildPlan do
       before do
         previous_check_suite
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(fake_github_check).to receive(:cancelled)
 
         build_plan.create
@@ -148,7 +148,7 @@ describe Github::BuildPlan do
       before do
         previous_check_suite
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(fake_github_check).to receive(:cancelled)
 
         build_plan.create

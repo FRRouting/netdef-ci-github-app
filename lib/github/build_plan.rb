@@ -104,11 +104,15 @@ module Github
       @logger.info @last_check_suite.inspect
       @logger.info @check_suite.inspect
 
-      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
-        BambooCi::StopPlan.stop(ci_job.job_ref)
+      cancel_previous_ci_jobs
+    end
 
+    def cancel_previous_ci_jobs
+      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
         @logger.warn("Cancelling Job #{ci_job.inspect}")
         ci_job.cancelled(@github_check)
+
+        BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
       end
     end
 
