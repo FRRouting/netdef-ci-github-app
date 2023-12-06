@@ -111,9 +111,9 @@ module Github
       @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
         @logger.warn("Cancelling Job #{ci_job.inspect}")
         ci_job.cancelled(@github_check)
-
-        BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
       end
+
+      BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
     end
 
     def create_check_suite
