@@ -50,7 +50,6 @@ module Github
 
         fetch_run_ci_by_pr.each do |check_suite|
           check_suite.ci_jobs.skip_stages.not_skipped.each do |ci_job|
-            logger(Logger::WARN, "Cancelling Job #{ci_job.inspect}")
             ci_job.cancelled(@github_check)
           end
 
