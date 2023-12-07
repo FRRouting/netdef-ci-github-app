@@ -108,7 +108,7 @@ describe Github::Retry do
         allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
         allow(fake_github_check).to receive(:queued)
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)
 
         ci_job_checkout_code

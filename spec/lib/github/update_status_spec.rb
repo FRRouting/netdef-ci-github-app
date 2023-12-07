@@ -375,8 +375,9 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
           expect(update_status.update).to eq([200, 'Success'])
         end
       end
+    end
 
-      describe 'Build Stage' do
+    describe 'Build Stage' do
       let(:payload) do
         {
           'status' => status,

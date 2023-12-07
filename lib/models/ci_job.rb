@@ -76,9 +76,7 @@ class CiJob < ActiveRecord::Base
     return update(status: :cancelled) unless stage
 
     create_github_check(github)
-
     github.cancelled(check_ref, output)
-
     update(status: :cancelled)
   end
 
@@ -96,6 +94,14 @@ class CiJob < ActiveRecord::Base
     create_github_check(github)
     github.success(check_ref, output)
     update(status: :success)
+  end
+
+  def skipped(github, output = {})
+    return update(status: :skipped) unless stage
+
+    create_github_check(github)
+    github.skipped(check_ref, output)
+    update(status: :skipped)
   end
 
   private

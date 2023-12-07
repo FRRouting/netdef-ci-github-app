@@ -44,9 +44,6 @@ module Github
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)
           ci_job.update(retry: ci_job.retry + 1)
-
-          logger(Logger::WARN, "Stopping Job: #{ci_job.job_ref}")
-          BambooCi::StopPlan.stop(ci_job.job_ref)
         end
       end
     end
