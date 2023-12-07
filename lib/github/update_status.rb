@@ -135,7 +135,8 @@ module Github
       return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
 
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        job.skipped(@github_check)
+        @logger.info ">>> Skipping job: #{job.inspect}"
+        job.cancelled(@github_check)
       end
     end
 

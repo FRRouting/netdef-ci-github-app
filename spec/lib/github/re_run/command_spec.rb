@@ -62,6 +62,7 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:skipped)
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
