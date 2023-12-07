@@ -21,6 +21,7 @@ module Github
     def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
       @logger.level = logger_level
+      @has_previous_exec = false
 
       @payload = payload
 
@@ -113,6 +114,7 @@ module Github
         ci_job.cancelled(@github_check)
       end
 
+      @has_previous_exec = true
       BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
     end
 
@@ -147,10 +149,15 @@ module Github
 
       create_ci_jobs(jobs)
 
-      @logger.info '>>> Execution started'
+      @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
+      stop_execution_message if @has_previous_exec
       SlackBot.instance.execution_started_notification(@check_suite)
 
       [200, 'Pull Request created']
+    end
+
+    def stop_execution_message
+      BambooCi::StopPlan.comment(@last_check_suite, @check_suite)
     end
 
     def create_ci_jobs(jobs)

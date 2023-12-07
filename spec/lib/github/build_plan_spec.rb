@@ -115,6 +115,7 @@ describe Github::BuildPlan do
         previous_check_suite
 
         allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::StopPlan).to receive(:comment)
         allow(fake_github_check).to receive(:cancelled)
 
         build_plan.create
@@ -149,6 +150,7 @@ describe Github::BuildPlan do
         previous_check_suite
 
         allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::StopPlan).to receive(:comment)
         allow(fake_github_check).to receive(:cancelled)
 
         build_plan.create
