@@ -10,10 +10,12 @@
 
 describe Github::Retry do
   let(:github_retry) { described_class.new(payload) }
+  let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
   before do
     allow(File).to receive(:read).and_return('')
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+    allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
   end
 
   context 'when receives an empty payload' do
@@ -68,8 +70,10 @@ describe Github::Retry do
         allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
         allow(fake_github_check).to receive(:queued)
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)
+
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
 
         ci_job_checkout_code
         ci_job_build_stage
@@ -186,7 +190,7 @@ describe Github::Retry do
         allow(fake_github_check).to receive(:get_check_run).with(ci_job1.check_ref).and_return(output1)
         allow(fake_github_check).to receive(:get_check_run).with(ci_job2.check_ref).and_return(output2)
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)
 
         create(:pull_request_subscription, pull_request: check_suite.pull_request, target: pr_number)

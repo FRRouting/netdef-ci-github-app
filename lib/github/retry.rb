@@ -16,6 +16,7 @@ require_relative '../bamboo_ci/stop_plan'
 require_relative '../github/build/retry'
 
 require_relative 'check'
+require_relative 'build/unavailable_jobs'
 
 module Github
   class Retry
@@ -50,6 +51,7 @@ module Github
       create_ci_jobs(check_suite)
 
       BambooCi::Retry.restart(check_suite.bamboo_ci_ref)
+      Github::Build::UnavailableJobs.new(check_suite).update
 
       SlackBot.instance.execution_started_notification(check_suite)
 
@@ -63,6 +65,8 @@ module Github
 
       build_retry.enqueued_stages
       build_retry.enqueued_failure_tests
+
+      BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
     end
 
     def enqueued(job)

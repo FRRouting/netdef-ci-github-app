@@ -125,7 +125,7 @@ module Github
 
     def fetch_failures(output)
       buffer = ''
-      output.dig('testResults', 'failedTests', 'testResult').each do |test_result|
+      output.dig('testResults', 'failedTests', 'testResult')&.each do |test_result|
         message = ''
         test_result.dig('errors', 'error').each do |error|
           message += error['message']

@@ -90,11 +90,7 @@ module Github
     end
 
     def installation_id
-      list = @authenticate_app.find_app_installations
-
-      return 0 if list.first.is_a? Array and list.first&.last&.match? 'Missing'
-
-      list.first['id']
+      @authenticate_app.find_app_installations.first['id'].to_i
     end
 
     def signature
@@ -132,6 +128,8 @@ module Github
     # PS: Conclusion and status are the same name from GitHub Check doc.
     # https://docs.github.com/en/rest/checks/runs?apiVersion=2022-11-28#update-a-check-run
     def completed(check_ref, status, conclusion, output)
+      return if check_ref.nil?
+
       opts = {
         status: status,
         conclusion: conclusion,

@@ -15,10 +15,6 @@ ENV['RAILS_ENV'] = ARGV.shift || 'production'
 
 puts "Starting console: #{ENV.fetch('RAILS_ENV', nil)}"
 
-require_relative '../database_loader'
-require_relative '../lib/helpers/configuration'
-require_relative '../lib/github/check'
-require_relative '../lib/github/build/action'
-require_relative '../lib/github/build/summary'
+require_relative '../config/setup'
 
 IRB.start

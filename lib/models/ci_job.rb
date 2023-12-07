@@ -24,6 +24,7 @@ class CiJob < ActiveRecord::Base
   scope :skip_stages, -> { where(stage: false) }
   scope :stages, -> { where(stage: true) }
   scope :skip_checkout_code, -> { where.not(name: 'Checkout Code') }
+  scope :not_skipped, -> { where.not(status: 'skipped') }
 
   def checkout_code?
     name.downcase.match? 'checkout'
@@ -35,6 +36,10 @@ class CiJob < ActiveRecord::Base
 
   def test?
     !build? and !checkout_code?
+  end
+
+  def finished?
+    !%w[queued in_progress].include?(status.to_s)
   end
 
   def create_check_run
