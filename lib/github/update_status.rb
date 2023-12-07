@@ -83,11 +83,6 @@ module Github
       SlackBot.instance.execution_finished_notification(@check_suite)
     end
 
-    def fetch_last_check_suite
-      pull_request = @check_suite.pull_request
-      pull_request.check_suites.all.order(:created_at).last
-    end
-
     def current_execution?
       pull_request = @check_suite.pull_request
       last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
@@ -140,7 +135,8 @@ module Github
       return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
 
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        job.skipped(@github_check)
+        @logger.info ">>> Skipping job: #{job.inspect}"
+        job.cancelled(@github_check)
       end
     end
 

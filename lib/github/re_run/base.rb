@@ -14,6 +14,7 @@ require_relative '../../bamboo_ci/stop_plan'
 require_relative '../parsers/pull_request_commit'
 
 require_relative '../check'
+require_relative '../build/unavailable_jobs'
 
 module Github
   module ReRun
@@ -47,7 +48,7 @@ module Github
         logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
         fetch_run_ci_by_pr.each do |check_suite|
-          check_suite.ci_jobs.each do |ci_job|
+          check_suite.ci_jobs.not_skipped.each do |ci_job|
             BambooCi::StopPlan.stop(ci_job.job_ref)
 
             logger(Logger::WARN, "Cancelling Job #{ci_job.inspect}")
@@ -112,6 +113,10 @@ module Github
         check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
 
         create_ci_jobs(bamboo_plan, check_suite)
+
+        CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
+          Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
+        end
 
         SlackBot.instance.execution_started_notification(check_suite)
       end
