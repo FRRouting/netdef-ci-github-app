@@ -49,11 +49,11 @@ module Github
 
         fetch_run_ci_by_pr.each do |check_suite|
           check_suite.ci_jobs.not_skipped.each do |ci_job|
-            BambooCi::StopPlan.stop(ci_job.job_ref)
-
             logger(Logger::WARN, "Cancelling Job #{ci_job.inspect}")
             ci_job.cancelled(@github_check)
           end
+
+          BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
         end
       end
 

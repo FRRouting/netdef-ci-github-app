@@ -22,15 +22,6 @@ require 'yaml'
 
 require_relative '../config/setup'
 
-require_relative '../lib/github/build_plan'
-require_relative '../lib/github/check'
-require_relative '../lib/github/re_run/comment'
-require_relative '../lib/github/re_run/command'
-require_relative '../lib/github/retry'
-require_relative '../lib/github/update_status'
-require_relative '../lib/helpers/sinatra_payload'
-require_relative '../lib/slack/slack'
-
 class GithubApp < Sinatra::Base
   set :bind, '0.0.0.0'
   set :port, 4667
