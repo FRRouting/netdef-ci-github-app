@@ -115,11 +115,7 @@ class WatchDog < Base
   def update_ci_job_status(github_check, ci_job, state)
     ci_job.enqueue(github_check) if ci_job.job_ref.nil?
 
-    url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-    output = {
-      title: ci_job.name,
-      summary: "Details at [#{url}](#{url})\nUnfortunately we were unable to access the execution results."
-    }
+    output = create_output_message(ci_job)
 
     @logger.info ">>> CiJob: #{ci_job.inspect} updating status"
     case state
@@ -136,6 +132,19 @@ class WatchDog < Base
       puts 'Ignored'
     end
 
+    build_summary(ci_job)
+  end
+
+  def create_output_message(ci_job)
+    url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+
+    {
+      title: ci_job.name,
+      summary: "Details at [#{url}](#{url})\nUnfortunately we were unable to access the execution results."
+    }
+  end
+
+  def build_summary(ci_job)
     summary = Github::Build::Summary.new(ci_job)
     summary.build_summary(Github::Build::Action::BUILD_STAGE) if ci_job.build?
     summary.build_summary(Github::Build::Action::TESTS_STAGE) if ci_job.test?
