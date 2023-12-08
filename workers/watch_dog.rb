@@ -50,11 +50,10 @@ class WatchDog < Base
   end
 
   def finish_stages(check_suite)
-    ci_job = check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
-
-    summary = Github::Build::Summary.new(ci_job)
-    summary.missing_build_stage
-    summary.update_tests_stage(ci_job)
+    check_suite.ci_jobs.stages.each do |stage|
+      summary = Github::Build::Summary.new(stage)
+      summary.missing_stage(stage)
+    end
   end
 
   def in_progress?(build_status)
@@ -103,6 +102,7 @@ class WatchDog < Base
         ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: check_suite.id)
 
         @logger.info ">>> CiJob: #{ci_job.inspect}}"
+        next if ci_job.nil?
         next if ci_job.finished? && !ci_job.job_ref.nil?
 
         update_ci_job_status(github_check, ci_job, result['state'])

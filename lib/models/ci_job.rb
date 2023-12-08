@@ -65,42 +65,47 @@ class CiJob < ActiveRecord::Base
   end
 
   def in_progress(github, output = {})
-    return update(status: :in_progress) unless stage
+    if stage or !check_ref.nil?
+      create_github_check(github)
+      github.in_progress(check_ref, output)
+    end
 
-    create_github_check(github)
-    github.in_progress(check_ref, output)
     update(status: :in_progress)
   end
 
   def cancelled(github, output = {})
-    return update(status: :cancelled) unless stage
+    if stage or !check_ref.nil?
+      create_github_check(github)
+      github.cancelled(check_ref, output)
+    end
 
-    create_github_check(github)
-    github.cancelled(check_ref, output)
     update(status: :cancelled)
   end
 
   def failure(github, output = {})
-    return update(status: :failure) unless stage
+    if stage or !check_ref.nil?
+      create_github_check(github)
+      github.failure(check_ref, output)
+    end
 
-    create_github_check(github)
-    github.failure(check_ref, output)
     update(status: :failure)
   end
 
   def success(github, output = {})
-    return update(status: :success) unless stage
+    if stage or !check_ref.nil?
+      create_github_check(github)
+      github.success(check_ref, output)
+    end
 
-    create_github_check(github)
-    github.success(check_ref, output)
     update(status: :success)
   end
 
   def skipped(github, output = {})
-    return update(status: :skipped) unless stage
+    if stage or !check_ref.nil?
+      create_github_check(github)
+      github.skipped(check_ref, output)
+    end
 
-    create_github_check(github)
-    github.skipped(check_ref, output)
     update(status: :skipped)
   end
 
