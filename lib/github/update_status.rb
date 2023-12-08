@@ -18,6 +18,7 @@ module Github
   class UpdateStatus
     def initialize(payload)
       @status = payload['status']
+      @logger = Logger.new('github_update_status.log')
 
       @output =
         if payload.dig('output', 'title').nil? and payload.dig('output', 'summary').nil?
@@ -27,6 +28,7 @@ module Github
         end
 
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
+      @check_suite = @job&.check_suite
       @failures = payload['failures']
     end
 
@@ -60,7 +62,6 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check, @output)
-        slack_notify_in_progress
       when 'success'
         @job.success(@github_check, @output)
         slack_notify_success
@@ -68,6 +69,28 @@ module Github
         failure
         slack_notify_failure
       end
+
+      finished_execution?
+    end
+
+    def finished_execution?
+      return false unless current_execution?
+      return false unless @check_suite.finished?
+
+      @logger.info ">>> @check_suite#{@check_suite.inspect} -> finished? #{@check_suite.finished?}"
+      @logger.info @check_suite.ci_jobs.last.inspect
+
+      SlackBot.instance.execution_finished_notification(@check_suite)
+    end
+
+    def current_execution?
+      pull_request = @check_suite.pull_request
+      last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
+
+      @logger.info "last_check_suite: #{last_check_suite.inspect}"
+      @logger.info "@check_suite: #{@check_suite.inspect}"
+
+      @check_suite.id == last_check_suite.id
     end
 
     # The unable2find string must match the phrase defined in the ci-files repository file
@@ -89,7 +112,7 @@ module Github
 
     def fetch_failures(output)
       buffer = ''
-      output.dig('testResults', 'failedTests', 'testResult').each do |test_result|
+      output.dig('testResults', 'failedTests', 'testResult')&.each do |test_result|
         message = ''
         test_result.dig('errors', 'error').each do |error|
           message += error['message']
@@ -108,26 +131,26 @@ module Github
     end
 
     def skipping_jobs
+      return if @job.checkout_code?
       return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
 
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        job.skipped(@github_check)
-      end
-    end
-
-    def slack_notify_in_progress
-      fetch_subscriptions('all').each do |subscription|
-        SlackBot.instance.notify_in_progress(@job, subscription)
+        @logger.info ">>> Skipping job: #{job.inspect}"
+        job.cancelled(@github_check)
       end
     end
 
     def slack_notify_success
+      return unless current_execution?
+
       fetch_subscriptions(%w[all pass]).each do |subscription|
         SlackBot.instance.notify_success(@job, subscription)
       end
     end
 
     def slack_notify_failure
+      return unless current_execution?
+
       fetch_subscriptions(%w[all errors]).each do |subscription|
         SlackBot.instance.notify_errors(@job, subscription)
       end

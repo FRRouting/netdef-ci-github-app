@@ -10,6 +10,7 @@
 
 describe Github::UpdateStatus do
   let(:update_status) { described_class.new(payload) }
+  let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
   describe 'Validates different Ci Job status' do
     let(:payload) do
@@ -36,6 +37,9 @@ describe Github::UpdateStatus do
       allow(fake_github_check).to receive(:in_progress).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:skipped).and_return(ci_job.check_suite)
       allow(fake_github_check).to receive(:success).and_return(ci_job.check_suite)
+      allow(fake_github_check).to receive(:cancelled).and_return(ci_job.check_suite)
+
+      allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
     end
 
     context 'when Ci Job Checkout Code update from queued -> failure' do
@@ -49,7 +53,7 @@ describe Github::UpdateStatus do
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
-        ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+        ci_jobs.each { |job| expect(job.reload.status).to eq('queued') }
       end
     end
 
@@ -78,7 +82,7 @@ describe Github::UpdateStatus do
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
-        ci_jobs.each { |job| expect(job.reload.status).to eq('skipped') }
+        ci_jobs.each { |job| expect(job.reload.status).to eq('cancelled') }
       end
     end
 
@@ -264,6 +268,27 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         end
       end
 
+      context 'when updated a test that failed and unabled to fetch results' do
+        let(:fake_output) do
+          {
+            'testResults' => {
+              'failedTests' => nil
+            }
+          }
+        end
+        before do
+          allow(CiJob).to receive(:find_by).and_return(ci_job)
+          allow(ci_job).to receive(:failure)
+          allow(BambooCi::Result).to receive(:fetch).and_return(fake_output)
+
+          update_status.update
+        end
+
+        it 'must not create TopoTestFailure' do
+          expect(TopotestFailure.all.size).to eq(0)
+        end
+      end
+
       context 'When bamboo returns an empty hash' do
         let(:expected_output) do
           {
@@ -286,6 +311,88 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must not create a TopoTestFailure' do
           expect(TopotestFailure.all.size).to eq(0)
+        end
+      end
+    end
+
+    describe 'Slack notification' do
+      context 'when update CI Job to success' do
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
+        let(:subscription) { create(:pull_request_subscription, target: ci_job.check_suite.pull_request.github_pr_id) }
+        let(:status) { 'success' }
+
+        before do
+          subscription
+
+          stub_request(:post, "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user")
+            .to_return(status: 200, body: '', headers: {})
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+      end
+
+      context 'when update CI Job to success but it is an old execution' do
+        let(:pull_request) { create(:pull_request) }
+        let(:check_suite) { create(:check_suite, pull_request: pull_request) }
+        let(:check_suite_new) { create(:check_suite, pull_request: pull_request) }
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite) }
+        let(:ci_job_new) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite_new) }
+        let(:subscription) { create(:pull_request_subscription, target: ci_job.check_suite.pull_request.github_pr_id) }
+        let(:status) { 'success' }
+
+        before do
+          check_suite
+          ci_job_new
+          subscription
+
+          stub_request(:post, "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user")
+            .to_return(status: 200, body: '', headers: {})
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+      end
+
+      context 'when update CI Job to failure' do
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
+        let(:subscription) { create(:pull_request_subscription, target: ci_job.check_suite.pull_request.github_pr_id) }
+        let(:status) { 'failure' }
+
+        before do
+          subscription
+
+          stub_request(:post, "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user")
+            .to_return(status: 200, body: '', headers: {})
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+      end
+
+      context 'when update CI Job to failure but it is an old execution' do
+        let(:pull_request) { create(:pull_request) }
+        let(:check_suite) { create(:check_suite, pull_request: pull_request) }
+        let(:check_suite_new) { create(:check_suite, pull_request: pull_request) }
+        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite) }
+        let(:ci_job_new) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite_new) }
+        let(:subscription) { create(:pull_request_subscription, target: ci_job.check_suite.pull_request.github_pr_id) }
+        let(:status) { 'failure' }
+
+        before do
+          check_suite
+          ci_job_new
+          subscription
+
+          stub_request(:post, "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user")
+            .to_return(status: 200, body: '', headers: {})
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
         end
       end
     end

@@ -10,3 +10,4 @@
 
 require_relative '../database_loader'
 require_relative '../lib/helpers/configuration'
+require_relative '../lib/github_ci_app'

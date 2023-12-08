@@ -12,11 +12,12 @@ require 'net/http'
 require 'net/https'
 require 'netrc'
 require 'json'
+require 'multipart/post'
 
 module GitHubApp
   module Request
-    def get_request(uri)
-      user, passwd = fetch_user_pass
+    def get_request(uri, machine: 'ci1.netdef.org')
+      user, passwd = fetch_user_pass(machine)
       http = create_http(uri)
 
       # Create Request
@@ -32,8 +33,8 @@ module GitHubApp
       logger(Logger::ERROR, "HTTP GET Request failed (#{e.message}) for #{uri.host}")
     end
 
-    def delete_request(uri)
-      user, passwd = fetch_user_pass
+    def delete_request(uri, machine: 'ci1.netdef.org')
+      user, passwd = fetch_user_pass(machine)
       http = create_http(uri)
 
       # Create Request
@@ -48,8 +49,8 @@ module GitHubApp
       resp
     end
 
-    def put_request(uri)
-      user, passwd = fetch_user_pass
+    def put_request(uri, machine: 'ci1.netdef.org')
+      user, passwd = fetch_user_pass(machine)
       http = create_http(uri)
 
       # Create Request
@@ -69,8 +70,8 @@ module GitHubApp
       logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
     end
 
-    def post_request(uri, body: nil)
-      user, passwd = fetch_user_pass
+    def post_request(uri, body: nil, machine: 'ci1.netdef.org')
+      user, passwd = fetch_user_pass(machine)
       http = create_http(uri)
 
       # Create Request
@@ -103,9 +104,9 @@ module GitHubApp
       http
     end
 
-    def fetch_user_pass
+    def fetch_user_pass(machine)
       netrc = Netrc.read
-      netrc['ci1.netdef.org']
+      netrc[machine]
     end
   end
 end
