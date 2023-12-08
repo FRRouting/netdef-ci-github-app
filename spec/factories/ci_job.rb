@@ -13,12 +13,36 @@ FactoryBot.define do
     name { Faker::App.name }
     status { 0 }
     job_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
-    check_ref { rand(1_000_000) }
 
     check_suite
 
     trait :checkout_code do
       name { 'Checkout Code' }
+      stage { true }
+    end
+
+    trait :build_stage do
+      name { Github::Build::Action::BUILD_STAGE }
+      stage { true }
+    end
+
+    trait :tests_stage do
+      name { Github::Build::Action::TESTS_STAGE }
+      stage { true }
+    end
+
+    trait :build do
+      name { 'UnitTest build' }
+    end
+
+    trait :test do
+      name { 'TopoTests Ubuntu 18.04 amd64' }
+    end
+
+    trait :topotest_failure do
+      after(:create) do |ci_job|
+        create(:topotest_failure, ci_job: ci_job)
+      end
     end
 
     trait :in_progress do
@@ -27,6 +51,10 @@ FactoryBot.define do
 
     trait :failure do
       status { 'failure' }
+    end
+
+    trait :success do
+      status { 'success' }
     end
   end
 end

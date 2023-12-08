@@ -54,9 +54,12 @@ describe Github::Retry do
     context 'when Ci Job is failure' do
       let(:check_suite) { create(:check_suite) }
       let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
-      let(:ci_job_checkout_code) { create(:ci_job, :checkout_code, check_suite: check_suite, status: 'failure') }
+      let(:ci_job_build_stage) { create(:ci_job, :build_stage, check_suite: check_suite, status: 'failure') }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
+      let(:ci_job_checkout_code) do
+        create(:ci_job, :checkout_code, stage: false, check_suite: check_suite, status: 'failure')
+      end
 
       before do
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
@@ -73,6 +76,43 @@ describe Github::Retry do
         allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
 
         ci_job_checkout_code
+        ci_job_build_stage
+      end
+
+      it 'must returns success' do
+        expect(github_retry.start).to eq([200, 'Retrying failure jobs'])
+        expect(ci_job.reload.status).to eq('queued')
+      end
+
+      it 'must still have its previous status' do
+        expect(ci_job_checkout_code.reload.status).to eq('failure')
+      end
+    end
+
+    context 'when Ci Job is failure and checkout code is stage' do
+      let(:check_suite) { create(:check_suite) }
+      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
+      let(:ci_job_build_stage) { create(:ci_job, :build_stage, check_suite: check_suite, status: 'failure') }
+      let(:fake_client) { Octokit::Client.new }
+      let(:fake_github_check) { Github::Check.new(nil) }
+      let(:ci_job_checkout_code) do
+        create(:ci_job, :checkout_code, check_suite: check_suite, status: 'failure')
+      end
+
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
+        allow(fake_github_check).to receive(:queued)
+
+        allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::Retry).to receive(:restart)
+
+        ci_job_checkout_code
+        ci_job_build_stage
       end
 
       it 'must returns success' do

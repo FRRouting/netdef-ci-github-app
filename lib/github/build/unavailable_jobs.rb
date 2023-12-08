@@ -30,8 +30,7 @@ module Github
         running_jobs =
           BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref).map { |entry| entry[:job_ref] }
 
-        @check_suite.ci_jobs.where.not(job_ref: running_jobs).each do |unavailable_job|
-          @logger.warn ">>> Unavailable Job: #{unavailable_job.inspect}"
+        @check_suite.ci_jobs.skip_stages.where.not(job_ref: running_jobs).each do |unavailable_job|
           unavailable_job.skipped(@github, output(unavailable_job))
           unavailable_job.update(check_suite: new_check_suite) unless new_check_suite.nil?
         end

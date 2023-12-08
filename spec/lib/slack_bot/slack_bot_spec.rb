@@ -37,8 +37,8 @@ describe SlackBot do
       }.to_json
     end
 
-    it { expect { slack_bot.notify_success(job, subscription) }.not_to raise_error }
-    it { expect { slack_bot.notify_errors(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.notify_success(job) }.not_to raise_error }
+    it { expect { slack_bot.notify_errors(job) }.not_to raise_error }
     it { expect { slack_bot.notify_cancelled(job, subscription) }.not_to raise_error }
     it { expect { slack_bot.execution_started_notification(job.check_suite) }.not_to raise_error }
     it { expect { slack_bot.execution_finished_notification(job.check_suite) }.not_to raise_error }

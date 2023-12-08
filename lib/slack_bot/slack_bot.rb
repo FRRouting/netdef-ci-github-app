@@ -45,13 +45,19 @@ class SlackBot
                  body: { message: reason, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
-  def notify_errors(job, subscription)
+  def notify_errors(job)
     message = generate_notification_message(job, 'Failed')
 
-    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    pull_request = job.check_suite.pull_request
+
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all errors])
+      .uniq(&:slack_user_id).each do |subscription|
+      url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def notify_cancelled(job, subscription)
@@ -63,13 +69,19 @@ class SlackBot
                  body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
-  def notify_success(job, subscription)
-    message = generate_notification_message(job, 'Success')
+  def notify_success(job)
+    pull_request = job.check_suite.pull_request
 
-    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all pass])
+      .uniq(&:slack_user_id).each do |subscription|
+      message = generate_notification_message(job, 'Success')
+
+      url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def execution_started_notification(check_suite)

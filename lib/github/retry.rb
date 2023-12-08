@@ -13,6 +13,7 @@ require 'logger'
 require_relative '../../database_loader'
 require_relative '../bamboo_ci/retry'
 require_relative '../bamboo_ci/stop_plan'
+require_relative '../github/build/retry'
 
 require_relative 'check'
 require_relative 'build/unavailable_jobs'
@@ -60,14 +61,10 @@ module Github
     def create_ci_jobs(check_suite)
       github_check = Github::Check.new(check_suite)
 
-      check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
-        next if ci_job.checkout_code?
+      build_retry = Github::Build::Retry.new(check_suite, github_check)
 
-        ci_job.enqueue(github_check)
-        ci_job.update(retry: ci_job.retry + 1)
-
-        logger(Logger::WARN, "Stopping Job: #{ci_job.name} - #{ci_job.job_ref}")
-      end
+      build_retry.enqueued_stages
+      build_retry.enqueued_failure_tests
 
       BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
     end
@@ -88,6 +85,8 @@ module Github
 
     def slack_notification(job)
       reason = SlackBot.instance.invalid_rerun_group(job)
+
+      logger(Logger::WARN, ">>> #{job.inspect} #{reason}")
 
       pull_request = job.check_suite.pull_request
 

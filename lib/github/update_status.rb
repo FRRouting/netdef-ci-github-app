@@ -13,6 +13,7 @@ require 'logger'
 require_relative '../../database_loader'
 require_relative '../../lib/bamboo_ci/result'
 require_relative '../slack_bot/slack_bot'
+require_relative 'build/summary'
 
 module Github
   class UpdateStatus
@@ -70,6 +71,10 @@ module Github
         slack_notify_failure
       end
 
+      summary = Github::Build::Summary.new(@job)
+      summary.build_summary(Github::Build::Action::BUILD_STAGE) if @job.build?
+      summary.build_summary(Github::Build::Action::TESTS_STAGE) if @job.test?
+
       finished_execution?
     end
 
@@ -104,10 +109,18 @@ module Github
     end
 
     def fetch_and_update_failures(to_be_replaced)
-      output = BambooCi::Result.fetch(@job.job_ref)
-      return if output.nil? or output.empty?
+      count = 0
+      begin
+        output = BambooCi::Result.fetch(@job.job_ref)
+        return if output.nil? or output.empty?
 
-      @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
+        @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
+      rescue NoMethodError => e
+        @logger.error "#{e.class} #{e.message}"
+        count += 1
+        sleep 5
+        retry if count <= 10
+      end
     end
 
     def fetch_failures(output)
@@ -131,11 +144,10 @@ module Github
     end
 
     def skipping_jobs
-      return if @job.checkout_code?
-      return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
+      return if @job.checkout_code? or @job.test?
+      return unless @job.build? and @status == 'failure'
 
       @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        @logger.info ">>> Skipping job: #{job.inspect}"
         job.cancelled(@github_check)
       end
     end
@@ -143,25 +155,13 @@ module Github
     def slack_notify_success
       return unless current_execution?
 
-      fetch_subscriptions(%w[all pass]).each do |subscription|
-        SlackBot.instance.notify_success(@job, subscription)
-      end
+      SlackBot.instance.notify_success(@job)
     end
 
     def slack_notify_failure
       return unless current_execution?
 
-      fetch_subscriptions(%w[all errors]).each do |subscription|
-        SlackBot.instance.notify_errors(@job, subscription)
-      end
-    end
-
-    def fetch_subscriptions(notification)
-      pull_request = @job.check_suite.pull_request
-
-      PullRequestSubscription
-        .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
-        .uniq(&:slack_user_id)
+      SlackBot.instance.notify_errors(@job)
     end
   end
 end
