@@ -121,6 +121,6 @@ class CiJob < ActiveRecord::Base
   end
 
   def github_stage_full_name(name)
-    "[CI] #{Github::Build::Action::STAGE_POSITION[name]}: #{name}"
+    "[CI] #{name}"
   end
 end
