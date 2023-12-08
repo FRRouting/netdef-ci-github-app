@@ -118,7 +118,7 @@ class GithubApp < Sinatra::Base
     when 'check_run'
       logger.debug "Check Run #{payload.dig('check_run', 'id')} - #{payload['action']}"
 
-      halt 200, 'OK' unless %w[created rerequested].include? payload['action'].downcase
+      halt 200, 'OK' unless %w[rerequested].include? payload['action'].downcase
 
       re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
       halt re_run.start
