@@ -31,6 +31,14 @@ FactoryBot.define do
       stage { true }
     end
 
+    trait :build do
+      name { 'UnitTest build' }
+    end
+
+    trait :test do
+      name { 'TopoTests Ubuntu 18.04 amd64' }
+    end
+
     trait :topotest_failure do
       after(:create) do |ci_job|
         create(:topotest_failure, ci_job: ci_job)
@@ -43,6 +51,10 @@ FactoryBot.define do
 
     trait :failure do
       status { 'failure' }
+    end
+
+    trait :success do
+      status { 'success' }
     end
   end
 end

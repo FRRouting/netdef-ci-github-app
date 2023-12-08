@@ -126,17 +126,12 @@ module Github
         name = Github::Build::Action::TESTS_STAGE
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
 
-        output_failure = {
+        output = {
           title: "#{name} summary",
           summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
         }
 
-        output_success = {
-          title: "#{name} summary",
-          summary: "#{summary_success_message(name)}\nDetails at [#{url}](#{url})."
-        }
-
-        @check_suite.success? ? stage.success(@github, output_success) : stage.failure(@github, output_failure)
+        @check_suite.success? ? stage.success(@github, output) : stage.failure(@github, output)
       end
 
       def update_summary(stage, name)
@@ -187,14 +182,6 @@ module Github
         header
       end
 
-      def summary_success_message(name)
-        filter = Github::Build::Action::BUILD_STAGE.include?(name) ? '.* (B|b)uild' : '(TopoTest|Check|Static)'
-
-        @check_suite.ci_jobs.skip_checkout_code.filter_by(filter).where(status: :success).map do |job|
-          "- #{job.name} #{job.status} -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
-        end.join("\n")[0..65_535]
-      end
-
       private
 
       def in_progress_message(jobs)
@@ -231,7 +218,9 @@ module Github
 
       def build_message(job)
         output = BambooCi::Result.fetch(job.job_ref, expand: 'testResults.failedTests.testResult.errors,artifacts')
-        entry = output.dig('artifacts', 'artifact').find { |elem| elem['name'] == 'ErrorLog' }
+        entry = output.dig('artifacts', 'artifact')&.find { |elem| elem['name'] == 'ErrorLog' }
+
+        return '' if entry.nil? or entry.empty?
 
         body = BambooCi::Download.build_log(entry.dig('link', 'href'))
 

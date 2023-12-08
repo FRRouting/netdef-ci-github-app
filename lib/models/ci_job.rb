@@ -53,7 +53,7 @@ class CiJob < ActiveRecord::Base
 
     count = 0
     begin
-      check_run = github.create(github_check_run_name)
+      check_run = github.create(github_stage_full_name(github_check_run_name))
       github.queued(check_run.id, output)
       update(check_ref: check_run.id, status: :queued)
     rescue StandardError
@@ -116,7 +116,11 @@ class CiJob < ActiveRecord::Base
 
     github_check_run_name = checkout_code? ? Github::Build::Action::SOURCE_CODE : name
 
-    check_run = github.create(github_check_run_name)
+    check_run = github.create(github_stage_full_name(github_check_run_name))
     update(check_ref: check_run.id)
+  end
+
+  def github_stage_full_name(name)
+    "[CI] #{Github::Build::Action::STAGE_POSITION[name]}: #{name}"
   end
 end

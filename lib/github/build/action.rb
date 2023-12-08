@@ -13,8 +13,9 @@ module Github
     class Action
       BUILD_STAGE = 'Build'
       TESTS_STAGE = 'Tests'
-      SOURCE_CODE = 'Linter'
+      SOURCE_CODE = 'Verify Source'
       SUMMARY = [BUILD_STAGE, TESTS_STAGE].freeze
+      STAGE_POSITION = { SOURCE_CODE => '01', BUILD_STAGE => '02', TESTS_STAGE => '03' }.freeze
 
       def initialize(check_suite, github, logger_level: Logger::INFO)
         @check_suite = check_suite
