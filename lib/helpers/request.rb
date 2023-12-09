@@ -16,6 +16,18 @@ require 'multipart/post'
 
 module GitHubApp
   module Request
+    def download(uri, machine: 'ci1.netdef.org')
+      user, passwd = fetch_user_pass(machine)
+      http = create_http(uri)
+
+      # Create Request
+      req = Net::HTTP::Get.new(uri)
+      # Add authorization headers
+      req.basic_auth user, passwd
+
+      http.request(req).body
+    end
+
     def get_request(uri, machine: 'ci1.netdef.org')
       user, passwd = fetch_user_pass(machine)
       http = create_http(uri)

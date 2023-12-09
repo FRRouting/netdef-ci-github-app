@@ -22,7 +22,7 @@ module Github
     def initialize(check_suite)
       @check_suite = check_suite
       @config = GitHubApp::Configuration.instance.config
-      @logger = Logger.new($stdout)
+      @logger = Logger.new('github_check_api.log', 2, 1_024_000)
 
       authenticate_app
     end
@@ -105,7 +105,7 @@ module Github
 
     private
 
-    def basic_status(id, status, output)
+    def basic_status(check_ref, status, output)
       opts = {
         status: status,
         accept: 'application/vnd.github+json'
@@ -113,11 +113,16 @@ module Github
 
       opts[:output] = output unless output.empty?
 
-      @app.update_check_run(
-        @check_suite.pull_request.repository,
-        id.to_i,
-        opts
-      )
+      resp =
+        @app.update_check_run(
+          @check_suite.pull_request.repository,
+          check_ref.to_i,
+          opts
+        ).to_h
+
+      @logger.info("basic_status: #{check_ref}, status: #{status} -> resp: #{resp}")
+
+      resp
     end
 
     # PS: Conclusion and status are the same name from GitHub Check doc.
@@ -133,11 +138,18 @@ module Github
 
       opts[:output] = output unless output.empty?
 
-      @logger.info @app.update_check_run(
-        @check_suite.pull_request.repository,
-        check_ref,
-        opts
-      )
+      resp =
+        @app.update_check_run(
+          @check_suite.pull_request.repository,
+          check_ref,
+          opts
+        ).to_h
+
+      @logger.info("completed: #{check_ref}, status: #{status}, conclusion: #{conclusion} -> resp: #{resp}")
+
+      resp
+    rescue Octokit::NotFound
+      @logger.error "#{check_ref} not found at GitHub"
     end
 
     def authenticate_app
