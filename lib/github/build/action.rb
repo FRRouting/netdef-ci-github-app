@@ -11,16 +11,11 @@
 module Github
   module Build
     class Action
-      BUILD_STAGE = 'Build'
-      TESTS_STAGE = 'Tests'
-      SOURCE_CODE = 'Verify Source'
-      SUMMARY = [BUILD_STAGE, TESTS_STAGE].freeze
-      STAGE_POSITION = { SOURCE_CODE => '01', BUILD_STAGE => '02', TESTS_STAGE => '03' }.freeze
-
       def initialize(check_suite, github, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
         @loggers = []
+        @stages = BambooStageTranslation.all
 
         %w[github_app.log github_build_action.log].each do |filename|
           logger_app = Logger.new(filename, 1, 1_024_000)
@@ -33,31 +28,40 @@ module Github
       end
 
       def create_summary
-        logger(Logger::INFO, "SUMMARY #{SUMMARY.inspect}")
+        logger(Logger::INFO, "SUMMARY #{@stages.inspect}")
 
-        SUMMARY.each do |name|
-          create_check_run_stage(name)
+        @stages.each do |stage|
+          create_check_run_stage(stage.github_check_run_name, stage.start_in_progress)
         end
-      rescue StandardError => e
-        logger(Logger::Error, "#{e.class} - #{e.message}")
       end
 
-      def create_stage(name)
+      def create_stage(name, in_progress)
         bamboo_ci = @check_suite.bamboo_ci_ref.split('-').last
 
         stage =
           CiJob.create(check_suite: @check_suite, name: name, job_ref: "#{name}-#{bamboo_ci}", stage: true)
 
-        return stage if stage.persisted?
+        return nil unless stage.persisted?
 
-        logger(Logger::ERROR, "Failed to created: #{stage.inspect} -> #{stage.errors.inspect}")
+        url = "https://ci1.netdef.org/browse/#{stage.job_ref}"
+        output = { title: stage.name, summary: "Details at [#{url}](#{url})" }
 
-        nil
+        stage.enqueue(@github, output)
+        stage.in_progress(@github, output) if in_progress
+
+        stage
       end
 
       def create_jobs(jobs, rerun: false)
         jobs.each do |job|
-          ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
+          parent_stage = BambooStageTranslation.find_by(bamboo_stage_name: job[:stage])
+
+          stage =
+            CiJob.find_by(check_suite: @check_suite, name: parent_stage.github_check_run_name)
+
+          ci_job =
+            CiJob.create(check_suite: @check_suite,
+                         name: job[:name], job_ref: job[:job_ref], parent_stage_id: stage.id)
 
           next unless ci_job.persisted?
 
@@ -69,25 +73,17 @@ module Github
           else
             ci_job.create_check_run
           end
-
-          next unless ci_job.checkout_code?
-
-          ci_job.update(stage: true)
-          url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-          ci_job.in_progress(@github, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
         end
       end
 
       private
 
-      def create_check_run_stage(name)
+      def create_check_run_stage(name, in_progress)
         stage = CiJob.find_by(name: name, check_suite_id: @check_suite.id)
 
         logger(Logger::INFO, "STAGE #{name} #{stage.inspect} - @#{@check_suite.inspect}")
 
-        stage = create_stage(name) if stage.nil?
-
-        return if stage.nil? or stage.checkout_code? or stage.success?
+        return create_stage(name, in_progress) if stage.nil?
 
         logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
 

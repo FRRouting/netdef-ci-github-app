@@ -35,7 +35,7 @@ describe Github::Build::UnavailableJobs do
     it 'must change check suite' do
       unavailable_jobs.update(new_check_suite: new_check_suite)
       expect(new_check_suite.reload.ci_jobs.size).to eq(1)
-      expect(check_suite.reload.ci_jobs.size).to eq(1)
+      expect(check_suite.reload.ci_jobs.skip_stages.size).to eq(1)
     end
   end
 
@@ -51,7 +51,7 @@ describe Github::Build::UnavailableJobs do
     it 'must change check suite' do
       unavailable_jobs.update
       expect(new_check_suite.reload.ci_jobs.size).to eq(0)
-      expect(check_suite.reload.ci_jobs.size).to eq(2)
+      expect(check_suite.reload.ci_jobs.skip_stages.size).to eq(2)
     end
   end
 

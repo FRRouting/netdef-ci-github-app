@@ -13,7 +13,9 @@ FactoryBot.define do
     name { Faker::App.name }
     status { 0 }
     job_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
+    check_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
 
+    parent_stage { create(:parent_stage, check_suite: check_suite) }
     check_suite
 
     trait :checkout_code do
@@ -22,21 +24,35 @@ FactoryBot.define do
     end
 
     trait :build_stage do
-      name { Github::Build::Action::BUILD_STAGE }
+      name { 'Build' }
       stage { true }
+
+      after(:create) do
+        create(:bamboo_stage_translation, github_check_run_name: 'Build')
+      end
     end
 
     trait :tests_stage do
-      name { Github::Build::Action::TESTS_STAGE }
+      name { 'Tests' }
       stage { true }
+
+      after(:create) do
+        create(:bamboo_stage_translation, github_check_run_name: 'Tests')
+      end
     end
 
     trait :build do
-      name { 'UnitTest build' }
+      after(:create) do |ci_job|
+        ci_job.parent_stage.update(name: 'Build')
+        create(:bamboo_stage_translation, github_check_run_name: 'Build')
+      end
     end
 
     trait :test do
-      name { 'TopoTests Ubuntu 18.04 amd64' }
+      after(:create) do |ci_job|
+        ci_job.parent_stage.update(name: 'TopoTests Ubuntu')
+        create(:bamboo_stage_translation, github_check_run_name: 'TopoTests Ubuntu')
+      end
     end
 
     trait :topotest_failure do
@@ -56,5 +72,7 @@ FactoryBot.define do
     trait :success do
       status { 'success' }
     end
+
+    factory :ci_job_build, traits: %i[build_stage]
   end
 end

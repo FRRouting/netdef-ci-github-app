@@ -27,24 +27,32 @@ module Github
       end
 
       def enqueued_stages
-        @check_suite.ci_jobs.stages.where.not(status: :success).each do |ci_job|
-          logger(Logger::WARN, "Enqueue stages: #{ci_job.inspect}")
+        BambooStageTranslation.all.each do |bamboo_stage|
+          next unless can_retry?(bamboo_stage)
 
-          next if ci_job.success? or ci_job.checkout_code?
+          stage = CiJob.find_by(check_suite: @check_suite, name: bamboo_stage.github_check_run_name)
 
-          ci_job.enqueue(@github, initial_output(ci_job))
-          ci_job.update(retry: ci_job.retry + 1)
+          next if stage.success?
+
+          stage.enqueue(@github, initial_output(stage))
+          stage.update(retry: stage.retry + 1)
         end
       end
 
       def enqueued_failure_tests
         @check_suite.ci_jobs.skip_stages.where.not(status: :success).each do |ci_job|
-          next if ci_job.checkout_code?
+          next unless can_retry?(BambooStageTranslation.find_by(github_check_run_name: ci_job.parent_stage.name))
 
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)
           ci_job.update(retry: ci_job.retry + 1)
         end
+      end
+
+      private
+
+      def can_retry?(bamboo_stage)
+        bamboo_stage.can_retry?
       end
     end
   end

@@ -28,133 +28,92 @@ module Github
         end
       end
 
-      def build_summary(name)
-        stage = @check_suite.ci_jobs.find_by(name: name)
+      def build_summary
+        stage = @job.parent_stage
 
-        logger(Logger::INFO, "build_summary: #{name} -> #{stage.inspect}")
+        logger(Logger::INFO, "build_summary: #{stage.inspect}")
 
-        return if stage.nil?
+        stage = fetch_parent_stage if stage.nil?
 
-        update_summary(stage, name)
+        update_summary(stage)
         finished_summary(stage)
         missing_stage(stage)
       end
 
       def missing_stage(stage)
-        missing_test_stage(stage)
-        missing_build_stage
+        ParentStage.where(check_suite: @check_suite).where.not(name: stage.name).each do |pending_stage|
+          next if pending_stage.jobs.where(status: %w[queue in_progress]).any?
+
+          if pending_stage.bamboo_stage.position.to_i < stage.bamboo_stage.position.to_i
+            next finished_summary(pending_stage)
+          end
+
+          previous_stage_failure(pending_stage, stage)
+        end
       end
 
-      def missing_test_stage(stage)
-        tests_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
-        tests_failure = {
-          title: "#{Github::Build::Action::TESTS_STAGE} summary",
-          summary: "Build Stage failed so it will not be possible to run the tests.\nDetails at [#{url}](#{url})."
-        }
+      def previous_stage_failure(pending_stage, stage)
+        return unless can_update_previous_stage?(pending_stage, stage)
 
-        return tests_stage.cancelled(@github, tests_failure) if stage.build? and stage.failure?
-        return tests_stage.in_progress(@github) if stage.build? and stage.success?
-
-        return unless stage.test?
-        return unless @check_suite.finished?
-
-        update_tests_stage(tests_stage)
+        stage.failure? ? next_stage_failure(pending_stage) : update_summary(pending_stage)
       end
 
-      def missing_build_stage
-        build_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::BUILD_STAGE)
+      def can_update_previous_stage?(pending_stage, stage)
+        pending_stage.bamboo_stage.position.to_i > stage.bamboo_stage.position.to_i or
+          pending_stage.queued? or
+          pending_stage.in_progress?
+      end
 
-        return if build_stage.nil?
-        return if build_stage.success? or build_stage.failure?
-        return unless @check_suite.build_stage_finished?
-
-        url = "https://ci1.netdef.org/browse/#{build_stage.check_suite.bamboo_ci_ref}"
+      def next_stage_failure(pending_stage)
+        url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
-          title: "#{Github::Build::Action::BUILD_STAGE} summary",
-          summary: "Build stage failure. Please check Bamboo CI.\nDetails at [#{url}](#{url})."
+          title:
+            "#{pending_stage.name} summary",
+          summary:
+            "The previous stage failed and the remaining tests will be canceled.\nDetails at [#{url}](#{url})."
         }
 
-        success = @check_suite.build_stage_success?
-        logger(Logger::INFO, "missing_build_stage: #{build_stage.inspect}, success: #{success}")
-
-        success ? build_stage.success(@github, output) : build_stage.failure(@github, output)
-      end
-
-      def update_tests_stage(stage)
-        success = @check_suite.ci_jobs.skip_checkout_code.where(status: %w[failure cancelled]).empty?
-
-        output = { title: "#{stage.name} summary", summary: summary_basic_output(stage.name) }
-
-        logger(Logger::INFO, "update_tests_stage: #{stage.inspect}, success: #{success}")
-
-        success ? stage.success(@github, output) : stage.failure(@github, output)
+        pending_stage.cancelled(@github, output)
       end
 
       def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        return if @job.in_progress?
+        return if @job.in_progress? or stage.jobs.where(status: %w[queue in_progress]).any?
 
-        finished_build_summary(stage)
-        finished_tests_summary(stage)
+        finished_stage_summary(stage)
       end
 
-      def finished_build_summary(stage)
-        return unless stage.build?
-        return unless @check_suite.build_stage_finished?
-
+      def finished_stage_summary(stage)
         logger(Logger::INFO, "finished_build_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
-        name = Github::Build::Action::BUILD_STAGE
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
-          title: "#{name} summary",
-          summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
+          title: "#{stage.name} summary",
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
-        logger(Logger::DEBUG, output)
-
-        @check_suite.build_stage_success? ? stage.success(@github, output) : stage.failure(@github, output)
+        stage.jobs.failure.empty? ? stage.success(@github, output) : stage.failure(@github, output)
       end
 
-      def finished_tests_summary(stage)
-        return unless stage.test?
-        return unless @check_suite.finished?
-
-        logger(Logger::INFO, "finished_tests_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
-
-        name = Github::Build::Action::TESTS_STAGE
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
-
-        output = {
-          title: "#{name} summary",
-          summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
-        }
-
-        @check_suite.success? ? stage.success(@github, output) : stage.failure(@github, output)
-      end
-
-      def update_summary(stage, name)
+      def update_summary(stage)
         logger(Logger::INFO, "Updating summary status #{stage.inspect} -> @job.status: #{@job.status}")
 
         url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
-          title: "#{name} summary",
-          summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
+          title: "#{stage.name} summary",
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
         stage.in_progress(@github, output)
       end
 
-      def summary_basic_output(name)
-        filter = Github::Build::Action::BUILD_STAGE.include?(name) ? '.* (B|b)uild' : '(Address|TopoTest|Check|Static)'
-
-        jobs = @check_suite.ci_jobs.skip_checkout_code.filter_by(filter).reload
+      def summary_basic_output(stage)
+        jobs = stage.jobs.reload
         in_progress = jobs.where(status: :in_progress)
 
         header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
         header += in_progress_message(jobs)
-        header += generate_success_failure_info(name, jobs)
+        header += generate_success_failure_info(stage.name, jobs)
 
         header[0..65_535]
       end
@@ -225,6 +184,16 @@ module Github
         body = BambooCi::Download.build_log(entry.dig('link', 'href'))
 
         "```\n#{body}\n```\n"
+      end
+
+      def fetch_parent_stage
+        jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
+        info = jobs.find { |job| job[:name] == @job.name }
+        stage = ParentStage.find_by(check_suite: @check_suite, name: info[:stage])
+
+        @job.update(parent_stage: stage)
+
+        stage
       end
 
       def logger(severity, message)

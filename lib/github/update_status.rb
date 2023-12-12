@@ -72,8 +72,7 @@ module Github
       end
 
       summary = Github::Build::Summary.new(@job)
-      summary.build_summary(Github::Build::Action::BUILD_STAGE) if @job.build?
-      summary.build_summary(Github::Build::Action::TESTS_STAGE) if @job.test?
+      summary.build_summary
 
       finished_execution?
     end

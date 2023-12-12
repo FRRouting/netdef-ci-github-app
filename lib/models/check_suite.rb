@@ -24,26 +24,6 @@ class CheckSuite < ActiveRecord::Base
       .empty?
   end
 
-  def build_stage_finished?
-    ci_jobs
-      .skip_stages
-      .where("name ILIKE '% build'")
-      .where(status: %i[queued in_progress])
-      .empty?
-  end
-
-  def build_stage_success?
-    ci_jobs
-      .skip_stages
-      .where("name ILIKE '% build'")
-      .where(status: %i[failure cancelled skipped])
-      .empty?
-  end
-
-  def success?
-    ci_jobs.skip_stages.where(status: %i[failure cancelled skipped]).empty?
-  end
-
   def in_progress?
     !finished?
   end

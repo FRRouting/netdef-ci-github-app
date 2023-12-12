@@ -146,8 +146,7 @@ class WatchDog < Base
 
   def build_summary(ci_job)
     summary = Github::Build::Summary.new(ci_job)
-    summary.build_summary(Github::Build::Action::BUILD_STAGE) if ci_job.build?
-    summary.build_summary(Github::Build::Action::TESTS_STAGE) if ci_job.test?
+    summary.build_summary
 
     finished_execution?(ci_job.check_suite)
   end

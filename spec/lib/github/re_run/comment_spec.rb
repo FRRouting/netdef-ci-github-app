@@ -44,10 +44,16 @@ describe Github::ReRun::Comment do
   describe 'Valid payload' do
     let(:fake_client) { Octokit::Client.new }
     let(:fake_github_check) { Github::Check.new(nil) }
+    let(:fake_translation) { create(:bamboo_stage_translation) }
 
     context 'when receives a valid command' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'Checkout', job_ref: 'CHK-01' }] }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
       let(:payload) do
         {
           'action' => 'created',
@@ -88,7 +94,12 @@ describe Github::ReRun::Comment do
 
     context 'when receives a valid command but can save' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'Checkout', job_ref: 'CHK-01' }] }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
       let(:payload) do
         {
           'action' => 'created',
@@ -119,9 +130,6 @@ describe Github::ReRun::Comment do
 
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
-
-        allow(CiJob).to receive(:create).and_return(fake_ci_job)
-        allow(fake_ci_job).to receive(:persisted?).and_return(false)
       end
 
       it 'must returns success' do
@@ -134,9 +142,11 @@ describe Github::ReRun::Comment do
       let(:first_pr) { create(:pull_request, github_pr_id: 12, id: 11, repository: 'test') }
       let(:second_pr) { create(:pull_request, github_pr_id: 13, id: 12, repository: 'test') }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: first_pr) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: check_suite.commit_sha_ref, re_run: true) }
       let(:another_check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: second_pr) }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }]
+      end
 
       let(:payload) do
         {
@@ -209,8 +219,13 @@ describe Github::ReRun::Comment do
 
     context 'when you receive an comment' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: check_suite.commit_sha_ref, re_run: true) }
+
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
 
       let(:payload) do
         {
@@ -273,6 +288,7 @@ describe Github::ReRun::Comment do
   describe 'alternative scenarios' do
     let(:fake_client) { Octokit::Client.new }
     let(:fake_github_check) { Github::Check.new(nil) }
+    let(:fake_translation) { create(:bamboo_stage_translation) }
 
     before do
       allow(Octokit::Client).to receive(:new).and_return(fake_client)
@@ -330,7 +346,7 @@ describe Github::ReRun::Comment do
 
       let(:bamboo_jobs) do
         [
-          { name: 'test', job_ref: 'checkout-01' }
+          { name: 'test', job_ref: 'checkout-01', stage: fake_translation.bamboo_stage_name }
         ]
       end
 
@@ -377,7 +393,7 @@ describe Github::ReRun::Comment do
 
       let(:bamboo_jobs) do
         [
-          { name: 'test', job_ref: 'checkout-01' }
+          { name: 'test', job_ref: 'checkout-01', stage: fake_translation.bamboo_stage_name }
         ]
       end
 
@@ -427,7 +443,7 @@ describe Github::ReRun::Comment do
 
       let(:bamboo_jobs) do
         [
-          { name: 'test', job_ref: 'checkout-01' }
+          { name: 'test', job_ref: 'checkout-01', stage: fake_translation.bamboo_stage_name }
         ]
       end
 

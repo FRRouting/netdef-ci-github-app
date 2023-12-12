@@ -149,8 +149,9 @@ module Github
       return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
 
       action = Github::Build::Action.new(@check_suite, @github_check)
-      action.create_jobs(jobs)
       action.create_summary
+      action.create_jobs(jobs)
+
 
       @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
       stop_execution_message if @has_previous_exec

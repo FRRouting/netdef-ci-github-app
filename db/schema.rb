@@ -10,9 +10,19 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_11_08_100757) do
+ActiveRecord::Schema[7.0].define(version: 2023_12_11_082838) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "bamboo_stage_translations", force: :cascade do |t|
+    t.string "bamboo_stage_name", null: false
+    t.string "github_check_run_name", null: false
+    t.boolean "start_in_progress", default: false
+    t.boolean "can_retry", default: true
+    t.integer "position"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
 
   create_table "check_suites", force: :cascade do |t|
     t.string "author", null: false
@@ -41,6 +51,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_11_08_100757) do
     t.bigint "check_suite_id"
     t.integer "retry", default: 0
     t.boolean "stage", default: false
+    t.integer "parent_stage_id"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
   end
 

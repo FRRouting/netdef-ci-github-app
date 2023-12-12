@@ -23,6 +23,7 @@ describe Github::BuildPlan do
   describe 'Valid commands' do
     let(:pr_number) { rand(1_000_000) }
     let(:repo) { 'UnitTest/repo' }
+    let(:fake_translation) { create(:bamboo_stage_translation) }
     let(:payload) do
       {
         'action' => action,
@@ -70,7 +71,10 @@ describe Github::BuildPlan do
       let(:action) { 'opened' }
       let(:author) { 'Johnny Silverhand' }
       let(:ci_jobs) do
-        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'CHECKOUT', job_ref: 'CHECKOUT-1' }]
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'CHECKOUT', job_ref: 'CHECKOUT-1', stage: fake_translation.bamboo_stage_name }
+        ]
       end
 
       it 'must create a PR' do
@@ -84,7 +88,9 @@ describe Github::BuildPlan do
       let(:pull_request) { PullRequest.last }
       let(:check_suite) { pull_request.check_suites.last }
       let(:ci_job) { check_suite.ci_jobs.find_by(name: 'First Test') }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }]
+      end
       let(:plan) { create(:plan, github_repo_name: repo) }
 
       before do
@@ -109,7 +115,9 @@ describe Github::BuildPlan do
       let(:previous_ci_job) { previous_check_suite.reload.ci_jobs.last }
       let(:check_suite) { pull_request.reload.check_suites.last }
       let(:author) { 'Johnny Silverhand' }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }]
+      end
       let(:new_pull_request) { PullRequest.last }
 
       before do
@@ -136,7 +144,9 @@ describe Github::BuildPlan do
       let(:previous_ci_job) { previous_check_suite.reload.ci_jobs.last }
       let(:check_suite) { pull_request.reload.check_suites.last }
       let(:author) { 'Johnny Silverhand' }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }] }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }]
+      end
       let(:new_pull_request) { PullRequest.last }
 
       let(:after_queued_jobs) { previous_check_suite.ci_jobs.where(status: 'queued').count }
