@@ -29,16 +29,16 @@ module Github
     def start
       return [422, 'Payload can not be blank'] if @payload.nil? or @payload.empty?
 
-      job = CiJob.find_by_check_ref(@payload.dig('check_run', 'id'))
+      stage = Stage.find_by_check_ref(@payload.dig('check_run', 'id'))
 
-      return [404, 'Job not found'] if job.nil?
-      return [406, 'Already enqueued this execution'] if job.queued? or job.in_progress?
+      logger(Logger::DEBUG, "Running stage #{stage.inspect}")
 
-      logger(Logger::DEBUG, "Running Job #{job.inspect}")
+      return [404, 'Stage not found'] if stage.nil?
+      return [406, 'Already enqueued this execution'] if stage.queued? or stage.in_progress?
 
-      check_suite = job.check_suite
+      check_suite = stage.check_suite
 
-      return enqueued(job) if check_suite.in_progress?
+      return enqueued(stage) if stage.in_progress?
 
       normal_flow(check_suite)
     end
@@ -69,16 +69,16 @@ module Github
       BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
     end
 
-    def enqueued(job)
-      github_check = Github::Check.new(job.check_suite)
-      previous_job = github_check.get_check_run(job.check_ref)
+    def enqueued(stage)
+      github_check = Github::Check.new(stage.check_suite)
+      previous_stage = github_check.get_check_run(stage.check_ref)
 
-      reason = slack_notification(job)
+      reason = slack_notification(stage)
 
-      output = { title: previous_job.dig(:output, :title).to_s, summary: previous_job.dig(:output, :summary).to_s }
+      output = { title: previous_stage.dig(:output, :title).to_s, summary: previous_stage.dig(:output, :summary).to_s }
 
-      job.enqueue(github_check)
-      job.failure(github_check, output)
+      stage.enqueue(github_check)
+      stage.failure(github_check, output)
 
       [406, reason]
     end
