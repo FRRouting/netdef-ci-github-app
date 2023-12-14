@@ -9,7 +9,7 @@
 #  frozen_string_literal: true
 
 describe Github::Build::Action do
-  let(:action) { described_class.new(check_suite, fake_github_check) }
+  let(:action) { described_class.new(check_suite, fake_github_check, [ci_job]) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
@@ -46,7 +46,7 @@ describe Github::Build::Action do
     end
 
     it 'must not create a stage' do
-      action.create_stage('Build', false)
+      action.create_summary(rerun: false)
       expect(check_suite.ci_jobs.stages.size).to eq(0)
     end
   end
@@ -55,7 +55,7 @@ describe Github::Build::Action do
     let(:ci_job) { create(:ci_job) }
 
     it 'must not create a stage' do
-      action.create_stage('Build', true)
+      action.create_summary(rerun: true)
       expect(check_suite.ci_jobs.stages.size).to eq(1)
       expect(check_suite.ci_jobs.stages.first.status).to eq('in_progress')
     end

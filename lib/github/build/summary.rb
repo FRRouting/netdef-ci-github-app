@@ -29,42 +29,71 @@ module Github
       end
 
       def build_summary
-        stage = @job.parent_stage
+        current_stage = @job.stage
 
-        logger(Logger::INFO, "build_summary: #{stage.inspect}")
+        logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
 
-        stage = fetch_parent_stage if stage.nil?
+        current_stage = fetch_parent_stage if current_stage.nil?
 
-        update_summary(stage)
-        finished_summary(stage)
-        missing_stage(stage)
+        # Update current stage
+        update_summary(current_stage)
+        # Check if current stage finished
+        finished_summary(current_stage)
+        # If current stage fails the next stages will be marked as failure
+        # when current stage has mandatory field is true
+        must_cancel_next_stages(current_stage)
+        # If current stage passes the next stage will be marked as in_progress
+        must_continue_next_stage(current_stage)
+        must_update_previous_stage(current_stage)
       end
 
-      def missing_stage(stage)
-        ParentStage.where(check_suite: @check_suite).where.not(name: stage.name).each do |pending_stage|
-          next if pending_stage.jobs.where(status: %w[queue in_progress]).any?
+      private
 
-          if pending_stage.bamboo_stage.position.to_i < stage.bamboo_stage.position.to_i
-            next finished_summary(pending_stage)
-          end
+      def must_update_previous_stage(current_stage)
+        previous_stage = current_stage.previous_stage
 
-          previous_stage_failure(pending_stage, stage)
+        return if previous_stage.nil? or !previous_stage.in_progress? or !previous_stage.queued?
+
+        finished_stage_summary(previous_stage)
+      end
+
+      def must_cancel_next_stages(current_stage)
+        return if @job.success? or @job.in_progress? or @job.queued?
+        return unless current_stage.bamboo_stage_translations.mandatory?
+
+        Stage
+          .joins(:bamboo_stage_translations)
+          .where(check_suite: @check_suite)
+          .where(bamboo_stage_translations: { position: [(current_stage.bamboo_stage_translations.position + 1)..] })
+          .each do |stage|
+          next if stage.cancelled?
+
+          cancelling_next_stage(stage)
         end
       end
+      
+      def must_continue_next_stage(current_stage)
+        return unless current_stage.finished?
+        return if current_stage.failure? or current_stage.skipped? or current_stage.cancelled?
 
-      def previous_stage_failure(pending_stage, stage)
-        return unless can_update_previous_stage?(pending_stage, stage)
+        next_stage =
+          Stage
+          .joins(:bamboo_stage_translations)
+          .where(check_suite: @check_suite)
+          .where(bamboo_stage_translations: { position: current_stage.bamboo_stage_translations.position + 1 })
 
-        stage.failure? ? next_stage_failure(pending_stage) : update_summary(pending_stage)
+        update_summary(next_stage)
       end
 
-      def can_update_previous_stage?(pending_stage, stage)
-        pending_stage.bamboo_stage.position.to_i > stage.bamboo_stage.position.to_i or
-          pending_stage.queued? or
-          pending_stage.in_progress?
-      end
+      def bamboo_stage_check_positions(pending_stage, stage)
+        pending_stage_position = pending_stage.bamboo_stage_translations.position
+        stage_position = stage.bamboo_stage_translations.position
 
-      def next_stage_failure(pending_stage)
+        pending_stage_position <= stage_position or
+          pending_stage_position + 1 != stage_position
+      end
+      
+      def cancelling_next_stage(pending_stage)
         url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
           title:
@@ -73,7 +102,11 @@ module Github
             "The previous stage failed and the remaining tests will be canceled.\nDetails at [#{url}](#{url})."
         }
 
+        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage}\n#{output}")
+
         pending_stage.cancelled(@github, output)
+
+        SlackBot.instance.stage_finished_notification(stage)
       end
 
       def finished_summary(stage)
@@ -81,6 +114,7 @@ module Github
         return if @job.in_progress? or stage.jobs.where(status: %w[queue in_progress]).any?
 
         finished_stage_summary(stage)
+        SlackBot.instance.stage_finished_notification(stage)
       end
 
       def finished_stage_summary(stage)
@@ -141,8 +175,6 @@ module Github
         header
       end
 
-      private
-
       def in_progress_message(jobs)
         jobs.where(status: :in_progress).map do |job|
           "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
@@ -189,9 +221,9 @@ module Github
       def fetch_parent_stage
         jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
         info = jobs.find { |job| job[:name] == @job.name }
-        stage = ParentStage.find_by(check_suite: @check_suite, name: info[:stage])
+        stage = Stage.find_by(check_suite: @check_suite, name: info[:stage])
 
-        @job.update(parent_stage: stage)
+        @job.update(stage: stage)
 
         stage
       end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_12_11_082838) do
+ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -22,6 +22,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_11_082838) do
     t.integer "position"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.boolean "mandatory", default: true
   end
 
   create_table "check_suites", force: :cascade do |t|
@@ -50,9 +51,9 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_11_082838) do
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
     t.integer "retry", default: 0
-    t.boolean "stage", default: false
-    t.integer "parent_stage_id"
+    t.bigint "stage_id"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
+    t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
   end
 
   create_table "plans", force: :cascade do |t|
@@ -85,6 +86,18 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_11_082838) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "stages", force: :cascade do |t|
+    t.string "name", null: false
+    t.integer "status", default: 0, null: false
+    t.string "check_ref"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "check_suite_id"
+    t.bigint "bamboo_stage_translations_id"
+    t.index ["bamboo_stage_translations_id"], name: "index_stages_on_bamboo_stage_translations_id"
+    t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
+  end
+
   create_table "topotest_failures", force: :cascade do |t|
     t.string "test_suite", null: false
     t.string "test_case", null: false
@@ -98,7 +111,10 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_11_082838) do
 
   add_foreign_key "check_suites", "pull_requests"
   add_foreign_key "ci_jobs", "check_suites"
+  add_foreign_key "ci_jobs", "stages"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
+  add_foreign_key "stages", "bamboo_stage_translations", column: "bamboo_stage_translations_id"
+  add_foreign_key "stages", "check_suites"
   add_foreign_key "topotest_failures", "ci_jobs"
 end

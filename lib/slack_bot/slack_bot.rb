@@ -80,7 +80,7 @@ class SlackBot
       url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
       post_request(URI(url),
                    machine: 'slack_bot.netdef.org',
-                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+                   body: { message: message, unfurl_links: false, unfurl_media: false, slack_user_id: subscription.slack_user_id }.to_json)
     end
   end
 
@@ -104,7 +104,33 @@ class SlackBot
     end
   end
 
+  def stage_finished_notification(stage)
+    pull_request = stage.check_suite.pull_request
+
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author])
+      .uniq(&:slack_user_id)
+      .each do |subscription|
+      send_stage_notification(stage, pull_request, subscription)
+    end
+  end
+
   private
+
+  def send_stage_notification(stage, pull_request, subscription)
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+
+    pr_url = "https://github.com/#{pull_request.repository}/pull/#{pull_request.github_pr_id}"
+    bamboo_link = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: {
+                   message: "PR <#{pr_url}|##{pull_request.github_pr_id}>. " \
+                            "Stage: <#{bamboo_link}|[CI] #{stage.name} - #{stage.status}> ",
+                   slack_user_id: subscription.slack_user_id
+                 }.to_json)
+  end
 
   def started_finished_notification(check_suite, subscription, started_or_finished: 'Started')
     message = pull_request_message(check_suite, started_or_finished)

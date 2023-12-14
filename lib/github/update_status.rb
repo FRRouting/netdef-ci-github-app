@@ -42,8 +42,6 @@ module Github
 
       update_status
 
-      skipping_jobs
-
       [200, 'Success']
     end
 
@@ -140,15 +138,6 @@ module Github
       end
 
       buffer
-    end
-
-    def skipping_jobs
-      return if @job.checkout_code? or @job.test?
-      return unless @job.build? and @status == 'failure'
-
-      @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        job.cancelled(@github_check)
-      end
     end
 
     def slack_notify_success

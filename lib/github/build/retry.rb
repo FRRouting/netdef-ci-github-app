@@ -12,11 +12,12 @@ require_relative 'action'
 
 module Github
   module Build
-    class Retry < Action
+    class Retry
       def initialize(check_suite, github, logger_level: Logger::INFO)
-        super(check_suite, github)
-
+        @check_suite = check_suite
+        @github = github
         @loggers = []
+        @stages_config = BambooStageTranslation.all
 
         %w[github_app.log github_build_retry.log].each do |filename|
           logger_app = Logger.new(filename, 1, 1_024_000)
@@ -27,21 +28,23 @@ module Github
       end
 
       def enqueued_stages
-        BambooStageTranslation.all.each do |bamboo_stage|
-          next unless can_retry?(bamboo_stage)
+        @stages_config.each do |bamboo_stage|
+          next unless bamboo_stage.can_retry?
 
-          stage = CiJob.find_by(check_suite: @check_suite, name: bamboo_stage.github_check_run_name)
+          stage = Stage.find_by(check_suite: @check_suite, name: bamboo_stage.github_check_run_name)
 
           next if stage.success?
 
-          stage.enqueue(@github, initial_output(stage))
-          stage.update(retry: stage.retry + 1)
+          url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+          output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+
+          stage.enqueue(@github, output)
         end
       end
 
       def enqueued_failure_tests
-        @check_suite.ci_jobs.skip_stages.where.not(status: :success).each do |ci_job|
-          next unless can_retry?(BambooStageTranslation.find_by(github_check_run_name: ci_job.parent_stage.name))
+        @check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
+          next unless ci_job.stage.bamboo_stage_translations.can_retry?
 
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)
@@ -51,8 +54,10 @@ module Github
 
       private
 
-      def can_retry?(bamboo_stage)
-        bamboo_stage.can_retry?
+      def logger(severity, message)
+        @loggers.each do |logger_object|
+          logger_object.add(severity, message)
+        end
       end
     end
   end
