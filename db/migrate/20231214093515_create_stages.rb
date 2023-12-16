@@ -24,4 +24,3 @@ class CreateStages < ActiveRecord::Migration[6.0]
     add_reference :ci_jobs, :stage, foreign_key: true
   end
 end
-

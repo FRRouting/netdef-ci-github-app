@@ -72,7 +72,7 @@ module Github
           cancelling_next_stage(stage)
         end
       end
-      
+
       def must_continue_next_stage(current_stage)
         return unless current_stage.finished?
         return if current_stage.failure? or current_stage.skipped? or current_stage.cancelled?
@@ -93,7 +93,7 @@ module Github
         pending_stage_position <= stage_position or
           pending_stage_position + 1 != stage_position
       end
-      
+
       def cancelling_next_stage(pending_stage)
         url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
@@ -138,6 +138,8 @@ module Github
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
+
+        SlackBot.instance.stage_in_progress_notification(stage) if stage.queued?
 
         stage.in_progress(@github, output)
       end

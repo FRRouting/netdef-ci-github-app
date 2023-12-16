@@ -469,9 +469,13 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
       context 'when Ci Job AMD Build update from in_progress -> failure' do
         let(:ci_job) { create(:ci_job, :build, name: 'AMD Build', status: 'in_progress') }
         let(:arm) { create(:ci_job, :build, name: 'ARM8 Build', status: 'failure') }
-        let(:test) { create(:ci_job, :test, name: 'TopoTest Part 0', status: 'in_progress', check_suite: ci_job.check_suite) }
         let(:status) { 'failure' }
         let(:stages) { ParentStage.where(check_suite: ci_job.check_suite) }
+
+        let(:test) do
+          create(:ci_job, :test, name: 'TopoTest Part 0', status: 'in_progress', check_suite: ci_job.check_suite)
+        end
+
         let(:url) do
           "https://127.0.0.1/rest/api/latest/result/#{ci_job.job_ref}?" \
             'expand=testResults.failedTests.testResult.errors,artifacts'

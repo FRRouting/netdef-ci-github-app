@@ -16,4 +16,3 @@ FactoryBot.define do
     can_retry { true }
   end
 end
-

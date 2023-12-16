@@ -80,7 +80,8 @@ class SlackBot
       url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
       post_request(URI(url),
                    machine: 'slack_bot.netdef.org',
-                   body: { message: message, unfurl_links: false, unfurl_media: false, slack_user_id: subscription.slack_user_id }.to_json)
+                   body: { message: message, unfurl_links: false, unfurl_media: false,
+                           slack_user_id: subscription.slack_user_id }.to_json)
     end
   end
 
@@ -105,6 +106,17 @@ class SlackBot
   end
 
   def stage_finished_notification(stage)
+    pull_request = stage.check_suite.pull_request
+
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author])
+      .uniq(&:slack_user_id)
+      .each do |subscription|
+      send_stage_notification(stage, pull_request, subscription)
+    end
+  end
+
+  def stage_in_progress_notification(stage)
     pull_request = stage.check_suite.pull_request
 
     PullRequestSubscription

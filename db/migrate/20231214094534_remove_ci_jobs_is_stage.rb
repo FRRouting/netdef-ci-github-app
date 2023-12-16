@@ -14,4 +14,3 @@ class RemoveCiJobsIsStage < ActiveRecord::Migration[6.0]
     remove_column :ci_jobs, :is_stage, if_exists: true
   end
 end
-

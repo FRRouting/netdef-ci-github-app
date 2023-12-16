@@ -43,33 +43,33 @@ describe Github::Build::Summary do
 
   context 'when the build stage finished successfully' do
     let(:ci_job) { create(:ci_job, :build, :success, check_suite: check_suite) }
-    let(:ci_job_2) { create(:ci_job, :test, :in_progress, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, :test, :in_progress, check_suite: check_suite) }
 
     before do
       ci_job
-      ci_job_2
+      ci_job2
     end
 
     it 'must update stage' do
       summary.build_summary
       expect(ci_job.parent_stage.reload.status).to eq('success')
-      expect(ci_job_2.parent_stage.reload.status).to eq('in_progress')
+      expect(ci_job2.parent_stage.reload.status).to eq('in_progress')
     end
   end
 
   context 'when the build stage finished unsuccessfully' do
     let(:ci_job) { create(:ci_job, :build, :failure, check_suite: check_suite) }
-    let(:ci_job_2) { create(:ci_job, :test, status: :queued, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, :test, status: :queued, check_suite: check_suite) }
 
     before do
       ci_job
-      ci_job_2
+      ci_job2
     end
 
     it 'must update stage' do
       summary.build_summary
       expect(ci_job.parent_stage.reload.status).to eq('failure')
-      expect(ci_job_2.parent_stage.reload.status).to eq('cancelled')
+      expect(ci_job2.parent_stage.reload.status).to eq('cancelled')
     end
   end
 
@@ -80,7 +80,6 @@ describe Github::Build::Summary do
 
     before do
       ci_job_running
-
     end
 
     it 'must update stage' do
