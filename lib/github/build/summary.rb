@@ -44,6 +44,7 @@ module Github
         must_cancel_next_stages(current_stage)
         # If current stage passes the next stage will be marked as in_progress
         must_continue_next_stage(current_stage)
+        # If previous stage still in progress or queued
         must_update_previous_stage(current_stage)
       end
 
