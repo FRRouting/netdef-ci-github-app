@@ -11,6 +11,8 @@
 class Stage < ActiveRecord::Base
   enum status: { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
 
+  after_save :in_progress_notification, if: Proc.new { saved_change_to_status?(from: 'queued', to: 'in_progress') }
+
   has_many :jobs, class_name: 'CiJob'
   belongs_to :bamboo_stage_translations, class_name: 'BambooStageTranslation'
   belongs_to :check_suite
@@ -70,6 +72,10 @@ class Stage < ActiveRecord::Base
   end
 
   private
+
+  def in_progress_notification
+    SlackBot.instance.stage_in_progress_notification(self)
+  end
 
   def create_github_check(github)
     return unless check_ref.nil?

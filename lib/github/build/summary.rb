@@ -107,7 +107,7 @@ module Github
 
         pending_stage.cancelled(@github, output)
 
-        SlackBot.instance.stage_finished_notification(stage)
+        SlackBot.instance.stage_finished_notification(pending_stage)
       end
 
       def finished_summary(stage)
@@ -138,8 +138,6 @@ module Github
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
-
-        SlackBot.instance.stage_in_progress_notification(stage) if stage.queued?
 
         stage.in_progress(@github, output)
       end

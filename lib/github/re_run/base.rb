@@ -94,6 +94,8 @@ module Github
       end
 
       def ci_jobs(check_suite, bamboo_plan)
+        SlackBot.instance.execution_started_notification(check_suite)
+
         check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
 
         create_ci_jobs(bamboo_plan, check_suite)
@@ -101,8 +103,6 @@ module Github
         CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
           Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
         end
-
-        SlackBot.instance.execution_started_notification(check_suite)
       end
 
       def action

@@ -146,6 +146,8 @@ module Github
     def ci_jobs
       @logger.info 'Creating GitHub Check'
 
+      SlackBot.instance.execution_started_notification(@check_suite)
+
       @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
 
       jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
@@ -157,7 +159,6 @@ module Github
 
       @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
       stop_execution_message if @has_previous_exec
-      SlackBot.instance.execution_started_notification(@check_suite)
 
       [200, 'Pull Request created']
     end
