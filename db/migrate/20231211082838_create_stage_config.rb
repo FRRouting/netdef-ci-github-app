@@ -8,9 +8,9 @@
 #
 #  frozen_string_literal: true
 
-class CreateBambooStageToGithubCheckRun < ActiveRecord::Migration[6.0]
+class CreateStageConfig < ActiveRecord::Migration[6.0]
   def change
-    create_table :bamboo_stage_translations do |t|
+    create_table :stage_configurations do |t|
       t.string :bamboo_stage_name, null: false
       t.string :github_check_run_name, null: false
       t.boolean :start_in_progress, default: false
@@ -25,7 +25,7 @@ class CreateBambooStageToGithubCheckRun < ActiveRecord::Migration[6.0]
       ['Building Stage', 'Build', false, true],
       ['Basic Tests', 'Tests', false, true]
     ].each_with_index do |info, index|
-      BambooStageTranslation.create(bamboo_stage_name: info[0],
+      StageConfiguration.create(bamboo_stage_name: info[0],
                                     github_check_run_name: info[1],
                                     start_in_progress: info[2],
                                     can_retry: info[3],

@@ -10,6 +10,6 @@
 
 class AddMandatoryBambooStage < ActiveRecord::Migration[6.0]
   def change
-    add_column :bamboo_stage_translations, :mandatory, :boolean, default: true
+    add_column :stage_configurations, :mandatory, :boolean, default: true
   end
 end

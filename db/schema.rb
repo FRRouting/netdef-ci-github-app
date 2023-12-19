@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_12_18_084122) do
+ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -40,6 +40,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_18_084122) do
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
     t.integer "retry", default: 0
+    t.integer "parent_stage_id"
     t.bigint "stage_id"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
@@ -93,9 +94,9 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_18_084122) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
-    t.bigint "stage_configuration_id"
+    t.bigint "stage_configurations_id"
     t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
-    t.index ["stage_configuration_id"], name: "index_stages_on_stage_configuration_id"
+    t.index ["stage_configurations_id"], name: "index_stages_on_stage_configurations_id"
   end
 
   create_table "topotest_failures", force: :cascade do |t|
@@ -115,6 +116,6 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_18_084122) do
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
   add_foreign_key "stages", "check_suites"
-  add_foreign_key "stages", "stage_configurations"
+  add_foreign_key "stages", "stage_configurations", column: "stage_configurations_id"
   add_foreign_key "topotest_failures", "ci_jobs"
 end
