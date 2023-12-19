@@ -54,13 +54,13 @@ module Github
             ci_job.create_check_run
           end
 
-          next unless !ci_job.stage.nil? and ci_job.stage.configuration.start_in_progress?
-
           stage_with_start_in_progress(ci_job)
         end
       end
 
       def stage_with_start_in_progress(ci_job)
+        return unless !ci_job.stage.nil? and ci_job.stage.configuration.start_in_progress?
+
         ci_job.in_progress(@github)
         ci_job.stage.in_progress(@github, output: {}, job: ci_job)
       end

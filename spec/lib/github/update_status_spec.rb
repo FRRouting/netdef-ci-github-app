@@ -78,7 +78,7 @@ describe Github::UpdateStatus do
       let(:check_suite) { create(:check_suite) }
       let(:stage1) { create(:stage, check_suite: check_suite) }
       let(:stage2) { create(:stage, check_suite: check_suite) }
-      let(:ci_job) { create(:ci_job,status: 'in_progress', stage: stage1, check_suite: check_suite) }
+      let(:ci_job) { create(:ci_job, status: 'in_progress', stage: stage1, check_suite: check_suite) }
       let(:ci_jobs) { create_list(:ci_job, 5, stage: stage2, check_suite: check_suite) }
       let(:status) { 'failure' }
 

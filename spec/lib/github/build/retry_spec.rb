@@ -86,7 +86,6 @@ describe Github::Build::Retry do
              check_suite: check_suite, configuration: configuration, name: configuration.github_check_run_name)
     end
 
-
     before do
       stage
       ci_job

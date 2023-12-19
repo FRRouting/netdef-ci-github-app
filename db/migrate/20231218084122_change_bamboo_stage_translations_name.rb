@@ -21,4 +21,3 @@ class ChangeBambooStageTranslationsName < ActiveRecord::Migration[6.0]
     add_reference :stages, :bamboo_stage_translations, index: true, foreign_key: true
   end
 end
-
