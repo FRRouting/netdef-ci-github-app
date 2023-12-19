@@ -26,19 +26,6 @@ describe CiJob do
     allow(github_success).to receive(:queued).and_return(stage)
   end
 
-  describe '#enqueue' do
-    let(:stage) { create(:ci_job, stage: true) }
-
-    it 'must handle the error' do
-      expect { stage.enqueue(github_fail) }.not_to raise_error
-    end
-
-    it 'must update status' do
-      expect { stage.enqueue(github_success) }.not_to raise_error
-      expect(stage.reload.status).to eq('queued')
-    end
-  end
-
   describe '#in_progress' do
     context 'when CiJob is not a stage' do
       let(:stage) { create(:ci_job, check_ref: nil) }

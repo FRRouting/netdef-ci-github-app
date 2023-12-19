@@ -75,16 +75,25 @@ describe Github::UpdateStatus do
     end
 
     context 'when Ci Job AMD Build update from in_progress -> failure' do
-      let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
-      let(:ci_jobs) { create_list(:ci_job, 5, check_suite: ci_job.check_suite) }
+      let(:check_suite) { create(:check_suite) }
+      let(:stage1) { create(:stage, check_suite: check_suite) }
+      let(:stage2) { create(:stage, check_suite: check_suite) }
+      let(:ci_job) { create(:ci_job,status: 'in_progress', stage: stage1, check_suite: check_suite) }
+      let(:ci_jobs) { create_list(:ci_job, 5, stage: stage2, check_suite: check_suite) }
       let(:status) { 'failure' }
 
       before do
+        ci_job
         ci_jobs
+
+        stage1.configuration.update(position: 1)
+        stage2.configuration.update(position: 2)
       end
 
       it 'must returns success' do
         expect(update_status.update).to eq([200, 'Success'])
+
+        expect(stage2.reload.status).to eq('cancelled')
         ci_jobs.each { |job| expect(job.reload.status).to eq('cancelled') }
       end
     end
@@ -399,12 +408,15 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must update parent stage' do
           update_status.update
-          expect(ci_job.parent_stage.reload.status).to eq(status)
+          expect(ci_job.stage.reload.status).to eq(status)
         end
       end
 
       context 'when Ci Job TopoTest Part 0 update from queued -> in_progress' do
-        let(:ci_job) { create(:ci_job, :test, name: 'TopoTest Part 0', status: 'queued') }
+        let(:check_suite) { create(:check_suite) }
+        let(:stage1) { create(:stage, check_suite: check_suite) }
+
+        let(:ci_job) { create(:ci_job, status: 'queued', stage: stage1, check_suite: check_suite) }
         let(:status) { 'in_progress' }
 
         before do
@@ -417,12 +429,15 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must update parent stage' do
           update_status.update
-          expect(ci_job.parent_stage.reload.status).to eq('in_progress')
+          expect(ci_job.stage.reload.status).to eq('in_progress')
         end
       end
 
       context 'when Ci Job TopoTest Part 0 update from in_progress -> success' do
-        let(:ci_job) { create(:ci_job, :test, name: 'TopoTest Part 0', status: 'in_progress') }
+        let(:check_suite) { create(:check_suite) }
+        let(:stage1) { create(:stage, check_suite: check_suite) }
+
+        let(:ci_job) { create(:ci_job, status: 'in_progress', stage: stage1, check_suite: check_suite) }
         let(:status) { 'success' }
 
         before do
@@ -435,12 +450,15 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must change Tests to success' do
           update_status.update
-          expect(ci_job.parent_stage.reload.status).to eq(status)
+          expect(ci_job.stage.reload.status).to eq(status)
         end
       end
 
       context 'when Ci Job TopoTest Part 0 update from in_progress -> failure' do
-        let(:ci_job) { create(:ci_job, :test, :topotest_failure, name: 'TopoTest Part 0', status: 'in_progress') }
+        let(:check_suite) { create(:check_suite) }
+        let(:stage1) { create(:stage, check_suite: check_suite) }
+
+        let(:ci_job) { create(:ci_job, :topotest_failure, status: 'in_progress', stage: stage1) }
         let(:status) { 'failure' }
 
         let(:test_failure) do
@@ -448,7 +466,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
                  :topotest_failure,
                  name: 'TopoTest Part 1',
                  status: 'failure',
-                 check_suite: ci_job.check_suite, parent_stage: ci_job.parent_stage)
+                 check_suite: ci_job.check_suite, stage: stage1)
         end
 
         before do
@@ -462,18 +480,20 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must change Tests to success' do
           update_status.update
-          expect(test_failure.parent_stage.reload.status).to eq(status)
+          expect(test_failure.stage.reload.status).to eq(status)
         end
       end
 
       context 'when Ci Job AMD Build update from in_progress -> failure' do
-        let(:ci_job) { create(:ci_job, :build, name: 'AMD Build', status: 'in_progress') }
-        let(:arm) { create(:ci_job, :build, name: 'ARM8 Build', status: 'failure') }
+        let(:check_suite) { create(:check_suite) }
+        let(:stage1) { create(:stage, check_suite: check_suite) }
+        let(:stage2) { create(:stage, check_suite: check_suite) }
+        let(:ci_job) { create(:ci_job, stage: stage1, status: 'in_progress', check_suite: check_suite) }
+        let(:arm) { create(:ci_job, stage: stage1, status: 'failure', check_suite: check_suite) }
         let(:status) { 'failure' }
-        let(:stages) { ParentStage.where(check_suite: ci_job.check_suite) }
 
         let(:test) do
-          create(:ci_job, :test, name: 'TopoTest Part 0', status: 'in_progress', check_suite: ci_job.check_suite)
+          create(:ci_job, stage: stage2, status: 'in_progress', check_suite: check_suite)
         end
 
         let(:url) do
@@ -524,6 +544,9 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
           ci_job
           test
           arm
+
+          stage1.configuration.update(position: 1)
+          stage2.configuration.update(position: 2)
         end
 
         it 'must returns success' do
@@ -532,23 +555,30 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must update parent stage' do
           update_status.update
-          expect(ci_job.parent_stage.reload.status).to eq(status)
+          expect(ci_job.stage.reload.status).to eq(status)
         end
 
         it 'must keep Tests skipped' do
           update_status.update
-          expect(stages.last.reload.status).to eq('cancelled')
+          expect(stage2.reload.status).to eq('cancelled')
         end
       end
 
       context 'when Ci Job AMD Build update from in_progress -> success' do
-        let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress') }
-        let(:test) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued', check_suite: ci_job.check_suite) }
+        let(:check_suite) { create(:check_suite) }
+        let(:stage1) { create(:stage, check_suite: check_suite) }
+        let(:stage2) { create(:stage, check_suite: check_suite) }
+
+        let(:ci_job) { create(:ci_job, status: 'in_progress', stage: stage1, check_suite: check_suite) }
+        let(:test) { create(:ci_job, status: 'queued', stage: stage2, check_suite: check_suite) }
         let(:status) { 'success' }
 
         before do
           ci_job
           test
+
+          stage1.configuration.update(position: 1)
+          stage2.configuration.update(position: 2)
         end
 
         it 'must returns success' do
@@ -557,12 +587,12 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
 
         it 'must update Build Job' do
           update_status.update
-          expect(ci_job.parent_stage.reload.status).to eq(status)
+          expect(ci_job.stage.reload.status).to eq(status)
         end
 
         it 'must keep Tests enqueued' do
           update_status.update
-          expect(test.parent_stage.reload.status).to eq('in_progress')
+          expect(test.stage.reload.status).to eq('in_progress')
         end
       end
     end
@@ -571,8 +601,10 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
       let(:pull_request) { create(:pull_request) }
       let(:check_suite1) { create(:check_suite, pull_request: pull_request) }
       let(:check_suite2) { create(:check_suite, pull_request: pull_request) }
-      let(:ci_job) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite1) }
-      let(:ci_job_new) { create(:ci_job, name: 'AMD Build', status: 'in_progress', check_suite: check_suite2) }
+      let(:stage1) { create(:stage, check_suite: check_suite1) }
+      let(:stage2) { create(:stage, check_suite: check_suite2) }
+      let(:ci_job) { create(:ci_job, status: 'in_progress', check_suite: check_suite1, stage: stage1) }
+      let(:ci_job_new) { create(:ci_job, status: 'in_progress', check_suite: check_suite2, stage: stage2) }
 
       context 'when old execution fails' do
         let(:status) { 'failure' }

@@ -17,7 +17,7 @@ module Github
         @check_suite = check_suite
         @github = github
         @loggers = []
-        @stages_config = BambooStageTranslation.all
+        @stages_config = StageConfiguration.all
 
         %w[github_app.log github_build_retry.log].each do |filename|
           logger_app = Logger.new(filename, 1, 1_024_000)
@@ -38,13 +38,13 @@ module Github
           url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
           output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 
-          stage.enqueue(@github, output)
+          stage.enqueue(@github, output: output)
         end
       end
 
       def enqueued_failure_tests
         @check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
-          next unless ci_job.stage.bamboo_stage_translations.can_retry?
+          next unless ci_job.stage.configuration.can_retry?
 
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)

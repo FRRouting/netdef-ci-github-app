@@ -23,7 +23,7 @@ describe Github::BuildPlan do
   describe 'Valid commands' do
     let(:pr_number) { rand(1_000_000) }
     let(:repo) { 'UnitTest/repo' }
-    let(:fake_translation) { create(:bamboo_stage_translation) }
+    let(:fake_translation) { create(:stage_configuration) }
     let(:payload) do
       {
         'action' => action,

@@ -10,20 +10,9 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
+ActiveRecord::Schema[7.0].define(version: 2023_12_18_084122) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
-
-  create_table "bamboo_stage_translations", force: :cascade do |t|
-    t.string "bamboo_stage_name", null: false
-    t.string "github_check_run_name", null: false
-    t.boolean "start_in_progress", default: false
-    t.boolean "can_retry", default: true
-    t.integer "position"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.boolean "mandatory", default: true
-  end
 
   create_table "check_suites", force: :cascade do |t|
     t.string "author", null: false
@@ -86,6 +75,17 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "stage_configurations", force: :cascade do |t|
+    t.string "bamboo_stage_name", null: false
+    t.string "github_check_run_name", null: false
+    t.boolean "start_in_progress", default: false
+    t.boolean "can_retry", default: true
+    t.integer "position"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.boolean "mandatory", default: true
+  end
+
   create_table "stages", force: :cascade do |t|
     t.string "name", null: false
     t.integer "status", default: 0, null: false
@@ -93,9 +93,9 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
-    t.bigint "bamboo_stage_translations_id"
-    t.index ["bamboo_stage_translations_id"], name: "index_stages_on_bamboo_stage_translations_id"
+    t.bigint "stage_configuration_id"
     t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
+    t.index ["stage_configuration_id"], name: "index_stages_on_stage_configuration_id"
   end
 
   create_table "topotest_failures", force: :cascade do |t|
@@ -114,7 +114,7 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
   add_foreign_key "ci_jobs", "stages"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
-  add_foreign_key "stages", "bamboo_stage_translations", column: "bamboo_stage_translations_id"
   add_foreign_key "stages", "check_suites"
+  add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"
 end

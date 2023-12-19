@@ -12,6 +12,9 @@ FactoryBot.define do
   factory :stage do
     name { Faker::App.name }
     status { 0 }
+    check_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
+
+    configuration { create(:stage_configuration, github_check_run_name: name) }
 
     trait :failure do
       status { :failure }
@@ -27,6 +30,10 @@ FactoryBot.define do
 
     trait :test do
       name { 'TopoTest AMD' }
+    end
+
+    trait :can_not_retry do
+      configuration { create(:stage_configuration, can_retry: false) }
     end
   end
 end

@@ -15,8 +15,8 @@ FactoryBot.define do
     job_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
     check_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
 
-    stage { create(:stage, check_suite: check_suite) }
     check_suite
+    stage { create(:stage, check_suite: check_suite) }
 
     trait :topotest_failure do
       after(:create) do |ci_job|

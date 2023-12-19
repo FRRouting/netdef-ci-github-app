@@ -19,9 +19,7 @@ class CheckSuite < ActiveRecord::Base
   has_many :stages, dependent: :delete_all
 
   def finished?
-    ci_jobs
-      .where(status: %i[queued in_progress])
-      .empty?
+    stages.where(status: %i[queued in_progress]).empty?
   end
 
   def in_progress?

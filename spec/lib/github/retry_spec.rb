@@ -30,13 +30,14 @@ describe Github::Retry do
     let(:payload) do
       {
         'check_run' => {
-          'id' => ci_job.check_ref
+          'id' => stage.check_ref
         }
       }
     end
 
     context 'when Ci Job is queued' do
-      let(:ci_job) { create(:ci_job) }
+      let(:stage) { create(:stage) }
+      let(:ci_job) { create(:ci_job, stage: stage) }
 
       it 'must returns not modified' do
         expect(github_retry.start).to eq([406, 'Already enqueued this execution'])
@@ -44,6 +45,7 @@ describe Github::Retry do
     end
 
     context 'when Ci Job is in_progress' do
+      let(:stage) { create(:stage, :in_progress) }
       let(:ci_job) { create(:ci_job, status: 'in_progress') }
 
       it 'must returns not modified' do
@@ -52,16 +54,32 @@ describe Github::Retry do
     end
 
     context 'when Ci Job is failure' do
+      let(:configuration) { create(:stage_configuration) }
       let(:check_suite) { create(:check_suite) }
-      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
-      let(:ci_job_build_stage) { create(:ci_job, :build_stage, check_suite: check_suite, status: 'failure') }
+      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure', stage: ci_job_build_stage) }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
+      let(:stage) { create(:stage, check_suite: check_suite, status: 'failure', configuration: configuration) }
       let(:ci_job_checkout_code) do
-        create(:ci_job, :checkout_code, stage: false, check_suite: check_suite, status: 'failure')
+        create(:ci_job, check_suite: check_suite, status: 'failure', stage: stage)
+      end
+      let(:payload) do
+        {
+          'check_run' => {
+            'id' => ci_job_build_stage.check_ref
+          }
+        }
+      end
+      let(:ci_job_build_stage) do
+        create(:stage,
+               check_suite: check_suite, status: 'failure',
+               configuration: configuration, name: configuration.github_check_run_name)
       end
 
       before do
+        ci_job
+        ci_job_checkout_code
+
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
         allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
         allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
@@ -91,12 +109,30 @@ describe Github::Retry do
 
     context 'when Ci Job is failure and checkout code is stage' do
       let(:check_suite) { create(:check_suite) }
-      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure') }
-      let(:ci_job_build_stage) { create(:ci_job, :build_stage, check_suite: check_suite, status: 'failure') }
+      let(:stage) { create(:stage, :failure, check_suite: check_suite) }
+      let(:ci_job) { create(:ci_job, check_suite: check_suite, status: 'failure', stage: stage) }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
+      let(:ci_job_build_stage) { create(:stage, :failure, :can_not_retry, check_suite: check_suite, status: 'failure') }
       let(:ci_job_checkout_code) do
-        create(:ci_job, :checkout_code, check_suite: check_suite, status: 'failure')
+        create(:ci_job, check_suite: check_suite, status: 'failure', stage: ci_job_build_stage)
+      end
+
+      let(:payload) do
+        {
+          'check_run' => {
+            'id' => ci_job_build_stage.check_ref
+          }
+        }
+      end
+      let(:output) do
+        {
+          output:
+            {
+              title: 'Failure',
+              summary: 'Failure'
+            }
+        }
       end
 
       before do
@@ -105,14 +141,18 @@ describe Github::Retry do
         allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
 
         allow(Github::Check).to receive(:new).and_return(fake_github_check)
-        allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
+        allow(fake_github_check).to receive(:create).and_return(stage.check_suite)
+        allow(fake_github_check).to receive(:get_check_run).and_return(output)
         allow(fake_github_check).to receive(:queued)
+        allow(fake_github_check).to receive(:failure)
 
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)
 
+        allow(SlackBot.instance).to receive(:invalid_rerun_group)
+
+        ci_job
         ci_job_checkout_code
-        ci_job_build_stage
       end
 
       it 'must returns success' do
@@ -129,22 +169,24 @@ describe Github::Retry do
       let(:payload) do
         {
           'check_run' => {
-            'id' => ci_job1.check_ref
+            'id' => stage1.check_ref
           }
         }
       end
       let(:payload2) do
         {
           'check_run' => {
-            'id' => ci_job2.check_ref
+            'id' => stage2.check_ref
           }
         }
       end
       let(:pr_number) { check_suite.pull_request.github_pr_id }
       let(:check_suite) { create(:check_suite) }
-      let(:ci_job1) { create(:ci_job, :checkout_code, check_suite: check_suite, status: 'failure') }
-      let(:ci_job2) { create(:ci_job, check_suite: check_suite, status: 'failure') }
-      let(:ci_job_running) { create(:ci_job, check_suite: check_suite, status: 'in_progress') }
+      let(:stage1) { create(:stage, :failure, check_suite: check_suite) }
+      let(:stage2) { create(:stage, :in_progress, check_suite: check_suite) }
+      let(:ci_job1) { create(:ci_job, check_suite: check_suite, status: 'failure', stage: stage1) }
+      let(:ci_job2) { create(:ci_job, check_suite: check_suite, status: 'failure', stage: stage2) }
+      let(:ci_job_running) { create(:ci_job, check_suite: check_suite, status: 'in_progress', stage: stage2) }
       let(:fake_config) { GitHubApp::Configuration.instance }
       let(:fake_client) { Octokit::Client.new }
       let(:fake_github_check) { Github::Check.new(nil) }
@@ -187,8 +229,8 @@ describe Github::Retry do
         allow(fake_github_check).to receive(:create).and_return(check_suite)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:failure)
-        allow(fake_github_check).to receive(:get_check_run).with(ci_job1.check_ref).and_return(output1)
-        allow(fake_github_check).to receive(:get_check_run).with(ci_job2.check_ref).and_return(output2)
+        allow(fake_github_check).to receive(:get_check_run).with(stage1.check_ref).and_return(output1)
+        allow(fake_github_check).to receive(:get_check_run).with(stage2.check_ref).and_return(output2)
 
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)

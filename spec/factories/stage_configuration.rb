@@ -8,7 +8,12 @@
 #
 #  frozen_string_literal: true
 
-class BambooStageTranslation < ActiveRecord::Base
-  validates :bamboo_stage_name, presence: true
-  validates :github_check_run_name, presence: true
+FactoryBot.define do
+  factory :stage_configuration do
+    bamboo_stage_name { Faker::App.name }
+    github_check_run_name { Faker::App.name }
+    start_in_progress { false }
+    can_retry { true }
+    position { 1 }
+  end
 end

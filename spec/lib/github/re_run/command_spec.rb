@@ -32,7 +32,7 @@ describe Github::ReRun::Command do
   describe 'valid payload' do
     let(:fake_client) { Octokit::Client.new }
     let(:fake_github_check) { Github::Check.new(nil) }
-    let(:fake_translation) { create(:bamboo_stage_translation) }
+    let(:fake_translation) { create(:stage_configuration) }
 
     context 'when receives a valid command' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }

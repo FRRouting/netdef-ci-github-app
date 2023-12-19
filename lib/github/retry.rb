@@ -38,7 +38,7 @@ module Github
 
       check_suite = stage.check_suite
 
-      return enqueued(stage) if stage.in_progress?
+      return enqueued(stage) if check_suite.in_progress?
 
       normal_flow(check_suite)
     end
@@ -78,7 +78,7 @@ module Github
       output = { title: previous_stage.dig(:output, :title).to_s, summary: previous_stage.dig(:output, :summary).to_s }
 
       stage.enqueue(github_check)
-      stage.failure(github_check, output)
+      stage.failure(github_check, output: output)
 
       [406, reason]
     end

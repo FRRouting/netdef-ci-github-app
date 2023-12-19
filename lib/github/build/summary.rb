@@ -53,19 +53,19 @@ module Github
       def must_update_previous_stage(current_stage)
         previous_stage = current_stage.previous_stage
 
-        return if previous_stage.nil? or !previous_stage.in_progress? or !previous_stage.queued?
+        return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
 
         finished_stage_summary(previous_stage)
       end
 
       def must_cancel_next_stages(current_stage)
         return if @job.success? or @job.in_progress? or @job.queued?
-        return unless current_stage.bamboo_stage_translations.mandatory?
+        return unless current_stage.configuration.mandatory?
 
         Stage
-          .joins(:bamboo_stage_translations)
+          .joins(:configuration)
           .where(check_suite: @check_suite)
-          .where(bamboo_stage_translations: { position: [(current_stage.bamboo_stage_translations.position + 1)..] })
+          .where(configuration: { position: [(current_stage.configuration.position + 1)..] })
           .each do |stage|
           next if stage.cancelled?
 
@@ -79,16 +79,19 @@ module Github
 
         next_stage =
           Stage
-          .joins(:bamboo_stage_translations)
+          .joins(:configuration)
           .where(check_suite: @check_suite)
-          .where(bamboo_stage_translations: { position: current_stage.bamboo_stage_translations.position + 1 })
+          .where(configuration: { position: current_stage.configuration.position + 1 })
+          .first
+
+        return if next_stage.nil?
 
         update_summary(next_stage)
       end
 
       def bamboo_stage_check_positions(pending_stage, stage)
-        pending_stage_position = pending_stage.bamboo_stage_translations.position
-        stage_position = stage.bamboo_stage_translations.position
+        pending_stage_position = pending_stage.configuration.position
+        stage_position = stage.configuration.position
 
         pending_stage_position <= stage_position or
           pending_stage_position + 1 != stage_position
@@ -105,9 +108,8 @@ module Github
 
         logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage}\n#{output}")
 
-        pending_stage.cancelled(@github, output)
-
-        SlackBot.instance.stage_finished_notification(pending_stage)
+        pending_stage.cancelled(@github, output: output)
+        pending_stage.jobs.each { |job| job.cancelled(@github) }
       end
 
       def finished_summary(stage)
@@ -115,7 +117,6 @@ module Github
         return if @job.in_progress? or stage.jobs.where(status: %w[queue in_progress]).any?
 
         finished_stage_summary(stage)
-        SlackBot.instance.stage_finished_notification(stage)
       end
 
       def finished_stage_summary(stage)
@@ -127,7 +128,7 @@ module Github
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
-        stage.jobs.failure.empty? ? stage.success(@github, output) : stage.failure(@github, output)
+        stage.jobs.failure.empty? ? stage.success(@github, output: output) : stage.failure(@github, output: output)
       end
 
       def update_summary(stage)
@@ -139,7 +140,7 @@ module Github
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
-        stage.in_progress(@github, output)
+        stage.in_progress(@github, output: output, job: @job)
       end
 
       def summary_basic_output(stage)

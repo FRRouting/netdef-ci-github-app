@@ -37,14 +37,13 @@ describe Github::Build::Retry do
   end
 
   context 'when stage can not be retry' do
-    let(:stage) { create(:parent_stage, :failure, check_suite: check_suite) }
-    let(:ci_job) { create(:ci_job, :failure, parent_stage: stage, check_suite: check_suite) }
+    let(:configuration) { create(:stage_configuration, can_retry: false) }
+    let(:stage) { create(:stage, :failure, check_suite: check_suite, configuration: configuration) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage, check_suite: check_suite) }
 
     before do
       stage
       ci_job
-
-      stage.bamboo_stage.update(can_retry: false)
 
       github_retry.enqueued_stages
       github_retry.enqueued_failure_tests
@@ -57,14 +56,16 @@ describe Github::Build::Retry do
   end
 
   context 'when stage can be retry' do
-    let(:stage) { create(:parent_stage, :failure, check_suite: check_suite) }
-    let(:ci_job) { create(:ci_job, :failure, parent_stage: stage, check_suite: check_suite) }
+    let(:configuration) { create(:stage_configuration, can_retry: true) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage, check_suite: check_suite) }
+    let(:stage) do
+      create(:stage,
+             check_suite: check_suite, configuration: configuration, name: configuration.github_check_run_name)
+    end
 
     before do
       stage
       ci_job
-
-      stage.bamboo_stage.update(can_retry: true)
 
       github_retry.enqueued_stages
       github_retry.enqueued_failure_tests
@@ -77,14 +78,18 @@ describe Github::Build::Retry do
   end
 
   context 'when stage can be retry, but stage passed' do
-    let(:stage) { create(:parent_stage, :success, check_suite: check_suite) }
-    let(:ci_job) { create(:ci_job, :success, parent_stage: stage, check_suite: check_suite) }
+    let(:configuration) { create(:stage_configuration, can_retry: true) }
+    let(:ci_job) { create(:ci_job, :success, stage: stage, check_suite: check_suite) }
+    let(:stage) do
+      create(:stage,
+             :success,
+             check_suite: check_suite, configuration: configuration, name: configuration.github_check_run_name)
+    end
+
 
     before do
       stage
       ci_job
-
-      stage.bamboo_stage.update(can_retry: true)
 
       github_retry.enqueued_stages
       github_retry.enqueued_failure_tests

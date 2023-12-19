@@ -148,9 +148,10 @@ class SlackBot
   private
 
   def current_execution?(check_suite)
-    current_check_suite = check_suite.pull_request.check_suites.last
+    pull_request = check_suite.pull_request
+    current_check_suite = pull_request.check_suites.last
 
-    check_suite.id == current_check_suite.id
+    check_suite.id == current_check_suite&.id.to_i
   end
 
   def send_stage_notification(stage, pull_request, subscription)

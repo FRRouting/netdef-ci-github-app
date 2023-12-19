@@ -9,10 +9,21 @@
 #  frozen_string_literal: true
 
 describe Github::Build::Action do
-  let(:action) { described_class.new(check_suite, fake_github_check, [ci_job]) }
+  let(:action) { described_class.new(check_suite, fake_github_check, jobs) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
+  let(:stage_configuration) { create(:stage_configuration) }
+  let(:stage) { create(:stage, name: stage_configuration.github_check_run_name) }
+  let(:jobs) do
+    [
+      {
+        name: ci_job.name,
+        job_ref: ci_job.job_ref,
+        stage: stage_configuration.bamboo_stage_name
+      }
+    ]
+  end
 
   before do
     allow(Octokit::Client).to receive(:new).and_return(fake_client)
@@ -35,29 +46,21 @@ describe Github::Build::Action do
     allow(fake_github_check).to receive(:cancelled).and_return(ci_job.check_suite)
     allow(fake_github_check).to receive(:queued).and_return(ci_job.check_suite)
     allow(BambooCi::Result).to receive(:fetch).and_return({})
+
+    stage
   end
 
   context 'when could not create stage' do
     let(:ci_job) { create(:ci_job) }
 
     before do
-      allow(CiJob).to receive(:create).and_return(ci_job)
-      allow(ci_job).to receive(:persisted?).and_return(false)
+      allow(Stage).to receive(:create).and_return(stage)
+      allow(stage).to receive(:persisted?).and_return(false)
     end
 
     it 'must not create a stage' do
       action.create_summary(rerun: false)
-      expect(check_suite.ci_jobs.stages.size).to eq(0)
-    end
-  end
-
-  context 'when create stage in progess' do
-    let(:ci_job) { create(:ci_job) }
-
-    it 'must not create a stage' do
-      action.create_summary(rerun: true)
-      expect(check_suite.ci_jobs.stages.size).to eq(1)
-      expect(check_suite.ci_jobs.stages.first.status).to eq('in_progress')
+      expect(check_suite.reload.stages.size).to eq(0)
     end
   end
 end

@@ -386,7 +386,7 @@ describe 'GithubApp' do
 
       before do
         create(:ci_job, :in_progress)
-        ci_job.parent_stage.update(status: :failure)
+        ci_job.stage.update(status: :failure)
       end
 
       it 'must return a table' do
