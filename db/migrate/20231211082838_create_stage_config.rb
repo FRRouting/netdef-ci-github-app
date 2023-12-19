@@ -27,10 +27,10 @@ class CreateStageConfig < ActiveRecord::Migration[6.0]
       ['Basic Tests', 'Tests', false, true]
     ].each_with_index do |info, index|
       StageConfiguration.create(bamboo_stage_name: info[0],
-                                    github_check_run_name: info[1],
-                                    start_in_progress: info[2],
-                                    can_retry: info[3],
-                                    position: index)
+                                github_check_run_name: info[1],
+                                start_in_progress: info[2],
+                                can_retry: info[3],
+                                position: index)
     end
   end
 end
