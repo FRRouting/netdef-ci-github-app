@@ -16,6 +16,7 @@ class CreateStageConfig < ActiveRecord::Migration[6.0]
       t.boolean :start_in_progress, default: false
       t.boolean :can_retry, default: true
       t.integer :position
+      t.boolean :mandatory, default: true
 
       t.timestamps
     end

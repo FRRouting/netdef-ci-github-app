@@ -82,9 +82,9 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
     t.boolean "start_in_progress", default: false
     t.boolean "can_retry", default: true
     t.integer "position"
+    t.boolean "mandatory", default: true
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.boolean "mandatory", default: true
   end
 
   create_table "stages", force: :cascade do |t|
@@ -94,9 +94,9 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
-    t.bigint "stage_configurations_id"
+    t.bigint "stage_configuration_id"
     t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
-    t.index ["stage_configurations_id"], name: "index_stages_on_stage_configurations_id"
+    t.index ["stage_configuration_id"], name: "index_stages_on_stage_configuration_id"
   end
 
   create_table "topotest_failures", force: :cascade do |t|
@@ -116,6 +116,6 @@ ActiveRecord::Schema[7.0].define(version: 2023_12_14_094534) do
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
   add_foreign_key "stages", "check_suites"
-  add_foreign_key "stages", "stage_configurations", column: "stage_configurations_id"
+  add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"
 end

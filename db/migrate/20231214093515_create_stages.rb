@@ -17,10 +17,9 @@ class CreateStages < ActiveRecord::Migration[6.0]
       t.timestamps
 
       t.references :check_suite, index: true, foreign_key: true
-      t.references :stage_configurations, index: true, foreign_key: true
+      t.references :stage_configuration, index: true, foreign_key: true
     end
 
-    remove_column :ci_jobs, :stage_id, if_exists: true
     add_reference :ci_jobs, :stage, foreign_key: true, unless_exists: true
   end
 end
