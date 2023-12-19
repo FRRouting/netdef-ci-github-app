@@ -35,5 +35,13 @@ FactoryBot.define do
     trait :can_not_retry do
       configuration { create(:stage_configuration, can_retry: false) }
     end
+
+    trait :with_check_suite do
+      check_suite { create(:check_suite) }
+    end
+
+    trait :with_job do
+      jobs { [create(:ci_job)] }
+    end
   end
 end

@@ -45,8 +45,6 @@ module Github
         @jobs.each do |job|
           ci_job = create_ci_job(job)
 
-          next unless ci_job.persisted?
-
           if rerun
             next unless ci_job.stage.configuration.can_retry?
 
@@ -83,6 +81,7 @@ module Github
         logger(Logger::INFO, "STAGE #{stage_config.github_check_run_name} #{stage.inspect} - @#{@check_suite.inspect}")
 
         return create_stage(stage_config) if stage.nil?
+        return unless stage.configuration.can_retry?
 
         logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
 
@@ -97,8 +96,6 @@ module Github
                        configuration: stage_config,
                        status: 'queued',
                        name: name)
-
-        return nil unless stage.persisted?
 
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }

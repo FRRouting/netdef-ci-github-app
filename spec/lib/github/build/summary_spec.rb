@@ -178,6 +178,49 @@ describe Github::Build::Summary do
     end
   end
 
+  context 'when current stage is not mandatory and fail' do
+    let(:stage1) { create(:stage, :build, check_suite: check_suite) }
+    let(:stage2) { create(:stage, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage1, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, stage: stage2, check_suite: check_suite) }
+
+    before do
+      stage1.configuration.update(mandatory: false, position: 1)
+      stage2.configuration.update(mandatory: true, position: 2)
+
+      ci_job
+      ci_job2
+      summary.build_summary
+    end
+
+    it 'must not cancel next stage' do
+      expect(stage1.reload.status).to eq('failure')
+      expect(stage2.reload.status).to eq('queued')
+    end
+  end
+
+  context 'when current stage is mandatory and fail' do
+    let(:stage1) { create(:stage, :build, check_suite: check_suite) }
+    let(:stage2) { create(:stage, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage1, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, stage: stage2, check_suite: check_suite) }
+
+    before do
+      stage1.configuration.update(position: 1)
+      stage2.configuration.update(position: 2)
+
+      ci_job
+      ci_job2
+      summary.build_summary
+      summary.build_summary
+    end
+
+    it 'must cancel next stage' do
+      expect(stage1.reload.status).to eq('failure')
+      expect(stage2.reload.status).to eq('cancelled')
+    end
+  end
+
   context 'when parent_stage is nil and stage stage_in_progress' do
     let(:ci_job) { create(:ci_job, stage: nil, check_suite: check_suite) }
     let(:fake_translation) { create(:stage_configuration, start_in_progress: true) }

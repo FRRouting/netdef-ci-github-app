@@ -13,14 +13,13 @@ describe Github::Build::Action do
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
-  let(:stage_configuration) { create(:stage_configuration) }
-  let(:stage) { create(:stage, name: stage_configuration.github_check_run_name) }
+  let(:stage) { create(:stage, check_suite: check_suite) }
   let(:jobs) do
     [
       {
         name: ci_job.name,
         job_ref: ci_job.job_ref,
-        stage: stage_configuration.bamboo_stage_name
+        stage: stage.configuration.bamboo_stage_name
       }
     ]
   end
@@ -51,16 +50,61 @@ describe Github::Build::Action do
   end
 
   context 'when could not create stage' do
-    let(:ci_job) { create(:ci_job) }
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
 
     before do
       allow(Stage).to receive(:create).and_return(stage)
       allow(stage).to receive(:persisted?).and_return(false)
     end
 
-    it 'must not create a stage' do
+    it 'must create a stage' do
       action.create_summary(rerun: false)
-      expect(check_suite.reload.stages.size).to eq(0)
+      expect(check_suite.reload.stages.size).to eq(1)
+    end
+  end
+
+  context 'when stage can not retry' do
+    let(:ci_job) { create(:ci_job, :failure, stage: stage, check_suite: check_suite) }
+
+    before do
+      ci_job
+      stage.update(status: :failure)
+      stage.configuration.update(can_retry: false)
+    end
+
+    it 'must not change' do
+      action.create_summary(rerun: true)
+      expect(stage.reload.status).to eq('failure')
+      expect(ci_job.reload.status).to eq('failure')
+    end
+  end
+
+  context 'when stage start_in_progress' do
+    let(:ci_job) { create(:ci_job, :failure, stage: stage, check_suite: check_suite) }
+
+    before do
+      ci_job
+      stage.update(status: :failure)
+      stage.configuration.update(start_in_progress: true)
+    end
+
+    it 'must not change' do
+      action.create_summary(rerun: true)
+      expect(stage.reload.status).to eq('in_progress')
+    end
+  end
+
+  context 'when stage does not exists' do
+    let(:ci_job) { create(:ci_job) }
+    let(:check_suite_new) { create(:check_suite) }
+
+    before do
+      stage.configuration.update(start_in_progress: true)
+      described_class.new(check_suite_new, fake_github_check, jobs).create_summary(rerun: false)
+    end
+
+    it 'must not change' do
+      expect(check_suite_new.reload.stages.first.status).to eq('queued')
     end
   end
 end
