@@ -11,16 +11,12 @@
 module Github
   module Build
     class Action
-      BUILD_STAGE = 'Build'
-      TESTS_STAGE = 'Tests'
-      SOURCE_CODE = 'Verify Source'
-      SUMMARY = [BUILD_STAGE, TESTS_STAGE].freeze
-      STAGE_POSITION = { SOURCE_CODE => '01', BUILD_STAGE => '02', TESTS_STAGE => '03' }.freeze
-
-      def initialize(check_suite, github, logger_level: Logger::INFO)
+      def initialize(check_suite, github, jobs, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
+        @jobs = jobs
         @loggers = []
+        @stages = StageConfiguration.all
 
         %w[github_app.log github_build_action.log].each do |filename|
           logger_app = Logger.new(filename, 1, 1_024_000)
@@ -32,37 +28,25 @@ module Github
         logger(Logger::INFO, "Building action to CheckSuite @#{@check_suite.inspect}")
       end
 
-      def create_summary
-        logger(Logger::INFO, "SUMMARY #{SUMMARY.inspect}")
+      def create_summary(rerun: false)
+        logger(Logger::INFO, "SUMMARY #{@stages.inspect}")
 
-        SUMMARY.each do |name|
-          create_check_run_stage(name)
+        @stages.each do |stage_config|
+          create_check_run_stage(stage_config)
         end
-      rescue StandardError => e
-        logger(Logger::Error, "#{e.class} - #{e.message}")
+
+        logger(Logger::INFO, "@jobs - #{@jobs.inspect}")
+        create_jobs(rerun)
       end
 
-      def create_stage(name)
-        bamboo_ci = @check_suite.bamboo_ci_ref.split('-').last
+      private
 
-        stage =
-          CiJob.create(check_suite: @check_suite, name: name, job_ref: "#{name}-#{bamboo_ci}", stage: true)
-
-        return stage if stage.persisted?
-
-        logger(Logger::ERROR, "Failed to created: #{stage.inspect} -> #{stage.errors.inspect}")
-
-        nil
-      end
-
-      def create_jobs(jobs, rerun: false)
-        jobs.each do |job|
-          ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
-
-          next unless ci_job.persisted?
+      def create_jobs(rerun)
+        @jobs.each do |job|
+          ci_job = create_ci_job(job)
 
           if rerun
-            next if ci_job.checkout_code?
+            next unless ci_job.stage.configuration.can_retry?
 
             url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
             ci_job.enqueue(@github, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
@@ -70,28 +54,56 @@ module Github
             ci_job.create_check_run
           end
 
-          next unless ci_job.checkout_code?
-
-          ci_job.update(stage: true)
-          url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-          ci_job.in_progress(@github, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
+          stage_with_start_in_progress(ci_job)
         end
       end
 
-      private
+      def stage_with_start_in_progress(ci_job)
+        return unless !ci_job.stage.nil? and ci_job.stage.configuration.start_in_progress?
 
-      def create_check_run_stage(name)
-        stage = CiJob.find_by(name: name, check_suite_id: @check_suite.id)
+        ci_job.in_progress(@github)
+        ci_job.stage.in_progress(@github, output: {}, job: ci_job)
+      end
 
-        logger(Logger::INFO, "STAGE #{name} #{stage.inspect} - @#{@check_suite.inspect}")
+      def create_ci_job(job)
+        stage_config = StageConfiguration.find_by(bamboo_stage_name: job[:stage])
 
-        stage = create_stage(name) if stage.nil?
+        stage = Stage.find_by(check_suite: @check_suite, name: stage_config.github_check_run_name)
 
-        return if stage.nil? or stage.checkout_code? or stage.success?
+        logger(Logger::INFO, "create_jobs - #{job.inspect} -> #{stage.inspect}")
+
+        CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref], stage: stage)
+      end
+
+      def create_check_run_stage(stage_config)
+        stage = Stage.find_by(name: stage_config.github_check_run_name, check_suite_id: @check_suite.id)
+
+        logger(Logger::INFO, "STAGE #{stage_config.github_check_run_name} #{stage.inspect} - @#{@check_suite.inspect}")
+
+        return create_stage(stage_config) if stage.nil?
+        return unless stage.configuration.can_retry?
 
         logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
 
-        stage.enqueue(@github, initial_output(stage))
+        stage.enqueue(@github, output: initial_output(stage))
+      end
+
+      def create_stage(stage_config)
+        name = stage_config.github_check_run_name
+
+        stage =
+          Stage.create(check_suite: @check_suite,
+                       configuration: stage_config,
+                       status: 'queued',
+                       name: name)
+
+        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+
+        stage.enqueue(@github, output: output)
+        stage.in_progress(@github) if stage_config.start_in_progress?
+
+        stage
       end
 
       def initial_output(ci_job)

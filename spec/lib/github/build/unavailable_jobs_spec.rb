@@ -11,7 +11,8 @@
 describe Github::Build::UnavailableJobs do
   let(:unavailable_jobs) { described_class.new(check_suite) }
   let(:check_suite) { create(:check_suite) }
-  let(:jobs) { create_list(:ci_job, 2, check_suite: check_suite) }
+  let(:stage) { create(:stage, check_suite: check_suite) }
+  let(:jobs) { create_list(:ci_job, 2, check_suite: check_suite, stage: stage) }
   let(:fake_client) { Octokit::Client.new }
 
   before do
