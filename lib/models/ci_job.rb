@@ -40,6 +40,10 @@ class CiJob < ActiveRecord::Base
     !build? and !checkout_code?
   end
 
+  def finished?
+    !%w[queued in_progress].include?(status)
+  end
+
   def create_check_run
     update(status: :queued)
   end
