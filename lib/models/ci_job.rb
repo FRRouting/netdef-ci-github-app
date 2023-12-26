@@ -28,18 +28,6 @@ class CiJob < ActiveRecord::Base
   scope :not_skipped, -> { where.not(status: 'skipped') }
   scope :failure, -> { where(status: %i[failure cancelled skipped]) }
 
-  def checkout_code?
-    name.downcase.match? 'checkout'
-  end
-
-  def build?
-    name.downcase.match? 'build'
-  end
-
-  def test?
-    !build? and !checkout_code?
-  end
-
   def finished?
     !%w[queued in_progress].include?(status)
   end
