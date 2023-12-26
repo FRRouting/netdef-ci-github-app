@@ -47,6 +47,7 @@ class WatchDog < Base
     end
   end
 
+  # Checks if CI still running
   def in_progress?(build_status)
     return false if ci_stopped?(build_status)
     return false if ci_hanged?(build_status)
