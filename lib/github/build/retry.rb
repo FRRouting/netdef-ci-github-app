@@ -12,11 +12,12 @@ require_relative 'action'
 
 module Github
   module Build
-    class Retry < Action
+    class Retry
       def initialize(check_suite, github, logger_level: Logger::INFO)
-        super(check_suite, github)
-
+        @check_suite = check_suite
+        @github = github
         @loggers = []
+        @stages_config = StageConfiguration.all
 
         %w[github_app.log github_build_retry.log].each do |filename|
           logger_app = Logger.new(filename, 1, 1_024_000)
@@ -27,23 +28,35 @@ module Github
       end
 
       def enqueued_stages
-        @check_suite.ci_jobs.stages.where.not(status: :success).each do |ci_job|
-          logger(Logger::WARN, "Enqueue stages: #{ci_job.inspect}")
+        @stages_config.each do |bamboo_stage|
+          next unless bamboo_stage.can_retry?
 
-          next if ci_job.success? or ci_job.checkout_code?
+          stage = Stage.find_by(check_suite: @check_suite, name: bamboo_stage.github_check_run_name)
 
-          ci_job.enqueue(@github, initial_output(ci_job))
-          ci_job.update(retry: ci_job.retry + 1)
+          next if stage.success?
+
+          url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+          output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+
+          stage.enqueue(@github, output: output)
         end
       end
 
       def enqueued_failure_tests
-        @check_suite.ci_jobs.skip_stages.where.not(status: :success).each do |ci_job|
-          next if ci_job.checkout_code?
+        @check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
+          next unless ci_job.stage.configuration.can_retry?
 
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)
           ci_job.update(retry: ci_job.retry + 1)
+        end
+      end
+
+      private
+
+      def logger(severity, message)
+        @loggers.each do |logger_object|
+          logger_object.add(severity, message)
         end
       end
     end

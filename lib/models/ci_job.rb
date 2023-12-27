@@ -18,54 +18,30 @@ class CiJob < ActiveRecord::Base
 
   belongs_to :check_suite
   has_many :topotest_failures, dependent: :delete_all
+  belongs_to :stage
 
   scope :sha256, ->(sha) { joins(:check_suite).where(check_suite: { commit_sha_ref: sha }) }
   scope :filter_by, ->(filter) { where('name ~ ?', filter) }
-  scope :skip_stages, -> { where(stage: false) }
-  scope :stages, -> { where(stage: true) }
+  scope :skip_stages, -> { where(is_stage: false) }
+  scope :stages, -> { where(is_stage: true) }
   scope :skip_checkout_code, -> { where.not(name: 'Checkout Code') }
   scope :not_skipped, -> { where.not(status: 'skipped') }
-
-  def checkout_code?
-    name.downcase.match? 'checkout'
-  end
-
-  def build?
-    name.downcase.match? 'build'
-  end
-
-  def test?
-    !build? and !checkout_code?
-  end
+  scope :failure, -> { where(status: %i[failure cancelled skipped]) }
 
   def finished?
-    !%w[queued in_progress].include?(status.to_s)
+    !%w[queued in_progress].include?(status)
   end
 
   def create_check_run
     update(status: :queued)
   end
 
-  def enqueue(github, output = {})
-    return update(status: :queued) unless stage
-
-    github_check_run_name = checkout_code? ? Github::Build::Action::SOURCE_CODE : name
-
-    count = 0
-    begin
-      check_run = github.create(github_stage_full_name(github_check_run_name))
-      github.queued(check_run.id, output)
-      update(check_ref: check_run.id, status: :queued)
-    rescue StandardError
-      count += 1
-      sleep 1
-
-      retry if count <= 5
-    end
+  def enqueue(_github, _output = {})
+    update(status: :queued)
   end
 
   def in_progress(github, output = {})
-    if stage or !check_ref.nil?
+    unless check_ref.nil?
       create_github_check(github)
       github.in_progress(check_ref, output)
     end
@@ -74,7 +50,7 @@ class CiJob < ActiveRecord::Base
   end
 
   def cancelled(github, output = {})
-    if stage or !check_ref.nil?
+    unless check_ref.nil?
       create_github_check(github)
       github.cancelled(check_ref, output)
     end
@@ -83,7 +59,7 @@ class CiJob < ActiveRecord::Base
   end
 
   def failure(github, output = {})
-    if stage or !check_ref.nil?
+    unless check_ref.nil?
       create_github_check(github)
       github.failure(check_ref, output)
     end
@@ -92,7 +68,7 @@ class CiJob < ActiveRecord::Base
   end
 
   def success(github, output = {})
-    if stage or !check_ref.nil?
+    unless check_ref.nil?
       create_github_check(github)
       github.success(check_ref, output)
     end
@@ -101,7 +77,7 @@ class CiJob < ActiveRecord::Base
   end
 
   def skipped(github, output = {})
-    if stage or !check_ref.nil?
+    unless check_ref.nil?
       create_github_check(github)
       github.skipped(check_ref, output)
     end
@@ -114,13 +90,7 @@ class CiJob < ActiveRecord::Base
   def create_github_check(github)
     return unless check_ref.nil?
 
-    github_check_run_name = checkout_code? ? Github::Build::Action::SOURCE_CODE : name
-
-    check_run = github.create(github_stage_full_name(github_check_run_name))
+    check_run = github.create(github_stage_full_name(name))
     update(check_ref: check_run.id)
-  end
-
-  def github_stage_full_name(name)
-    "[CI] #{name}"
   end
 end

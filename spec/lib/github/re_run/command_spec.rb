@@ -32,10 +32,16 @@ describe Github::ReRun::Command do
   describe 'valid payload' do
     let(:fake_client) { Octokit::Client.new }
     let(:fake_github_check) { Github::Check.new(nil) }
+    let(:fake_translation) { create(:stage_configuration) }
 
     context 'when receives a valid command' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'Checkout', job_ref: 'CHK-01' }] }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
       let(:payload) do
         {
           'action' => 'created',
@@ -82,7 +88,12 @@ describe Github::ReRun::Command do
 
     context 'when receives a valid command but invalid PR ID' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'Checkout', job_ref: 'CHK-01' }] }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
       let(:payload) do
         {
           'action' => 'created',

@@ -13,6 +13,10 @@ describe Github::Build::Summary do
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
+  let(:position1) { BambooStageTranslation.find_by_position(1) }
+  let(:position2) { BambooStageTranslation.find_by_position(2) }
+  let(:parent_stage1) { create(:stage, check_suite: check_suite, name: position1.github_check_run_name) }
+  let(:parent_stage2) { create(:stage, check_suite: check_suite, name: position2.github_check_run_name) }
 
   before do
     allow(Octokit::Client).to receive(:new).and_return(fake_client)
@@ -38,108 +42,207 @@ describe Github::Build::Summary do
   end
 
   context 'when the build stage finished successfully' do
-    let(:ci_job) { create(:ci_job, :build, :success, check_suite: check_suite) }
-    let(:build_stage) { create(:ci_job, :build_stage, check_suite: check_suite) }
-    let(:tests_stage) { create(:ci_job, :tests_stage, check_suite: check_suite) }
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:second_stage_config) { create(:stage_configuration, position: 2) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:second_stage) { create(:stage, configuration: second_stage_config, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job2) { create(:ci_job, :in_progress, check_suite: check_suite, stage: second_stage) }
 
     before do
-      build_stage
-      tests_stage
+      ci_job
+      ci_job2
     end
 
     it 'must update stage' do
-      summary.build_summary(Github::Build::Action::BUILD_STAGE)
-      expect(build_stage.reload.status).to eq('success')
-      expect(tests_stage.reload.status).to eq('in_progress')
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('success')
+      expect(ci_job2.stage.reload.status).to eq('in_progress')
     end
   end
 
   context 'when the build stage finished unsuccessfully' do
-    let(:ci_job) { create(:ci_job, :build, :failure, check_suite: check_suite) }
-    let(:build_stage) { create(:ci_job, :build_stage, check_suite: check_suite) }
-    let(:tests_stage) { create(:ci_job, :tests_stage, check_suite: check_suite) }
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:second_stage_config) { create(:stage_configuration, position: 2) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:second_stage) { create(:stage, configuration: second_stage_config, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :failure, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job2) { create(:ci_job, :in_progress, check_suite: check_suite, stage: second_stage) }
 
     before do
-      build_stage
-      tests_stage
+      ci_job
+      ci_job2
     end
 
     it 'must update stage' do
-      summary.build_summary(Github::Build::Action::BUILD_STAGE)
-      expect(build_stage.reload.status).to eq('failure')
-      expect(tests_stage.reload.status).to eq('cancelled')
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('failure')
+      expect(ci_job2.stage.reload.status).to eq('cancelled')
     end
   end
 
   context 'when the build stage still running' do
-    let(:ci_job) { create(:ci_job, :build, :success, check_suite: check_suite) }
-    let(:ci_job_running) { create(:ci_job, :build, :in_progress, check_suite: check_suite) }
-    let(:build_stage) { create(:ci_job, :build_stage, check_suite: check_suite) }
-    let(:tests_stage) { create(:ci_job, :tests_stage, check_suite: check_suite) }
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job_running) { create(:ci_job, :in_progress, check_suite: check_suite, stage: first_stage) }
 
     before do
+      ci_job
       ci_job_running
-      build_stage
-      tests_stage
     end
 
     it 'must update stage' do
-      summary.build_summary(Github::Build::Action::BUILD_STAGE)
-      expect(build_stage.reload.status).to eq('in_progress')
-      expect(tests_stage.reload.status).to eq('queued')
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('in_progress')
+      expect(ci_job_running.stage.reload.status).to eq('in_progress')
     end
   end
 
   context 'when the tests stage finished successfully' do
-    let(:ci_job) { create(:ci_job, :test, :success, check_suite: check_suite) }
-    let(:build_stage) { create(:ci_job, :build_stage, status: :success, check_suite: check_suite) }
-    let(:tests_stage) { create(:ci_job, :tests_stage, check_suite: check_suite) }
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
 
     before do
-      build_stage
-      tests_stage
+      ci_job
+      ci_job2
+
+      described_class.new(ci_job).build_summary
     end
 
     it 'must update stage' do
-      summary.build_summary(Github::Build::Action::TESTS_STAGE)
-      expect(build_stage.reload.status).to eq('success')
-      expect(tests_stage.reload.status).to eq('success')
+      expect(ci_job.stage.reload.status).to eq('success')
+      expect(ci_job2.stage.reload.status).to eq('success')
     end
   end
 
   context 'when the tests stage finished unsuccessfully' do
-    let(:ci_job) { create(:ci_job, :test, :failure, check_suite: check_suite) }
-    let(:build_stage) { create(:ci_job, :build_stage, status: :success, check_suite: check_suite) }
-    let(:tests_stage) { create(:ci_job, :tests_stage, check_suite: check_suite) }
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:second_stage_config) { create(:stage_configuration, position: 2) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:second_stage) { create(:stage, configuration: second_stage_config, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job) { create(:ci_job, :failure, check_suite: check_suite, stage: second_stage) }
 
     before do
-      build_stage
-      tests_stage
+      ci_job
+      ci_job2
     end
 
     it 'must update stage' do
-      summary.build_summary(Github::Build::Action::TESTS_STAGE)
-      expect(build_stage.reload.status).to eq('success')
-      expect(tests_stage.reload.status).to eq('failure')
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('failure')
+      expect(ci_job2.stage.reload.status).to eq('success')
     end
   end
 
   context 'when the tests stage still running' do
-    let(:ci_job) { create(:ci_job, :test, :success, check_suite: check_suite) }
-    let(:ci_job_running) { create(:ci_job, :test, :in_progress, check_suite: check_suite) }
-    let(:build_stage) { create(:ci_job, :build_stage, status: :success, check_suite: check_suite) }
-    let(:tests_stage) { create(:ci_job, :tests_stage, check_suite: check_suite) }
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job_running) { create(:ci_job, :in_progress, check_suite: check_suite, stage: first_stage) }
+
+    it 'must update stage' do
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('success')
+      expect(ci_job_running.stage.reload.status).to eq('success')
+    end
+  end
+
+  context 'when parent_stage is nil' do
+    let(:ci_job) { create(:ci_job, :success, check_suite: check_suite, stage: nil) }
+    let(:fake_translation) { create(:stage_configuration) }
+    let(:stage) do
+      create(:stage,
+             name: fake_translation.bamboo_stage_name,
+             check_suite: check_suite,
+             configuration: fake_translation)
+    end
+    let(:ci_jobs) do
+      [
+        { name: ci_job.name, job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+        { name: 'CHECKOUT', job_ref: 'CHECKOUT-1', stage: fake_translation.bamboo_stage_name }
+      ]
+    end
 
     before do
-      ci_job_running
-      build_stage
-      tests_stage
+      stage
+      allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
     end
 
     it 'must update stage' do
-      summary.build_summary(Github::Build::Action::TESTS_STAGE)
-      expect(build_stage.reload.status).to eq('success')
-      expect(tests_stage.reload.status).to eq('in_progress')
+      summary.build_summary
+      expect(ci_job.reload.stage).not_to be_nil
+    end
+  end
+
+  context 'when current stage is not mandatory and fail' do
+    let(:stage1) { create(:stage, :build, check_suite: check_suite) }
+    let(:stage2) { create(:stage, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage1, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, stage: stage2, check_suite: check_suite) }
+
+    before do
+      stage1.configuration.update(mandatory: false, position: 1)
+      stage2.configuration.update(mandatory: true, position: 2)
+
+      ci_job
+      ci_job2
+      summary.build_summary
+    end
+
+    it 'must not cancel next stage' do
+      expect(stage1.reload.status).to eq('failure')
+      expect(stage2.reload.status).to eq('queued')
+    end
+  end
+
+  context 'when current stage is mandatory and fail' do
+    let(:stage1) { create(:stage, :build, check_suite: check_suite) }
+    let(:stage2) { create(:stage, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage1, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, stage: stage2, check_suite: check_suite) }
+
+    before do
+      stage1.configuration.update(position: 1)
+      stage2.configuration.update(position: 2)
+
+      ci_job
+      ci_job2
+      summary.build_summary
+      summary.build_summary
+    end
+
+    it 'must cancel next stage' do
+      expect(stage1.reload.status).to eq('failure')
+      expect(stage2.reload.status).to eq('cancelled')
+    end
+  end
+
+  context 'when parent_stage is nil and stage stage_in_progress' do
+    let(:ci_job) { create(:ci_job, stage: nil, check_suite: check_suite) }
+    let(:fake_translation) { create(:stage_configuration, start_in_progress: true) }
+    let(:parent_stage) do
+      create(:stage, name: fake_translation.bamboo_stage_name, check_suite: check_suite)
+    end
+    let(:ci_jobs) do
+      [
+        { name: ci_job.name, job_ref: 'UNIT-TEST-FIRST-1', stage: parent_stage.name },
+        { name: 'CHECKOUT', job_ref: 'CHECKOUT-1', stage: parent_stage.name }
+      ]
+    end
+
+    before do
+      StageConfiguration.all.destroy_all
+      parent_stage
+      allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
+    end
+
+    it 'must update stage' do
+      summary.build_summary
+      expect(ci_job.reload.stage).not_to be_nil
     end
   end
 end

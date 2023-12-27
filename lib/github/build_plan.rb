@@ -110,9 +110,13 @@ module Github
     end
 
     def cancel_previous_ci_jobs
-      @last_check_suite.ci_jobs.skip_stages.where(status: %w[queued in_progress]).each do |ci_job|
+      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
         @logger.warn("Cancelling Job #{ci_job.inspect}")
         ci_job.cancelled(@github_check)
+      end
+
+      @last_check_suite.stages.where(status: %w[queued in_progress]).each do |stage|
+        stage.cancelled(@github_check)
       end
 
       @has_previous_exec = true
@@ -142,19 +146,19 @@ module Github
     def ci_jobs
       @logger.info 'Creating GitHub Check'
 
+      SlackBot.instance.execution_started_notification(@check_suite)
+
       @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
 
       jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
 
       return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
 
-      action = Github::Build::Action.new(@check_suite, @github_check)
-      action.create_jobs(jobs)
+      action = Github::Build::Action.new(@check_suite, @github_check, jobs)
       action.create_summary
 
       @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
       stop_execution_message if @has_previous_exec
-      SlackBot.instance.execution_started_notification(@check_suite)
 
       [200, 'Pull Request created']
     end
