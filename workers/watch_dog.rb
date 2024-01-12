@@ -47,13 +47,7 @@ class WatchDog < Base
     end
   end
 
-  def finish_stages(check_suite)
-    check_suite.ci_jobs.stages.each do |stage|
-      summary = Github::Build::Summary.new(stage)
-      summary.missing_stage(stage)
-    end
-  end
-
+  # Checks if CI still running
   def in_progress?(build_status)
     return false if ci_stopped?(build_status)
     return false if ci_hanged?(build_status)
@@ -62,7 +56,7 @@ class WatchDog < Base
   end
 
   def ci_stopped?(build_status)
-    build_status.key?('message') and !build_status.key? 'finished'
+    build_status.key?('message') and !build_status.key?('finished')
   end
 
   def ci_hanged?(build_status)

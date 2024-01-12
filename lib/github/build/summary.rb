@@ -10,6 +10,7 @@
 
 require_relative '../../github/check'
 require_relative '../../bamboo_ci/download'
+require_relative '../../bamboo_ci/running_plan'
 
 module Github
   module Build
@@ -226,9 +227,20 @@ module Github
       def fetch_parent_stage
         jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
         info = jobs.find { |job| job[:name] == @job.name }
-        stage = Stage.find_by(check_suite: @check_suite, name: info[:stage])
+
+        stage = first_or_create_stage(info)
+
+        logger(Logger::INFO, "fetch_parent_stage - stage: #{stage.inspect} info[:stage]: #{info[:stage]}")
 
         @job.update(stage: stage)
+
+        stage
+      end
+
+      def first_or_create_stage(info)
+        config = StageConfiguration.find_by(bamboo_stage_name: info[:stage])
+        stage = Stage.find_by(check_suite: @check_suite, name: info[:stage])
+        stage = Stage.create(check_suite: @check_suite, name: info[:stage], configuration: config) if stage.nil?
 
         stage
       end
