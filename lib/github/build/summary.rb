@@ -22,7 +22,7 @@ module Github
         @loggers = []
 
         %w[github_app.log github_build_summary.log].each do |filename|
-          logger_app = Logger.new(filename, 1, 1_024_000)
+          logger_app = Logger.new(filename, 1, 2_024_000)
           logger_app.level = logger_level
 
           @loggers << logger_app
@@ -31,10 +31,9 @@ module Github
 
       def build_summary
         current_stage = @job.stage
+        current_stage = fetch_parent_stage if current_stage.nil?
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
-
-        current_stage = fetch_parent_stage if current_stage.nil?
 
         # Update current stage
         update_summary(current_stage)
@@ -129,6 +128,8 @@ module Github
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
+        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
+
         stage.jobs.failure.empty? ? stage.success(@github, output: output) : stage.failure(@github, output: output)
       end
 
@@ -140,6 +141,8 @@ module Github
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
+
+        logger(Logger::INFO, "update_summary: #{stage.inspect} #{output.inspect}")
 
         stage.in_progress(@github, output: output, job: @job)
       end

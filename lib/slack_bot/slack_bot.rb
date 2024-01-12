@@ -118,7 +118,7 @@ class SlackBot
       .where(target: [pull_request.github_pr_id, pull_request.author])
       .uniq(&:slack_user_id)
       .each do |subscription|
-      send_stage_notification(stage, pull_request, subscription)
+      send_stage_notification(stage.reload, pull_request, subscription)
     end
   end
 
@@ -131,7 +131,7 @@ class SlackBot
       .where(target: [pull_request.github_pr_id, pull_request.author])
       .uniq(&:slack_user_id)
       .each do |subscription|
-      send_stage_notification(stage, pull_request, subscription)
+      send_stage_notification(stage.reload, pull_request, subscription)
     end
   end
 
