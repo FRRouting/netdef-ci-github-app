@@ -22,7 +22,7 @@ module Github
         @loggers = []
 
         %w[github_app.log github_build_summary.log].each do |filename|
-          logger_app = Logger.new(filename, 1, 2_024_000)
+          logger_app = Logger.new(filename, 2, 524_288_000)
           logger_app.level = logger_level
 
           @loggers << logger_app
