@@ -13,11 +13,13 @@ require 'logger'
 require_relative '../../database_loader'
 require_relative '../../lib/bamboo_ci/result'
 require_relative '../slack_bot/slack_bot'
+require_relative 'build/summary'
 
 module Github
   class UpdateStatus
     def initialize(payload)
       @status = payload['status']
+      @logger = Logger.new('github_update_status.log')
 
       @output =
         if payload.dig('output', 'title').nil? and payload.dig('output', 'summary').nil?
@@ -27,6 +29,7 @@ module Github
         end
 
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
+      @check_suite = @job&.check_suite
       @failures = payload['failures']
     end
 
@@ -38,8 +41,6 @@ module Github
       @github_check = Github::Check.new(@job.check_suite)
 
       update_status
-
-      skipping_jobs
 
       [200, 'Success']
     end
@@ -60,7 +61,6 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check, @output)
-        slack_notify_in_progress
       when 'success'
         @job.success(@github_check, @output)
         slack_notify_success
@@ -68,6 +68,31 @@ module Github
         failure
         slack_notify_failure
       end
+
+      summary = Github::Build::Summary.new(@job)
+      summary.build_summary
+
+      finished_execution?
+    end
+
+    def finished_execution?
+      return false unless current_execution?
+      return false unless @check_suite.finished?
+
+      @logger.info ">>> @check_suite#{@check_suite.inspect} -> finished? #{@check_suite.finished?}"
+      @logger.info @check_suite.ci_jobs.last.inspect
+
+      SlackBot.instance.execution_finished_notification(@check_suite)
+    end
+
+    def current_execution?
+      pull_request = @check_suite.pull_request
+      last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
+
+      @logger.info "last_check_suite: #{last_check_suite.inspect}"
+      @logger.info "@check_suite: #{@check_suite.inspect}"
+
+      @check_suite.id == last_check_suite.id
     end
 
     # The unable2find string must match the phrase defined in the ci-files repository file
@@ -81,15 +106,23 @@ module Github
     end
 
     def fetch_and_update_failures(to_be_replaced)
-      output = BambooCi::Result.fetch(@job.job_ref)
-      return if output.nil? or output.empty?
+      count = 0
+      begin
+        output = BambooCi::Result.fetch(@job.job_ref)
+        return if output.nil? or output.empty?
 
-      @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
+        @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
+      rescue NoMethodError => e
+        @logger.error "#{e.class} #{e.message}"
+        count += 1
+        sleep 5
+        retry if count <= 10
+      end
     end
 
     def fetch_failures(output)
       buffer = ''
-      output.dig('testResults', 'failedTests', 'testResult').each do |test_result|
+      output.dig('testResults', 'failedTests', 'testResult')&.each do |test_result|
         message = ''
         test_result.dig('errors', 'error').each do |error|
           message += error['message']
@@ -107,38 +140,16 @@ module Github
       buffer
     end
 
-    def skipping_jobs
-      return unless @job.name.downcase.match?(/(code|build)/) and @status == 'failure'
-
-      @job.check_suite.ci_jobs.where(status: :queued).each do |job|
-        job.skipped(@github_check)
-      end
-    end
-
-    def slack_notify_in_progress
-      fetch_subscriptions('all').each do |subscription|
-        SlackBot.instance.notify_in_progress(@job, subscription)
-      end
-    end
-
     def slack_notify_success
-      fetch_subscriptions(%w[all pass]).each do |subscription|
-        SlackBot.instance.notify_success(@job, subscription)
-      end
+      return unless current_execution?
+
+      SlackBot.instance.notify_success(@job)
     end
 
     def slack_notify_failure
-      fetch_subscriptions(%w[all errors]).each do |subscription|
-        SlackBot.instance.notify_errors(@job, subscription)
-      end
-    end
+      return unless current_execution?
 
-    def fetch_subscriptions(notification)
-      pull_request = @job.check_suite.pull_request
-
-      PullRequestSubscription
-        .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
-        .uniq(&:slack_user_id)
+      SlackBot.instance.notify_errors(@job)
     end
   end
 end

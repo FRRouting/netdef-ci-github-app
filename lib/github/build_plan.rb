@@ -15,12 +15,14 @@ require_relative '../bamboo_ci/stop_plan'
 require_relative '../bamboo_ci/running_plan'
 require_relative '../bamboo_ci/plan_run'
 require_relative 'check'
+require_relative 'build/action'
 
 module Github
   class BuildPlan
     def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
       @logger.level = logger_level
+      @has_previous_exec = false
 
       @payload = payload
 
@@ -104,12 +106,21 @@ module Github
       @logger.info @last_check_suite.inspect
       @logger.info @check_suite.inspect
 
-      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
-        BambooCi::StopPlan.stop(ci_job.job_ref)
+      cancel_previous_ci_jobs
+    end
 
+    def cancel_previous_ci_jobs
+      @last_check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
         @logger.warn("Cancelling Job #{ci_job.inspect}")
         ci_job.cancelled(@github_check)
       end
+
+      @last_check_suite.stages.where(status: %w[queued in_progress]).each do |stage|
+        stage.cancelled(@github_check)
+      end
+
+      @has_previous_exec = true
+      BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
     end
 
     def create_check_suite
@@ -135,30 +146,25 @@ module Github
     def ci_jobs
       @logger.info 'Creating GitHub Check'
 
+      SlackBot.instance.execution_started_notification(@check_suite)
+
       @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
 
       jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
 
       return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
 
-      create_ci_jobs(jobs)
+      action = Github::Build::Action.new(@check_suite, @github_check, jobs)
+      action.create_summary
+
+      @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
+      stop_execution_message if @has_previous_exec
 
       [200, 'Pull Request created']
     end
 
-    def create_ci_jobs(jobs)
-      jobs.each do |job|
-        ci_job = CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref])
-
-        next unless ci_job.persisted?
-
-        ci_job.create_check_run
-
-        next unless ci_job.checkout_code?
-
-        url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-        ci_job.in_progress(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
-      end
+    def stop_execution_message
+      BambooCi::StopPlan.comment(@last_check_suite, @check_suite)
     end
 
     def ci_vars

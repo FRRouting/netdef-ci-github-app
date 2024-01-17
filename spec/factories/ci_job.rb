@@ -13,12 +13,15 @@ FactoryBot.define do
     name { Faker::App.name }
     status { 0 }
     job_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
-    check_ref { rand(1_000_000) }
+    check_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
 
     check_suite
+    stage { create(:stage, check_suite: check_suite) }
 
-    trait :checkout_code do
-      name { 'Checkout Code' }
+    trait :topotest_failure do
+      after(:create) do |ci_job|
+        create(:topotest_failure, ci_job: ci_job)
+      end
     end
 
     trait :in_progress do
@@ -27,6 +30,10 @@ FactoryBot.define do
 
     trait :failure do
       status { 'failure' }
+    end
+
+    trait :success do
+      status { 'success' }
     end
   end
 end

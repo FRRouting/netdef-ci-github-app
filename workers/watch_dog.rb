@@ -11,6 +11,8 @@
 require 'logger'
 require_relative 'base'
 require_relative '../lib/slack_bot/slack_bot'
+require_relative '../lib/github/build/action'
+require_relative '../lib/github/build/summary'
 
 class WatchDog < Base
   def perform
@@ -45,6 +47,7 @@ class WatchDog < Base
     end
   end
 
+  # Checks if CI still running
   def in_progress?(build_status)
     return false if ci_stopped?(build_status)
     return false if ci_hanged?(build_status)
@@ -53,7 +56,7 @@ class WatchDog < Base
   end
 
   def ci_stopped?(build_status)
-    build_status.key?('message') and !build_status.key? 'finished'
+    build_status.key?('message') and !build_status.key?('finished')
   end
 
   def ci_hanged?(build_status)
@@ -90,22 +93,23 @@ class WatchDog < Base
       stage.dig('results', 'result').each do |result|
         ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: check_suite.id)
 
-        @logger.info ">>> CiJob: #{ci_job.inspect}}"
-        next if ci_job.finished? && !ci_job.job_ref.nil?
-
-        update_ci_job_status(github_check, ci_job, result['state'])
+        update_stage_status(ci_job, result, github_check)
       end
     end
+  end
+
+  def update_stage_status(ci_job, result, github)
+    @logger.info ">>> CiJob: #{ci_job.inspect}}"
+    return if ci_job.nil?
+    return if ci_job.finished? && !ci_job.job_ref.nil?
+
+    update_ci_job_status(github, ci_job, result['state'])
   end
 
   def update_ci_job_status(github_check, ci_job, state)
     ci_job.enqueue(github_check) if ci_job.job_ref.nil?
 
-    url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-    output = {
-      title: ci_job.name,
-      summary: "Details at [#{url}](#{url})\nUnfortunately we were unable to access the execution results."
-    }
+    output = create_output_message(ci_job)
 
     @logger.info ">>> CiJob: #{ci_job.inspect} updating status"
     case state
@@ -121,10 +125,42 @@ class WatchDog < Base
     else
       puts 'Ignored'
     end
+
+    build_summary(ci_job)
   end
 
-  def fetch_subscriptions(notification)
-    pull_request = @job.check_suite.pull_request
+  def create_output_message(ci_job)
+    url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+
+    {
+      title: ci_job.name,
+      summary: "Details at [#{url}](#{url})\nUnfortunately we were unable to access the execution results."
+    }
+  end
+
+  def build_summary(ci_job)
+    summary = Github::Build::Summary.new(ci_job)
+    summary.build_summary
+
+    finished_execution?(ci_job.check_suite)
+  end
+
+  def finished_execution?(check_suite)
+    return false unless current_execution?(check_suite)
+    return false unless check_suite.finished?
+
+    SlackBot.instance.execution_finished_notification(check_suite)
+  end
+
+  def current_execution?(check_suite)
+    pull_request = check_suite.pull_request
+    last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
+
+    check_suite.id == last_check_suite.id
+  end
+
+  def fetch_subscriptions(notification, job)
+    pull_request = job.check_suite.pull_request
 
     PullRequestSubscription
       .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
@@ -134,19 +170,19 @@ class WatchDog < Base
   end
 
   def slack_notify_success(job)
-    fetch_subscriptions(%w[all pass]).each do |subscription|
+    fetch_subscriptions(%w[all pass], job).each do |subscription|
       SlackBot.instance.notify_success(job, subscription)
     end
   end
 
   def slack_notify_failure(job)
-    fetch_subscriptions(%w[all errors]).each do |subscription|
+    fetch_subscriptions(%w[all errors], job).each do |subscription|
       SlackBot.instance.notify_errors(job, subscription)
     end
   end
 
   def slack_notify_cancelled(job)
-    fetch_subscriptions(%w[all errors]).each do |subscription|
+    fetch_subscriptions(%w[all errors], job).each do |subscription|
       SlackBot.instance.notify_cancelled(job, subscription)
     end
   end

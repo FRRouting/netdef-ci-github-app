@@ -30,16 +30,33 @@ describe SlackBot do
   end
 
   context 'when testing notification message' do
-    let(:message) do
-      {
-        message: "PR <#{pr_url}|##{pr.github_pr_id}>. <#{bamboo_link}|#{job.name} - In Progress>.",
-        slack_user_id: subscription.slack_user_id
-      }.to_json
+    it { expect { slack_bot.notify_success(job) }.not_to raise_error }
+    it { expect { slack_bot.notify_errors(job) }.not_to raise_error }
+    it { expect { slack_bot.notify_cancelled(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.execution_started_notification(job.check_suite) }.not_to raise_error }
+    it { expect { slack_bot.execution_finished_notification(job.check_suite) }.not_to raise_error }
+    it { expect { slack_bot.invalid_rerun_group(job) }.not_to raise_error }
+    it { expect { slack_bot.invalid_rerun_dm(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.stage_finished_notification(job.stage) }.not_to raise_error }
+    it { expect { slack_bot.stage_in_progress_notification(job.stage) }.not_to raise_error }
+  end
+
+  context 'when not the current execution' do
+    let(:pull_request) { job.check_suite.pull_request }
+    let(:check_suite) { create(:check_suite, pull_request: pull_request) }
+
+    before do
+      create(:ci_job, check_suite: check_suite)
     end
 
-    it { expect { slack_bot.notify_in_progress(job, subscription) }.not_to raise_error }
-    it { expect { slack_bot.notify_success(job, subscription) }.not_to raise_error }
-    it { expect { slack_bot.notify_errors(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.notify_success(job) }.not_to raise_error }
+    it { expect { slack_bot.notify_errors(job) }.not_to raise_error }
     it { expect { slack_bot.notify_cancelled(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.execution_started_notification(job.check_suite) }.not_to raise_error }
+    it { expect { slack_bot.execution_finished_notification(job.check_suite) }.not_to raise_error }
+    it { expect { slack_bot.invalid_rerun_group(job) }.not_to raise_error }
+    it { expect { slack_bot.invalid_rerun_dm(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.stage_finished_notification(job.stage) }.not_to raise_error }
+    it { expect { slack_bot.stage_in_progress_notification(job.stage) }.not_to raise_error }
   end
 end

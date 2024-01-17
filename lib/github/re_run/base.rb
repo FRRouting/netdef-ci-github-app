@@ -14,6 +14,8 @@ require_relative '../../bamboo_ci/stop_plan'
 require_relative '../parsers/pull_request_commit'
 
 require_relative '../check'
+require_relative '../build/action'
+require_relative '../build/unavailable_jobs'
 
 module Github
   module ReRun
@@ -47,36 +49,19 @@ module Github
         logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
         fetch_run_ci_by_pr.each do |check_suite|
-          check_suite.ci_jobs.each do |ci_job|
-            BambooCi::StopPlan.stop(ci_job.job_ref)
-
-            logger(Logger::WARN, "Cancelling Job #{ci_job.inspect}")
+          check_suite.ci_jobs.not_skipped.each do |ci_job|
             ci_job.cancelled(@github_check)
           end
+
+          BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
         end
       end
 
       def create_ci_jobs(bamboo_plan, check_suite)
         jobs = BambooCi::RunningPlan.fetch(bamboo_plan.bamboo_reference)
 
-        jobs.each do |job|
-          ci_job = CiJob.create(
-            check_suite: check_suite,
-            name: job[:name],
-            job_ref: job[:job_ref]
-          )
-
-          logger(Logger::DEBUG, ">>> CI Job: #{ci_job.inspect}")
-          next unless ci_job.persisted?
-
-          url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
-
-          ci_job.enqueue(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
-
-          next unless ci_job.checkout_code?
-
-          ci_job.in_progress(@github_check, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
-        end
+        action = Github::Build::Action.new(check_suite, @github_check, jobs)
+        action.create_summary(rerun: true)
       end
 
       def fetch_plan
@@ -109,9 +94,15 @@ module Github
       end
 
       def ci_jobs(check_suite, bamboo_plan)
+        SlackBot.instance.execution_started_notification(check_suite)
+
         check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
 
         create_ci_jobs(bamboo_plan, check_suite)
+
+        CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
+          Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
+        end
       end
 
       def action

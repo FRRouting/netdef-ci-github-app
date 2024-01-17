@@ -25,7 +25,7 @@ module BambooCi
       jobs = []
       resp.dig('stages', 'stage').each do |stage|
         stage.dig('results', 'result').each do |job|
-          jobs << { name: job.dig('plan', 'shortName'), job_ref: job['key'] }
+          jobs << { name: job.dig('plan', 'shortName'), job_ref: job['key'], stage: job['stage'] }
         end
       end
 

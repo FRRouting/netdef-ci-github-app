@@ -18,61 +18,79 @@ class CiJob < ActiveRecord::Base
 
   belongs_to :check_suite
   has_many :topotest_failures, dependent: :delete_all
+  belongs_to :stage
 
   scope :sha256, ->(sha) { joins(:check_suite).where(check_suite: { commit_sha_ref: sha }) }
-
-  def checkout_code?
-    name.downcase.match? 'checkout'
-  end
+  scope :filter_by, ->(filter) { where('name ~ ?', filter) }
+  scope :skip_stages, -> { where(is_stage: false) }
+  scope :stages, -> { where(is_stage: true) }
+  scope :skip_checkout_code, -> { where.not(name: 'Checkout Code') }
+  scope :not_skipped, -> { where.not(status: 'skipped') }
+  scope :failure, -> { where(status: %i[failure cancelled skipped]) }
 
   def finished?
-    !%w[queued in_progress].include?(status.to_s)
+    !%w[queued in_progress].include?(status)
   end
 
   def create_check_run
     update(status: :queued)
   end
 
-  def enqueue(github, output = {})
-    check_run = github.create(name)
-    github.queued(check_run.id, output)
-    update(check_ref: check_run.id, status: :queued)
+  def enqueue(_github, _output = {})
+    update(status: :queued)
   end
 
   def in_progress(github, output = {})
-    check_run = save_check_run(github)
-    github.in_progress(check_run.id, output)
+    unless check_ref.nil?
+      create_github_check(github)
+      github.in_progress(check_ref, output)
+    end
 
-    update(check_ref: check_run.id, status: :in_progress)
+    update(status: :in_progress)
   end
 
   def cancelled(github, output = {})
-    github.cancelled(check_ref, output)
+    unless check_ref.nil?
+      create_github_check(github)
+      github.cancelled(check_ref, output)
+    end
 
     update(status: :cancelled)
   end
 
   def failure(github, output = {})
-    github.failure(check_ref, output)
+    unless check_ref.nil?
+      create_github_check(github)
+      github.failure(check_ref, output)
+    end
 
     update(status: :failure)
   end
 
   def success(github, output = {})
-    github.success(check_ref, output)
+    unless check_ref.nil?
+      create_github_check(github)
+      github.success(check_ref, output)
+    end
 
     update(status: :success)
   end
 
   def skipped(github, output = {})
-    github.skipped(check_ref, output)
+    unless check_ref.nil?
+      create_github_check(github)
+      github.skipped(check_ref, output)
+    end
 
     update(status: :skipped)
   end
 
   private
 
-  def save_check_run(github)
-    github.create(name)
+  def create_github_check(github)
+    return unless check_ref.nil?
+
+    check_run = github.create(github_stage_full_name(name))
+    update(check_ref: check_run.id)
   end
 end

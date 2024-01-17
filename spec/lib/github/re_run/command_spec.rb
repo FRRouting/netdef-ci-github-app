@@ -32,10 +32,16 @@ describe Github::ReRun::Command do
   describe 'valid payload' do
     let(:fake_client) { Octokit::Client.new }
     let(:fake_github_check) { Github::Check.new(nil) }
+    let(:fake_translation) { create(:stage_configuration) }
 
     context 'when receives a valid command' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'Checkout', job_ref: 'CHK-01' }] }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
       let(:payload) do
         {
           'action' => 'created',
@@ -62,13 +68,14 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:skipped)
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
-        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
       end
 
@@ -81,7 +88,12 @@ describe Github::ReRun::Command do
 
     context 'when receives a valid command but invalid PR ID' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
-      let(:ci_jobs) { [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1' }, { name: 'Checkout', job_ref: 'CHK-01' }] }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
       let(:payload) do
         {
           'action' => 'created',
