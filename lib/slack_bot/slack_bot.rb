@@ -26,6 +26,8 @@ class SlackBot
   end
 
   def invalid_rerun_group(job)
+    return unless current_execution?(job.check_suite)
+
     reason = invalid_rerun_message(job)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/comment"
@@ -37,6 +39,8 @@ class SlackBot
   end
 
   def invalid_rerun_dm(job, subscription)
+    return unless current_execution?(job.check_suite)
+
     reason = invalid_rerun_message(job)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
@@ -46,21 +50,21 @@ class SlackBot
   end
 
   def notify_errors(job)
-    message = generate_notification_message(job, 'Failed')
+    return unless current_execution?(job.check_suite)
 
+    message = generate_notification_message(job, 'Failed')
     pull_request = job.check_suite.pull_request
 
     PullRequestSubscription
       .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all errors])
       .uniq(&:slack_user_id).each do |subscription|
-      url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-      post_request(URI(url),
-                   machine: 'slack_bot.netdef.org',
-                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+      send_error_message(message, subscription)
     end
   end
 
   def notify_cancelled(job, subscription)
+    return unless current_execution?(job.check_suite)
+
     message = generate_notification_message(job, 'Cancelled')
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
@@ -70,21 +74,20 @@ class SlackBot
   end
 
   def notify_success(job)
+    return unless current_execution?(job.check_suite)
+
     pull_request = job.check_suite.pull_request
 
     PullRequestSubscription
-      .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all pass])
+      .where(target: [pull_request.github_pr_id, job.check_suite.pull_request.author], notification: %w[all pass])
       .uniq(&:slack_user_id).each do |subscription|
-      message = generate_notification_message(job, 'Success')
-
-      url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-      post_request(URI(url),
-                   machine: 'slack_bot.netdef.org',
-                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+      send_success_message(job, subscription)
     end
   end
 
   def execution_started_notification(check_suite)
+    return unless current_execution?(check_suite)
+
     PullRequestSubscription
       .where(target: [check_suite.pull_request.github_pr_id, check_suite.pull_request.author])
       .uniq(&:slack_user_id)
@@ -94,6 +97,8 @@ class SlackBot
   end
 
   def execution_finished_notification(check_suite)
+    return unless current_execution?(check_suite)
+
     pull_request = check_suite.pull_request
 
     PullRequestSubscription
@@ -104,7 +109,72 @@ class SlackBot
     end
   end
 
+  def stage_finished_notification(stage)
+    return unless current_execution?(stage.check_suite)
+
+    pull_request = stage.check_suite.pull_request
+
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author])
+      .uniq(&:slack_user_id)
+      .each do |subscription|
+      send_stage_notification(stage.reload, pull_request, subscription)
+    end
+  end
+
+  def stage_in_progress_notification(stage)
+    return unless current_execution?(stage.check_suite)
+
+    pull_request = stage.check_suite.pull_request
+
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author])
+      .uniq(&:slack_user_id)
+      .each do |subscription|
+      send_stage_notification(stage.reload, pull_request, subscription)
+    end
+  end
+
   private
+
+  def current_execution?(check_suite)
+    pull_request = check_suite.pull_request
+    current_check_suite = pull_request.check_suites.last
+
+    check_suite.id >= current_check_suite&.id.to_i
+  end
+
+  def send_stage_notification(stage, pull_request, subscription)
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+
+    pr_url = "https://github.com/#{pull_request.repository}/pull/#{pull_request.github_pr_id}"
+    bamboo_link = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: {
+                   message: "PR <#{pr_url}|##{pull_request.github_pr_id}>. " \
+                            "Stage: <#{bamboo_link}|[CI] #{stage.name} - #{stage.status}> ",
+                   slack_user_id: subscription.slack_user_id
+                 }.to_json)
+  end
+
+  def send_success_message(job, subscription)
+    message = generate_notification_message(job, 'Success')
+
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, unfurl_links: false, unfurl_media: false,
+                         slack_user_id: subscription.slack_user_id }.to_json)
+  end
+
+  def send_error_message(message, subscription)
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+  end
 
   def started_finished_notification(check_suite, subscription, started_or_finished: 'Started')
     message = pull_request_message(check_suite, started_or_finished)

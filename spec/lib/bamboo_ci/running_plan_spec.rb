@@ -51,7 +51,7 @@ describe BambooCi::RunningPlan do
     end
 
     it 'must returns success' do
-      expect(service).to eq([{ job_ref: 1, name: 'unit-test' }])
+      expect(service).to eq([{ job_ref: 1, name: 'unit-test', stage: nil }])
     end
   end
 

@@ -49,7 +49,7 @@ module Github
         logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
         fetch_run_ci_by_pr.each do |check_suite|
-          check_suite.ci_jobs.skip_stages.not_skipped.each do |ci_job|
+          check_suite.ci_jobs.not_skipped.each do |ci_job|
             ci_job.cancelled(@github_check)
           end
 
@@ -60,9 +60,8 @@ module Github
       def create_ci_jobs(bamboo_plan, check_suite)
         jobs = BambooCi::RunningPlan.fetch(bamboo_plan.bamboo_reference)
 
-        action = Github::Build::Action.new(check_suite, @github_check)
-        action.create_summary
-        action.create_jobs(jobs, rerun: true)
+        action = Github::Build::Action.new(check_suite, @github_check, jobs)
+        action.create_summary(rerun: true)
       end
 
       def fetch_plan
@@ -95,6 +94,8 @@ module Github
       end
 
       def ci_jobs(check_suite, bamboo_plan)
+        SlackBot.instance.execution_started_notification(check_suite)
+
         check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
 
         create_ci_jobs(bamboo_plan, check_suite)
@@ -102,8 +103,6 @@ module Github
         CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
           Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
         end
-
-        SlackBot.instance.execution_started_notification(check_suite)
       end
 
       def action

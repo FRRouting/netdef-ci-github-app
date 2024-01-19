@@ -10,6 +10,7 @@
 
 require_relative '../../github/check'
 require_relative '../../bamboo_ci/download'
+require_relative '../../bamboo_ci/running_plan'
 
 module Github
   module Build
@@ -21,140 +22,138 @@ module Github
         @loggers = []
 
         %w[github_app.log github_build_summary.log].each do |filename|
-          logger_app = Logger.new(filename, 1, 1_024_000)
+          logger_app = Logger.new(filename, 2, 524_288_000)
           logger_app.level = logger_level
 
           @loggers << logger_app
         end
       end
 
-      def build_summary(name)
-        stage = @check_suite.ci_jobs.find_by(name: name)
+      def build_summary
+        current_stage = @job.stage
+        current_stage = fetch_parent_stage if current_stage.nil?
 
-        logger(Logger::INFO, "build_summary: #{name} -> #{stage.inspect}")
+        logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
 
-        return if stage.nil?
-
-        update_summary(stage, name)
-        finished_summary(stage)
-        missing_stage(stage)
+        # Update current stage
+        update_summary(current_stage)
+        # Check if current stage finished
+        finished_summary(current_stage)
+        # If current stage fails the next stages will be marked as failure
+        # when current stage has mandatory field is true
+        must_cancel_next_stages(current_stage)
+        # If current stage passes the next stage will be marked as in_progress
+        must_continue_next_stage(current_stage)
+        # If previous stage still in progress or queued
+        must_update_previous_stage(current_stage)
       end
 
-      def missing_stage(stage)
-        missing_test_stage(stage)
-        missing_build_stage
+      private
+
+      def must_update_previous_stage(current_stage)
+        previous_stage = current_stage.previous_stage
+
+        return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
+
+        finished_stage_summary(previous_stage)
       end
 
-      def missing_test_stage(stage)
-        tests_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::TESTS_STAGE)
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
-        tests_failure = {
-          title: "#{Github::Build::Action::TESTS_STAGE} summary",
-          summary: "Build Stage failed so it will not be possible to run the tests.\nDetails at [#{url}](#{url})."
-        }
+      def must_cancel_next_stages(current_stage)
+        return if @job.success? or @job.in_progress? or @job.queued?
+        return unless current_stage.configuration.mandatory?
 
-        return tests_stage.cancelled(@github, tests_failure) if stage.build? and stage.failure?
-        return tests_stage.in_progress(@github) if stage.build? and stage.success?
+        Stage
+          .joins(:configuration)
+          .where(check_suite: @check_suite)
+          .where(configuration: { position: [(current_stage.configuration.position + 1)..] })
+          .each do |stage|
+          next if stage.cancelled?
 
-        return unless stage.test?
-        return unless @check_suite.finished?
-
-        update_tests_stage(tests_stage)
+          cancelling_next_stage(stage)
+        end
       end
 
-      def missing_build_stage
-        build_stage = @check_suite.ci_jobs.find_by(name: Github::Build::Action::BUILD_STAGE)
+      def must_continue_next_stage(current_stage)
+        return unless current_stage.finished?
+        return if current_stage.failure? or current_stage.skipped? or current_stage.cancelled?
 
-        return if build_stage.nil?
-        return if build_stage.success? or build_stage.failure?
-        return unless @check_suite.build_stage_finished?
+        next_stage =
+          Stage
+          .joins(:configuration)
+          .where(check_suite: @check_suite)
+          .where(configuration: { position: current_stage.configuration.position + 1 })
+          .first
 
-        url = "https://ci1.netdef.org/browse/#{build_stage.check_suite.bamboo_ci_ref}"
+        return if next_stage.nil?
+
+        update_summary(next_stage)
+      end
+
+      def bamboo_stage_check_positions(pending_stage, stage)
+        pending_stage_position = pending_stage.configuration.position
+        stage_position = stage.configuration.position
+
+        pending_stage_position <= stage_position or
+          pending_stage_position + 1 != stage_position
+      end
+
+      def cancelling_next_stage(pending_stage)
+        url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
-          title: "#{Github::Build::Action::BUILD_STAGE} summary",
-          summary: "Build stage failure. Please check Bamboo CI.\nDetails at [#{url}](#{url})."
+          title:
+            "#{pending_stage.name} summary",
+          summary:
+            "The previous stage failed and the remaining tests will be canceled.\nDetails at [#{url}](#{url})."
         }
 
-        success = @check_suite.build_stage_success?
-        logger(Logger::INFO, "missing_build_stage: #{build_stage.inspect}, success: #{success}")
+        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage}\n#{output}")
 
-        success ? build_stage.success(@github, output) : build_stage.failure(@github, output)
-      end
-
-      def update_tests_stage(stage)
-        success = @check_suite.ci_jobs.skip_checkout_code.where(status: %w[failure cancelled]).empty?
-
-        output = { title: "#{stage.name} summary", summary: summary_basic_output(stage.name) }
-
-        logger(Logger::INFO, "update_tests_stage: #{stage.inspect}, success: #{success}")
-
-        success ? stage.success(@github, output) : stage.failure(@github, output)
+        pending_stage.cancelled(@github, output: output)
+        pending_stage.jobs.each { |job| job.cancelled(@github) }
       end
 
       def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        return if @job.in_progress?
+        return if @job.in_progress? or stage.jobs.where(status: %w[queue in_progress]).any?
 
-        finished_build_summary(stage)
-        finished_tests_summary(stage)
+        finished_stage_summary(stage)
       end
 
-      def finished_build_summary(stage)
-        return unless stage.build?
-        return unless @check_suite.build_stage_finished?
-
+      def finished_stage_summary(stage)
         logger(Logger::INFO, "finished_build_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
-        name = Github::Build::Action::BUILD_STAGE
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
-          title: "#{name} summary",
-          summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
+          title: "#{stage.name} summary",
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
-        logger(Logger::DEBUG, output)
+        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
 
-        @check_suite.build_stage_success? ? stage.success(@github, output) : stage.failure(@github, output)
+        stage.jobs.failure.empty? ? stage.success(@github, output: output) : stage.failure(@github, output: output)
       end
 
-      def finished_tests_summary(stage)
-        return unless stage.test?
-        return unless @check_suite.finished?
-
-        logger(Logger::INFO, "finished_tests_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
-
-        name = Github::Build::Action::TESTS_STAGE
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
-
-        output = {
-          title: "#{name} summary",
-          summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
-        }
-
-        @check_suite.success? ? stage.success(@github, output) : stage.failure(@github, output)
-      end
-
-      def update_summary(stage, name)
+      def update_summary(stage)
         logger(Logger::INFO, "Updating summary status #{stage.inspect} -> @job.status: #{@job.status}")
 
         url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
-          title: "#{name} summary",
-          summary: "#{summary_basic_output(name)}\nDetails at [#{url}](#{url})."
+          title: "#{stage.name} summary",
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
         }
 
-        stage.in_progress(@github, output)
+        logger(Logger::INFO, "update_summary: #{stage.inspect} #{output.inspect}")
+
+        stage.in_progress(@github, output: output, job: @job)
       end
 
-      def summary_basic_output(name)
-        filter = Github::Build::Action::BUILD_STAGE.include?(name) ? '.* (B|b)uild' : '(Address|TopoTest|Check|Static)'
-
-        jobs = @check_suite.ci_jobs.skip_checkout_code.filter_by(filter).reload
+      def summary_basic_output(stage)
+        jobs = stage.jobs.reload
         in_progress = jobs.where(status: :in_progress)
 
         header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
         header += in_progress_message(jobs)
-        header += generate_success_failure_info(name, jobs)
+        header += generate_success_failure_info(stage.name, jobs)
 
         header[0..65_535]
       end
@@ -181,8 +180,6 @@ module Github
 
         header
       end
-
-      private
 
       def in_progress_message(jobs)
         jobs.where(status: :in_progress).map do |job|
@@ -225,6 +222,27 @@ module Github
         body = BambooCi::Download.build_log(entry.dig('link', 'href'))
 
         "```\n#{body}\n```\n"
+      end
+
+      def fetch_parent_stage
+        jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
+        info = jobs.find { |job| job[:name] == @job.name }
+
+        stage = first_or_create_stage(info)
+
+        logger(Logger::INFO, "fetch_parent_stage - stage: #{stage.inspect} info[:stage]: #{info[:stage]}")
+
+        @job.update(stage: stage)
+
+        stage
+      end
+
+      def first_or_create_stage(info)
+        config = StageConfiguration.find_by(bamboo_stage_name: info[:stage])
+        stage = Stage.find_by(check_suite: @check_suite, name: info[:stage])
+        stage = Stage.create(check_suite: @check_suite, name: info[:stage], configuration: config) if stage.nil?
+
+        stage
       end
 
       def logger(severity, message)
