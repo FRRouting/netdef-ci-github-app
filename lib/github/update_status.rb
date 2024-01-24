@@ -19,7 +19,7 @@ module Github
   class UpdateStatus
     def initialize(payload)
       @status = payload['status']
-      @logger = Logger.new('github_update_status.log')
+      @logger = GithubLogger.instance.create('github_update_status.log', Logger::INFO)
 
       @output =
         if payload.dig('output', 'title').nil? and payload.dig('output', 'summary').nil?

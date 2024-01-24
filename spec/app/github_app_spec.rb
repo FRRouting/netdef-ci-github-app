@@ -387,6 +387,7 @@ describe 'GithubApp' do
       before do
         create(:ci_job, :in_progress)
         ci_job.stage.update(status: :failure)
+        FileUtils.rm_rf File.expand_path('./logs')
       end
 
       it 'must return a table' do

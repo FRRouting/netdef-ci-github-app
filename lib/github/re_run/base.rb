@@ -24,10 +24,7 @@ module Github
         @logger_manager = []
         @logger_level = logger_level
 
-        logger_app = Logger.new('github_app.log', 1, 1_024_000)
-        logger_app.level = logger_level
-
-        @logger_manager << logger_app
+        @logger_manager << GithubLogger.instance.create('github_app.log', logger_level)
 
         @payload = payload
       end

@@ -28,6 +28,7 @@ require_relative 'github/update_status'
 
 # Helpers libs
 require_relative 'helpers/configuration'
+require_relative 'helpers/github_logger'
 require_relative 'helpers/request'
 require_relative 'helpers/sinatra_payload'
 
