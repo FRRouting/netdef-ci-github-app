@@ -26,7 +26,6 @@ module BambooCi
       @logger_manager = []
       @logger_level = logger_level
 
-
       @logger_manager << GithubLogger.instance.create('github_plan_run.log', logger_level)
       @logger_manager << GithubLogger.instance.create('github_app.log', logger_level)
 

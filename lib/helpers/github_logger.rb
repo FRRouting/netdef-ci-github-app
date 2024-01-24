@@ -16,7 +16,7 @@ class GithubLogger
   include Singleton
 
   def create(name, logger_level)
-    FileUtils.mkdir_p File.expand_path('./logs') unless Dir.exist? File.expand_path('./logs')
+    FileUtils.mkdir_p File.expand_path('./logs')
     obj = Logger.new("logs/#{name}", 2, 524_288_000)
     obj.level = logger_level
 
