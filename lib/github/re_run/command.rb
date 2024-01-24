@@ -16,10 +16,7 @@ module Github
       def initialize(payload, logger_level: Logger::INFO)
         super(payload, logger_level: logger_level)
 
-        logger_class = Logger.new('github_rerun_command.log', 0, 1_024_000)
-        logger_class.level = logger_level
-
-        @logger_manager << logger_class
+        @logger_manager << GithubLogger.instance.create('github_rerun_command.log', logger_level)
       end
 
       def start

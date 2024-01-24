@@ -19,7 +19,7 @@ module Github
 
         @check_suite = check_suite
         @github = Github::Check.new(@check_suite)
-        @logger = Logger.new('github_unavailable_jobs.log', 1, 1_024_000)
+        @logger = GithubLogger.instance.create('github_unavailable_jobs.log', Logger::INFO)
       end
 
       def update(new_check_suite: nil)

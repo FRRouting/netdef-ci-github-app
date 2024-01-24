@@ -15,14 +15,8 @@ class SlackBot
   def initialize
     @logger_manager = []
 
-    logger_app = Logger.new('github_app.log', 1, 1_024_000)
-    logger_app.level = Logger::WARN
-
-    logger_class = Logger.new('github_retry.log', 0, 1_024_000)
-    logger_class.level = Logger::INFO
-
-    @logger_manager << logger_app
-    @logger_manager << logger_class
+    @logger_manager << GithubLogger.instance.create('github_app.log', Logger::WARN)
+    @logger_manager << GithubLogger.instance.create('github_retry.log', Logger::INFO)
   end
 
   def invalid_rerun_group(job)

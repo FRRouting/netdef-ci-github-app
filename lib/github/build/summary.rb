@@ -11,6 +11,7 @@
 require_relative '../../github/check'
 require_relative '../../bamboo_ci/download'
 require_relative '../../bamboo_ci/running_plan'
+require_relative '../../helpers/github_logger'
 
 module Github
   module Build
@@ -22,10 +23,7 @@ module Github
         @loggers = []
 
         %w[github_app.log github_build_summary.log].each do |filename|
-          logger_app = Logger.new(filename, 2, 524_288_000)
-          logger_app.level = logger_level
-
-          @loggers << logger_app
+          @loggers << GithubLogger.instance.create(filename, logger_level)
         end
       end
 
@@ -182,7 +180,7 @@ module Github
       end
 
       def in_progress_message(jobs)
-        jobs.where(status: :in_progress).map do |job|
+        jobs.where(status: %i[in_progress queued]).map do |job|
           "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
         end.join("\n")
       end
