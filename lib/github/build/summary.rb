@@ -125,7 +125,7 @@ module Github
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
-          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
 
         logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
@@ -139,7 +139,7 @@ module Github
         url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
-          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
 
         logger(Logger::INFO, "update_summary: #{stage.inspect} #{output.inspect}")
