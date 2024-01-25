@@ -47,7 +47,7 @@ module Slack
     end
 
     def running_or_queued(check_suite)
-      total = check_suite.ci_jobs.where(status: %i[queued in_progress]).size.to_s
+      total = check_suite.running_jobs.size.to_s
 
       total = "#{' ' * 10}#{total}"
 
