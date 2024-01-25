@@ -104,7 +104,7 @@ module Github
             "The previous stage failed and the remaining tests will be canceled.\nDetails at [#{url}](#{url})."
         }
 
-        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage}\n#{output}")
+        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage.inspect}\n#{output}")
 
         pending_stage.cancelled(@github, output: output)
         pending_stage.jobs.each { |job| job.cancelled(@github) }
@@ -112,7 +112,9 @@ module Github
 
       def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        return if @job.in_progress? or stage.jobs.where(status: %w[queue in_progress]).any?
+        logger(Logger::INFO, "Finished stage: #{stage.inspect}, jobs: #{stage.reload.jobs.inspect}")
+
+        return if @job.in_progress? or stage.running?
 
         finished_stage_summary(stage)
       end
