@@ -11,6 +11,7 @@
 require_relative '../../github/check'
 require_relative '../../bamboo_ci/download'
 require_relative '../../bamboo_ci/running_plan'
+require_relative '../../helpers/github_logger'
 
 module Github
   module Build
@@ -22,10 +23,7 @@ module Github
         @loggers = []
 
         %w[github_app.log github_build_summary.log].each do |filename|
-          logger_app = Logger.new(filename, 2, 524_288_000)
-          logger_app.level = logger_level
-
-          @loggers << logger_app
+          @loggers << GithubLogger.instance.create(filename, logger_level)
         end
       end
 
@@ -106,7 +104,7 @@ module Github
             "The previous stage failed and the remaining tests will be canceled.\nDetails at [#{url}](#{url})."
         }
 
-        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage}\n#{output}")
+        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage.inspect}\n#{output}")
 
         pending_stage.cancelled(@github, output: output)
         pending_stage.jobs.each { |job| job.cancelled(@github) }
@@ -114,7 +112,9 @@ module Github
 
       def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        return if @job.in_progress? or stage.jobs.where(status: %w[queue in_progress]).any?
+        logger(Logger::INFO, "Finished stage: #{stage.inspect}, jobs: #{stage.reload.jobs.inspect}")
+
+        return if @job.in_progress? or stage.running?
 
         finished_stage_summary(stage)
       end
@@ -125,7 +125,7 @@ module Github
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
-          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
 
         logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
@@ -139,7 +139,7 @@ module Github
         url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
-          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url})."
+          summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
 
         logger(Logger::INFO, "update_summary: #{stage.inspect} #{output.inspect}")
@@ -182,7 +182,7 @@ module Github
       end
 
       def in_progress_message(jobs)
-        jobs.where(status: :in_progress).map do |job|
+        jobs.where(status: %i[in_progress queued]).map do |job|
           "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
         end.join("\n")
       end

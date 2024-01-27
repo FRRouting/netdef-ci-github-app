@@ -17,6 +17,7 @@ require 'faker'
 require 'rspec'
 require 'rack/test'
 require 'webmock/rspec'
+require 'fileutils'
 
 Dir["#{__dir__}/support/*.rb"].each { |file| require file }
 Dir["#{__dir__}/factories/*.rb"].each { |file| load file }

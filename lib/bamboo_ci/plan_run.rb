@@ -26,14 +26,8 @@ module BambooCi
       @logger_manager = []
       @logger_level = logger_level
 
-      logger_class = Logger.new('github_plan_run.log', 0, 1_024_000)
-      logger_class.level = logger_level
-
-      logger_app = Logger.new('github_app.log', 1, 1_024_000)
-      logger_app.level = logger_level
-
-      @logger_manager << logger_class
-      @logger_manager << logger_app
+      @logger_manager << GithubLogger.instance.create('github_plan_run.log', logger_level)
+      @logger_manager << GithubLogger.instance.create('github_app.log', logger_level)
 
       logger(Logger::INFO, "BambooCi::PlanRun - CheckSuite: #{check_suite.inspect}")
 

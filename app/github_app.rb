@@ -43,8 +43,7 @@ class GithubApp < Sinatra::Base
   end
 
   post '/update/status' do
-    logger = Logger.new('github_app.log', 1, 1_024_000)
-    logger.level = GithubApp.sinatra_logger_level
+    logger = GithubLogger.instance.create('github_app.log', GithubApp.sinatra_logger_level)
 
     @payload_raw = request.body.read
     @payload = JSON.parse(@payload_raw)
@@ -90,8 +89,7 @@ class GithubApp < Sinatra::Base
   post '/*' do
     content_type :text
 
-    logger = Logger.new('github_app.log', 1, 1_024_000)
-    logger.level = GithubApp.sinatra_logger_level
+    logger = GithubLogger.instance.create('github_app.log', GithubApp.sinatra_logger_level)
 
     request.body.rewind
     body = request.body.read

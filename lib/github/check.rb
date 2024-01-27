@@ -22,7 +22,7 @@ module Github
     def initialize(check_suite)
       @check_suite = check_suite
       @config = GitHubApp::Configuration.instance.config
-      @logger = Logger.new('github_check_api.log', 2, 1_024_000)
+      @logger = GithubLogger.instance.create('github_check_api.log', Logger::INFO)
 
       authenticate_app
     end

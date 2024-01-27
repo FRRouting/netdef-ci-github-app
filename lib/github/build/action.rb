@@ -19,10 +19,7 @@ module Github
         @stages = StageConfiguration.all
 
         %w[github_app.log github_build_action.log].each do |filename|
-          logger_app = Logger.new(filename, 1, 1_024_000)
-          logger_app.level = logger_level
-
-          @loggers << logger_app
+          @loggers << GithubLogger.instance.create(filename, logger_level)
         end
 
         logger(Logger::INFO, "Building action to CheckSuite @#{@check_suite.inspect}")

@@ -15,6 +15,10 @@ class Stage < ActiveRecord::Base
   belongs_to :configuration, class_name: 'StageConfiguration', foreign_key: 'stage_configuration_id'
   belongs_to :check_suite
 
+  def running?
+    jobs.where(status: %i[queued in_progress]).any?
+  end
+
   def previous_stage
     position = configuration&.position.to_i
     check_suite.stages.joins(:configuration).find_by(configuration: { position: position - 1 })
