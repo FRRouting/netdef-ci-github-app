@@ -60,9 +60,9 @@ module Github
     def update_status
       case @status
       when 'in_progress'
-        @job.in_progress(@github_check, @output)
+        @job.in_progress(@github_check, output: @output)
       when 'success'
-        @job.success(@github_check, @output)
+        @job.success(@github_check, output: @output)
         slack_notify_success
       else
         failure
@@ -101,7 +101,7 @@ module Github
       unable2find = "There was some test that failed, but I couldn't find the log."
       fetch_and_update_failures(unable2find) if !@output.empty? and @output[:summary].match?(unable2find)
 
-      @job.failure(@github_check, @output)
+      @job.failure(@github_check, output: @output)
       failures_stats if @job.name.downcase.match? 'topotest' and @failures.is_a? Array
     end
 

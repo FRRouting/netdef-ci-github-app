@@ -271,7 +271,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         end
 
         it 'must update the output' do
-          expect(ci_job).to have_received(:failure).with(fake_github_check, expected_output)
+          expect(ci_job).to have_received(:failure).with(fake_github_check, output: expected_output)
         end
 
         it 'must create TopoTestFailure' do
@@ -318,7 +318,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         end
 
         it 'must maintain the same output' do
-          expect(ci_job).to have_received(:failure).with(fake_github_check, expected_output)
+          expect(ci_job).to have_received(:failure).with(fake_github_check, output: expected_output)
         end
 
         it 'must not create a TopoTestFailure' do

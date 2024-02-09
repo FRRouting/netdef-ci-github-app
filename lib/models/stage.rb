@@ -12,6 +12,7 @@ class Stage < ActiveRecord::Base
   enum status: { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
 
   has_many :jobs, class_name: 'CiJob'
+  has_many :audit_statuses, as: :auditable
   belongs_to :configuration, class_name: 'StageConfiguration', foreign_key: 'stage_configuration_id'
   belongs_to :check_suite
 
@@ -28,40 +29,63 @@ class Stage < ActiveRecord::Base
     jobs.where(status: %w[queued in_progress]).empty?
   end
 
-  def enqueue(github, output: {})
+  def enqueue(github, output: {}, agent: 'Github')
     check_run = github.create(github_stage_full_name(name))
     github.queued(check_run.id, output)
+    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
     update(check_ref: check_run.id, status: :queued)
   end
 
-  def in_progress(github, output: output_in_progress, job: nil)
+  def in_progress(github, output: output_in_progress, agent: 'Github')
+    return if in_progress?
+
     create_github_check(github)
     github.in_progress(check_ref, output)
 
-    in_progress_notification if !job.nil? and first_job == job
-
+    AuditStatus.create(auditable: self, status: :in_progress, agent: agent, created_at: Time.now)
     update(status: :in_progress)
+
+    in_progress_notification
   end
 
-  def cancelled(github, output: {})
+  def update_output(github, output: output_in_progress)
+    github.in_progress(check_ref, output)
+  end
+
+  def cancelled(github, output: {}, agent: 'Github')
+    return if cancelled?
+
     create_github_check(github)
     github.cancelled(check_ref, output)
     update(status: :cancelled)
+    AuditStatus.create(auditable: self, status: :cancelled, agent: agent, created_at: Time.now)
     notification
   end
 
-  def failure(github, output: {})
+  def failure(github, output: {}, agent: 'Github')
+    return if failure?
+
     create_github_check(github)
     github.failure(check_ref, output)
     update(status: :failure)
+    AuditStatus.create(auditable: self, status: :failure, agent: agent, created_at: Time.now)
     notification
   end
 
-  def success(github, output: {})
+  def success(github, output: {}, agent: 'Github')
+    return if success?
+
     create_github_check(github)
     github.success(check_ref, output)
     update(status: :success)
+    AuditStatus.create(auditable: self, status: :success, agent: agent, created_at: Time.now)
     notification
+  end
+
+  def refresh_reference(github, agent: 'Github')
+    check_run = github.create(github_stage_full_name(name))
+    update(check_ref: check_run.id)
+    AuditStatus.create(auditable: self, status: :refresh, agent: agent, created_at: Time.now)
   end
 
   private

@@ -12,7 +12,8 @@ describe Github::Build::Summary do
   let(:summary) { described_class.new(ci_job) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
-  let(:check_suite) { create(:check_suite) }
+  let(:pull_request) { create(:pull_request) }
+  let(:check_suite) { create(:check_suite, pull_request: pull_request) }
   let(:position1) { BambooStageTranslation.find_by_position(1) }
   let(:position2) { BambooStageTranslation.find_by_position(2) }
   let(:parent_stage1) { create(:stage, check_suite: check_suite, name: position1.github_check_run_name) }
@@ -129,6 +130,68 @@ describe Github::Build::Summary do
     before do
       ci_job
       ci_job2
+    end
+
+    it 'must update stage' do
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('failure')
+      expect(ci_job2.stage.reload.status).to eq('success')
+    end
+  end
+
+  context 'when the tests stage finished unsuccessfully and build_message returns null' do
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:second_stage_config) { create(:stage_configuration, position: 2) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:second_stage) { create(:stage, name: 'Build', configuration: second_stage_config, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job) { create(:ci_job, :failure, name: 'Ubuntu Build', check_suite: check_suite, stage: second_stage) }
+
+    before do
+      ci_job
+      ci_job2
+
+      allow(BambooCi::Result).to receive(:fetch).and_return({})
+    end
+
+    it 'must update stage' do
+      summary.build_summary
+      expect(ci_job.stage.reload.status).to eq('failure')
+      expect(ci_job2.stage.reload.status).to eq('success')
+    end
+  end
+
+  context 'when the tests stage finished unsuccessfully and build_message returns errorlog' do
+    let(:first_stage_config) { create(:stage_configuration, position: 1) }
+    let(:second_stage_config) { create(:stage_configuration, position: 2) }
+    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
+    let(:second_stage) { create(:stage, name: 'Build', configuration: second_stage_config, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
+    let(:ci_job) { create(:ci_job, :failure, name: 'Ubuntu Build', check_suite: check_suite, stage: second_stage) }
+
+    let(:bamboo_result) do
+      {
+        'artifacts' =>
+          {
+            'artifact' =>
+              [
+                {
+                  'name' => 'ErrorLog',
+                  'link' => {
+                    'href' => 'https://ci1.netdef.org/browse/UBUNTU-BUILD-1/artifact/shared/ErrorLog/ErrorLog'
+                  }
+                }
+              ]
+          }
+      }
+    end
+
+    before do
+      ci_job
+      ci_job2
+
+      allow(BambooCi::Result).to receive(:fetch).and_return(bamboo_result)
+      allow(BambooCi::Download).to receive(:build_log).and_return('ErrorLog')
     end
 
     it 'must update stage' do

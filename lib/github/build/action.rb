@@ -59,7 +59,7 @@ module Github
         return unless !ci_job.stage.nil? and ci_job.stage.configuration.start_in_progress?
 
         ci_job.in_progress(@github)
-        ci_job.stage.in_progress(@github, output: {}, job: ci_job)
+        ci_job.stage.in_progress(@github, output: {})
       end
 
       def create_ci_job(job)
