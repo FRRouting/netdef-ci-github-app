@@ -20,7 +20,6 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
     t.datetime "created_at", null: false
     t.string "auditable_type", null: false
     t.bigint "auditable_id", null: false
-
     t.index ["auditable_type", "auditable_id"], name: "index_audit_statuses_on_auditable_type_and_auditable_id"
   end
 
