@@ -81,7 +81,7 @@ describe Stage do
       let(:stage) { create(:stage, :with_check_suite, :with_job, check_ref: nil) }
 
       it 'must update status' do
-        stage.in_progress(github, job: stage.jobs.first)
+        stage.in_progress(github)
         expect(stage.reload.status).to eq('in_progress')
       end
     end
