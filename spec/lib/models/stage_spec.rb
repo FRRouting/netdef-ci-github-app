@@ -94,12 +94,24 @@ describe Stage do
       stage.failure(github)
       expect(stage.reload.status).to eq('failure')
     end
+
+    it 'must only update 1 time' do
+      stage.failure(github)
+      stage.failure(github)
+      expect(stage.reload.status).to eq('failure')
+    end
   end
 
   describe '#success' do
     let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
 
     it 'must update status' do
+      stage.success(github)
+      expect(stage.reload.status).to eq('success')
+    end
+
+    it 'must only update 1 time' do
+      stage.success(github)
       stage.success(github)
       expect(stage.reload.status).to eq('success')
     end

@@ -94,14 +94,6 @@ class Stage < ActiveRecord::Base
     SlackBot.instance.stage_in_progress_notification(self)
   end
 
-  def first_job
-    jobs
-      .reload
-      .where.not(status: %i[success failure cancelled skipped])
-      .order('ci_jobs.id')
-      .first
-  end
-
   def notification
     SlackBot.instance.stage_finished_notification(self)
   end
