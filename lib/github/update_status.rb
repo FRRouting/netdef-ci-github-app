@@ -19,7 +19,6 @@ module Github
   class UpdateStatus
     def initialize(payload)
       @status = payload['status']
-      @logger = GithubLogger.instance.create('github_update_status.log', Logger::INFO)
 
       @output =
         if payload.dig('output', 'title').nil? and payload.dig('output', 'summary').nil?
@@ -28,13 +27,18 @@ module Github
           { title: payload.dig('output', 'title'), summary: payload.dig('output', 'summary') }
         end
 
+      @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
       @failures = payload['failures']
+
+      logger_initializer
+      logger(Logger::WARN, "UpdateStatus: #{@reference} #{@status} (Output in info log)")
+      logger(Logger::INFO, "UpdateStatus: #{@reference} #{@status} #{@output}")
     end
 
     def update
-      return [404, 'CI JOB not found'] if @job.nil?
+      return job_not_found if @job.nil?
       return [304, 'Not Modified'] if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
       return [304, 'Not Modified'] if @job.in_progress? and !%w[success failure].include? @status
 
@@ -46,6 +50,12 @@ module Github
     end
 
     private
+
+    def job_not_found
+      logger(Logger::ERROR, "CI JOB not found: '#{@reference}'")
+
+      [404, 'CI JOB not found']
+    end
 
     def failures_stats
       @failures.each do |failure|
@@ -79,8 +89,8 @@ module Github
       return false unless current_execution?
       return false unless @check_suite.finished?
 
-      @logger.info ">>> @check_suite#{@check_suite.inspect} -> finished? #{@check_suite.finished?}"
-      @logger.info @check_suite.ci_jobs.last.inspect
+      logger Logger::INFO, ">>> @check_suite#{@check_suite.inspect} -> finished? #{@check_suite.finished?}"
+      logger Logger::INFO, @check_suite.ci_jobs.last.inspect
 
       SlackBot.instance.execution_finished_notification(@check_suite)
     end
@@ -89,8 +99,8 @@ module Github
       pull_request = @check_suite.pull_request
       last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
 
-      @logger.info "last_check_suite: #{last_check_suite.inspect}"
-      @logger.info "@check_suite: #{@check_suite.inspect}"
+      logger Logger::INFO, "last_check_suite: #{last_check_suite.inspect}"
+      logger Logger::INFO, "@check_suite: #{@check_suite.inspect}"
 
       @check_suite.id == last_check_suite.id
     end
@@ -113,7 +123,7 @@ module Github
 
         @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
       rescue NoMethodError => e
-        @logger.error "#{e.class} #{e.message}"
+        logger Logger::ERROR, "#{e.class} #{e.message}"
         count += 1
         sleep 5
         retry if count <= 10
@@ -150,6 +160,22 @@ module Github
       return unless current_execution?
 
       SlackBot.instance.notify_errors(@job)
+    end
+
+    def logger(severity, message)
+      @loggers.each do |logger_object|
+        logger_object.add(severity, message)
+      end
+    end
+
+    def logger_initializer
+      @loggers = []
+      @loggers << GithubLogger.instance.create('github_update_status.log', Logger::INFO)
+      @loggers << if @job.nil?
+                    GithubLogger.instance.create(@reference, Logger::INFO)
+                  else
+                    GithubLogger.instance.create("pr#{@job.check_suite.pull_request.github_pr_id}.log", Logger::INFO)
+                  end
     end
   end
 end
