@@ -22,6 +22,8 @@ module Github
         %w[github_app.log github_build_retry.log].each do |filename|
           @loggers << GithubLogger.instance.create(filename, logger_level)
         end
+        @loggers << GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
+        logger(Logger::WARN, ">>>> Retrying check_suite: #{@check_suite.inspect}")
       end
 
       def enqueued_stages

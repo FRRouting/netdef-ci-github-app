@@ -89,6 +89,17 @@ module Github
       @app.check_run(@check_suite.pull_request.repository, check_ref).to_h
     end
 
+    def fetch_check_runs
+      return [] if @check_suite.nil?
+
+      @app
+        .check_runs_for_ref(@check_suite.pull_request.repository, @check_suite.pull_request.branch_name)
+        .to_h[:check_runs]
+        .map do |check_run|
+        check_run[:id]
+      end
+    end
+
     def installation_id
       @authenticate_app.find_app_installations.first['id'].to_i
     end

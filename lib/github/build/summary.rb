@@ -16,20 +16,24 @@ require_relative '../../helpers/github_logger'
 module Github
   module Build
     class Summary
-      def initialize(job, logger_level: Logger::INFO)
+      def initialize(job, logger_level: Logger::INFO, agent: 'Github')
         @job = job.reload
         @check_suite = @job.check_suite
         @github = Github::Check.new(@check_suite)
         @loggers = []
+        @agent = agent
 
         %w[github_app.log github_build_summary.log].each do |filename|
           @loggers << GithubLogger.instance.create(filename, logger_level)
         end
+
+        @loggers << GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
       end
 
       def build_summary
         current_stage = @job.stage
         current_stage = fetch_parent_stage if current_stage.nil?
+        check_and_update_github_ref(current_stage)
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
 
@@ -47,6 +51,22 @@ module Github
       end
 
       private
+
+      def check_and_update_github_ref(current_stage)
+        current_refs = @github.fetch_check_runs
+
+        logger(Logger::INFO,
+               'check_and_update_github_ref - current_stage: ' \
+               "#{current_stage.inspect} current_refs: #{current_refs.inspect}")
+
+        return if current_refs.include? current_stage.check_ref.to_i
+
+        logger(Logger::INFO,
+               'check_and_update_github_ref - current_stage: ' \
+               "#{current_stage.inspect} current_refs: #{current_refs.inspect} - Refreshing reference.")
+
+        current_stage.refresh_reference(@github)
+      end
 
       def must_update_previous_stage(current_stage)
         previous_stage = current_stage.previous_stage
@@ -87,14 +107,6 @@ module Github
         update_summary(next_stage)
       end
 
-      def bamboo_stage_check_positions(pending_stage, stage)
-        pending_stage_position = pending_stage.configuration.position
-        stage_position = stage.configuration.position
-
-        pending_stage_position <= stage_position or
-          pending_stage_position + 1 != stage_position
-      end
-
       def cancelling_next_stage(pending_stage)
         url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
@@ -112,7 +124,7 @@ module Github
 
       def finished_summary(stage)
         logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        logger(Logger::INFO, "Finished stage: #{stage.inspect}, jobs: #{stage.reload.jobs.inspect}")
+        logger(Logger::INFO, "Finished stage: #{stage.inspect}, running? #{stage.reload.running?}")
 
         return if @job.in_progress? or stage.running?
 
@@ -120,7 +132,7 @@ module Github
       end
 
       def finished_stage_summary(stage)
-        logger(Logger::INFO, "finished_build_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
+        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
 
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
@@ -128,9 +140,19 @@ module Github
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
 
-        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
+        finished_stage_update(stage, output)
 
-        stage.jobs.failure.empty? ? stage.success(@github, output: output) : stage.failure(@github, output: output)
+        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
+      end
+
+      def finished_stage_update(stage, output)
+        if stage.jobs.failure.empty?
+          logger(Logger::WARN, "Stage: #{stage.name} finished - failure")
+          stage.success(@github, output: output, agent: @agent)
+        else
+          logger(Logger::WARN, "Stage: #{stage.name} finished - success")
+          stage.failure(@github, output: output, agent: @agent)
+        end
       end
 
       def update_summary(stage)
@@ -144,7 +166,9 @@ module Github
 
         logger(Logger::INFO, "update_summary: #{stage.inspect} #{output.inspect}")
 
-        stage.in_progress(@github, output: output, job: @job)
+        logger(Logger::WARN, "Updating stage: #{stage.name} to in_progress")
+        stage.in_progress(@github, output: output)
+        stage.update_output(@github, output: output)
       end
 
       def summary_basic_output(stage)

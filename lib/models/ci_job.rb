@@ -16,9 +16,10 @@ class CiJob < ActiveRecord::Base
   validates :name, presence: true
   validates :job_ref, presence: true
 
-  belongs_to :check_suite
   has_many :topotest_failures, dependent: :delete_all
+  has_many :audit_statuses, as: :auditable
   belongs_to :stage
+  belongs_to :check_suite
 
   scope :sha256, ->(sha) { joins(:check_suite).where(check_suite: { commit_sha_ref: sha }) }
   scope :filter_by, ->(filter) { where('name ~ ?', filter) }
@@ -32,56 +33,63 @@ class CiJob < ActiveRecord::Base
     !%w[queued in_progress].include?(status)
   end
 
-  def create_check_run
+  def create_check_run(agent: 'Github')
+    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
     update(status: :queued)
   end
 
-  def enqueue(_github, _output = {})
+  def enqueue(_github, _output = {}, agent: 'Github')
+    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
     update(status: :queued)
   end
 
-  def in_progress(github, output = {})
+  def in_progress(github, output: {}, agent: 'Github')
     unless check_ref.nil?
       create_github_check(github)
       github.in_progress(check_ref, output)
     end
 
+    AuditStatus.create(auditable: self, status: :in_progress, agent: agent, created_at: Time.now)
     update(status: :in_progress)
   end
 
-  def cancelled(github, output = {})
+  def cancelled(github, output: {}, agent: 'Github')
     unless check_ref.nil?
       create_github_check(github)
       github.cancelled(check_ref, output)
     end
 
+    AuditStatus.create(auditable: self, status: :cancelled, agent: agent, created_at: Time.now)
     update(status: :cancelled)
   end
 
-  def failure(github, output = {})
+  def failure(github, output: {}, agent: 'Github')
     unless check_ref.nil?
       create_github_check(github)
       github.failure(check_ref, output)
     end
 
+    AuditStatus.create(auditable: self, status: :failure, agent: agent, created_at: Time.now)
     update(status: :failure)
   end
 
-  def success(github, output = {})
+  def success(github, output: {}, agent: 'Github')
     unless check_ref.nil?
       create_github_check(github)
       github.success(check_ref, output)
     end
 
+    AuditStatus.create(auditable: self, status: :success, agent: agent, created_at: Time.now)
     update(status: :success)
   end
 
-  def skipped(github, output = {})
+  def skipped(github, output: {}, agent: 'Github')
     unless check_ref.nil?
       create_github_check(github)
       github.skipped(check_ref, output)
     end
 
+    AuditStatus.create(auditable: self, status: :skipped, agent: agent, created_at: Time.now)
     update(status: :skipped)
   end
 
