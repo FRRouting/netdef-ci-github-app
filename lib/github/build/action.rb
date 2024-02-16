@@ -21,8 +21,9 @@ module Github
         %w[github_app.log github_build_action.log].each do |filename|
           @loggers << GithubLogger.instance.create(filename, logger_level)
         end
+        @loggers << GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
 
-        logger(Logger::INFO, "Building action to CheckSuite @#{@check_suite.inspect}")
+        logger(Logger::WARN, ">>>> Building action to CheckSuite: #{@check_suite.inspect}")
       end
 
       def create_summary(rerun: false)
@@ -59,7 +60,7 @@ module Github
         return unless !ci_job.stage.nil? and ci_job.stage.configuration.start_in_progress?
 
         ci_job.in_progress(@github)
-        ci_job.stage.in_progress(@github, output: {}, job: ci_job)
+        ci_job.stage.in_progress(@github, output: {})
       end
 
       def create_ci_job(job)

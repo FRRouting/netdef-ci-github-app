@@ -114,13 +114,13 @@ class WatchDog < Base
     @logger.info ">>> CiJob: #{ci_job.inspect} updating status"
     case state
     when 'Unknown'
-      ci_job.cancelled(github_check, output)
+      ci_job.cancelled(github_check, output: output, agent: 'WatchDog')
       slack_notify_cancelled(ci_job)
     when 'Failed'
-      ci_job.failure(github_check, output)
+      ci_job.failure(github_check, output: output, agent: 'WatchDog')
       slack_notify_failure(ci_job)
     when 'Successful'
-      ci_job.success(github_check, output)
+      ci_job.success(github_check, output: output, agent: 'WatchDog')
       slack_notify_success(ci_job)
     else
       puts 'Ignored'
@@ -139,7 +139,7 @@ class WatchDog < Base
   end
 
   def build_summary(ci_job)
-    summary = Github::Build::Summary.new(ci_job)
+    summary = Github::Build::Summary.new(ci_job, agent: 'WatchDog')
     summary.build_summary
 
     finished_execution?(ci_job.check_suite)
