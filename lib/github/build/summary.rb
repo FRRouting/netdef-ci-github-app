@@ -140,12 +140,12 @@ module Github
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
 
-        finished_stage_update(stage)
+        finished_stage_update(stage, output)
 
         logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
       end
 
-      def finished_stage_update(stage)
+      def finished_stage_update(stage, output)
         if stage.jobs.failure.empty?
           logger(Logger::WARN, "Stage: #{stage.name} finished - failure")
           stage.success(@github, output: output, agent: @agent)
