@@ -45,12 +45,6 @@ module Github
       @github_check = Github::Check.new(@job.check_suite)
 
       update_status
-
-      [200, 'Success']
-    rescue StandardError => e
-      logger(Logger::ERROR, "#{e.class} #{e.message}")
-
-      [500, 'Internal Server Error']
     end
 
     private
@@ -87,6 +81,12 @@ module Github
       summary.build_summary
 
       finished_execution?
+
+      [200, 'Success']
+    rescue StandardError => e
+      logger(Logger::ERROR, "#{e.class} #{e.message}")
+
+      [500, 'Internal Server Error']
     end
 
     def finished_execution?
