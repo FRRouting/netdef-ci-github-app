@@ -47,6 +47,10 @@ module Github
       update_status
 
       [200, 'Success']
+    rescue StandardError => e
+      logger(Logger::ERROR, "#{e.class} #{e.message}")
+
+      [500, 'Internal Server Error']
     end
 
     private
