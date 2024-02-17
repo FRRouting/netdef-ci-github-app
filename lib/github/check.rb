@@ -98,6 +98,10 @@ module Github
         .map do |check_run|
         check_run[:id]
       end
+    rescue Octokit::UnprocessableEntity => e
+      @logger.error "fetch_check_runs: #{e.class} #{e.message}"
+
+      []
     end
 
     def installation_id
