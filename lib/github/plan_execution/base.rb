@@ -16,14 +16,13 @@
 #  Copyright (c) 2024 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
-#  frozen_string_literal: true
 
 require 'logger'
 require_relative '../../bamboo_ci/api'
 
 module Github
   module PlanExecution
-    class Base
+    module Base
       include BambooCi::Api
 
       def fetch_ci_execution

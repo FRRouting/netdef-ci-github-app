@@ -15,7 +15,9 @@ require_relative 'base'
 
 module Github
   module PlanExecution
-    class Finished < Base
+    class Finished
+      include Base
+
       def initialize(payload)
         @check_suite = CheckSuite.find_by(bamboo_ci_ref: payload['bamboo_ref'])
       end
