@@ -11,22 +11,24 @@
 require_relative '../../slack_bot/slack_bot'
 require_relative '../../github/build/action'
 require_relative '../../github/build/summary'
-require_relative 'base'
 
 module Github
   module PlanExecution
     class Finished
-      include Base
+      include BambooCi::Api
 
       def initialize(payload)
         @check_suite = CheckSuite.find_by(bamboo_ci_ref: payload['bamboo_ref'])
+        @logger = GithubLogger.instance.create('github_plan_execution_finished.log', Logger::INFO)
       end
 
       def finished
-        puts @check_suite.inspect
+        @logger.info ">>> Check Suite: #{@check_suite.inspect}"
 
         fetch_ci_execution
         build_status = fetch_build_status
+
+        @logger.info ">>> build_status: #{build_status.inspect}"
 
         return [200, 'Still running'] if in_progress?(build_status)
 
@@ -50,8 +52,12 @@ module Github
 
       # Checks if CI still running
       def in_progress?(build_status)
+        @logger.info ">>> ci_stopped?: #{ci_stopped?(build_status)}"
+        @logger.info ">>> ci_hanged?: #{ci_hanged?(build_status)}"
+
         return false if ci_stopped?(build_status)
         return false if ci_hanged?(build_status)
+        return false if build_status['currentStage'].casecmp('final').zero?
 
         true
       end
@@ -155,6 +161,7 @@ module Github
 
       def check_stages
         github_check = Github::Check.new(@check_suite)
+        @logger.info ">>> @result: #{@result.inspect}"
         @result.dig('stages', 'stage').each do |stage|
           stage.dig('results', 'result').each do |result|
             ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: @check_suite.id)
@@ -162,6 +169,14 @@ module Github
             update_stage_status(ci_job, result, github_check)
           end
         end
+      end
+
+      def fetch_ci_execution
+        @result = get_status(@check_suite.bamboo_ci_ref)
+      end
+
+      def fetch_build_status
+        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
     end
   end
