@@ -25,6 +25,8 @@ module Github
       def finished
         @logger.info ">>> Check Suite: #{@check_suite.inspect}"
 
+        return [404, 'Check Suite not found'] if @check_suite.nil?
+
         fetch_ci_execution
         build_status = fetch_build_status
 
@@ -55,7 +57,6 @@ module Github
         @logger.info ">>> ci_stopped?: #{ci_stopped?(build_status)}"
         @logger.info ">>> ci_hanged?: #{ci_hanged?(build_status)}"
 
-        return false if ci_stopped?(build_status)
         return false if ci_hanged?(build_status)
         return false if build_status['currentStage'].casecmp('final').zero?
 
@@ -67,14 +68,13 @@ module Github
       end
 
       def ci_hanged?(build_status)
-        return false if build_status.key?('message') and !build_status.key? 'finished'
+        return true if ci_stopped?(build_status)
 
         build_status.dig('progress', 'percentageCompleted').to_f >= 2.0
       end
 
       def update_stage_status(ci_job, result, github)
-        return if ci_job.nil?
-        return if ci_job.finished? && !ci_job.job_ref.nil?
+        return if ci_job.nil? || (ci_job.finished? && !ci_job.job_ref.nil?)
 
         update_ci_job_status(github, ci_job, result['state'])
       end
@@ -131,32 +131,16 @@ module Github
         check_suite.id == last_check_suite.id
       end
 
-      def fetch_subscriptions(notification, job)
-        pull_request = job.check_suite.pull_request
-
-        PullRequestSubscription
-          .where(target: [pull_request.github_pr_id, pull_request.author], notification: notification)
-          .uniq(&:slack_user_id)
-      rescue StandardError
-        []
-      end
-
       def slack_notify_success(job)
-        fetch_subscriptions(%w[all pass], job).each do |subscription|
-          SlackBot.instance.notify_success(job, subscription)
-        end
+        SlackBot.instance.notify_success(job)
       end
 
       def slack_notify_failure(job)
-        fetch_subscriptions(%w[all errors], job).each do |subscription|
-          SlackBot.instance.notify_errors(job, subscription)
-        end
+        SlackBot.instance.notify_errors(job)
       end
 
       def slack_notify_cancelled(job)
-        fetch_subscriptions(%w[all errors], job).each do |subscription|
-          SlackBot.instance.notify_cancelled(job, subscription)
-        end
+        SlackBot.instance.notify_cancelled(job)
       end
 
       def check_stages
