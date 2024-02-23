@@ -213,7 +213,7 @@ describe Github::PlanExecution::Finished do
             'stage' => [
               'results' => {
                 'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => 'test', 'state' => 'Successful' } }
+                  check_suite.ci_jobs.map { { 'buildResultKey' => 'test', 'state' => 'Successful' } }
               }
             ]
           }
