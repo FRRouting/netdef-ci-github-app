@@ -107,4 +107,19 @@ describe Github::Build::Action do
       expect(check_suite_new.reload.stages.first.status).to eq('queued')
     end
   end
+
+  context 'when stage is the Final' do
+    let(:ci_job) { create(:ci_job, name: 'Final') }
+    let(:check_suite_new) { create(:check_suite) }
+
+    before do
+      stage.configuration.update(start_in_progress: true)
+      described_class.new(check_suite_new, fake_github_check, [ci_job]).create_summary(rerun: false)
+    end
+
+    it 'must not change' do
+      expect { described_class.new(check_suite_new, fake_github_check, [ci_job]).create_summary(rerun: false) }
+        .not_to raise_error
+    end
+  end
 end

@@ -25,6 +25,7 @@ require_relative 'github/build_plan'
 require_relative 'github/check'
 require_relative 'github/retry'
 require_relative 'github/update_status'
+require_relative 'github/plan_execution/finished'
 
 # Helpers libs
 require_relative 'helpers/configuration'
