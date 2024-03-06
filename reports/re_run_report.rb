@@ -21,9 +21,9 @@ module Reports
     end
 
     private
-    
+
     def rerun_comment(begin_date, end_date)
-        CheckSuite
+      CheckSuite
         .where(re_run: true)
         .where(created_at: [begin_date..end_date])
         .group(:author, :pull_request_id)
@@ -32,7 +32,7 @@ module Reports
     end
 
     def rerun_partial(begin_date, end_date)
-        CheckSuite
+      CheckSuite
         .where.not(retry: 0)
         .where(created_at: [begin_date..end_date])
         .group(:author, :pull_request_id)
@@ -85,7 +85,7 @@ module Reports
   end
 end
 
-return unless __FILE__ == $0
+return unless __FILE__ == $PROGRAM_NAME
 
 begin_date = ARGV[0]
 end_date = ARGV[1]
