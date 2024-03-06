@@ -22,14 +22,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.0.0
 
       - name: rubocop
-        uses: reviewdog/action-rubocop@v2
+        uses: reviewdog/action-rubocop@v2.6.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           rubocop_version: gemfile
@@ -55,7 +55,7 @@ jobs:
           
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
          

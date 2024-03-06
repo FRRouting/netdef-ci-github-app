@@ -52,9 +52,16 @@ class GithubApp < Sinatra::Base
 
     authenticate_request
 
-    github = Github::UpdateStatus.new(@payload)
+    logger.info "Received event UpdateStatus: #{@payload}"
+    puts "Received event UpdateStatus: #{@payload}"
 
-    halt github.update
+    if @payload['status'] == 'finished'
+      github = Github::PlanExecution::Finished.new(@payload)
+      halt github.finished
+    else
+      github = Github::UpdateStatus.new(@payload)
+      halt github.update
+    end
   end
 
   post '/slack' do
