@@ -161,7 +161,7 @@ class SlackBot
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
     post_request(URI(url),
                  machine: 'slack_bot.netdef.org',
-                 body: { message:, unfurl_links: false, unfurl_media: false,
+                 body: { message: message, unfurl_links: false, unfurl_media: false,
                          slack_user_id: subscription.slack_user_id }.to_json)
   end
 
@@ -169,7 +169,7 @@ class SlackBot
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
     post_request(URI(url),
                  machine: 'slack_bot.netdef.org',
-                 body: { message:, slack_user_id: subscription.slack_user_id }.to_json)
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
   def send_cancel_message(message, subscription)
@@ -185,7 +185,7 @@ class SlackBot
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
     post_request(URI(url),
                  machine: 'slack_bot.netdef.org',
-                 body: { message:, slack_user_id: subscription.slack_user_id }.to_json)
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
   def pull_request_message(check_suite, status)
