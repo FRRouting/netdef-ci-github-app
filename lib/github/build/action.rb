@@ -44,6 +44,8 @@ module Github
           ci_job = create_ci_job(job)
           next if ci_job.nil?
 
+          next if ci_job.nil?
+
           if rerun
             next unless ci_job.stage.configuration.can_retry?
 

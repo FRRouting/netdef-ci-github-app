@@ -56,15 +56,17 @@ class SlackBot
     end
   end
 
-  def notify_cancelled(job, subscription)
+  def notify_cancelled(job)
     return unless current_execution?(job.check_suite)
 
-    message = generate_notification_message(job, 'Cancelled')
+    message = generate_notification_message(job, 'Failed')
+    pull_request = job.check_suite.pull_request
 
-    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    PullRequestSubscription
+      .where(target: [pull_request.github_pr_id, pull_request.author], notification: %w[all errors])
+      .uniq(&:slack_user_id).each do |subscription|
+      send_cancel_message(message, subscription)
+    end
   end
 
   def notify_success(job)
@@ -168,6 +170,13 @@ class SlackBot
     post_request(URI(url),
                  machine: 'slack_bot.netdef.org',
                  body: { message:, slack_user_id: subscription.slack_user_id }.to_json)
+  end
+
+  def send_cancel_message(message, subscription)
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
   end
 
   def started_finished_notification(check_suite, subscription, started_or_finished: 'Started')

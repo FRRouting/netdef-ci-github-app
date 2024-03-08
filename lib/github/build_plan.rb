@@ -192,7 +192,7 @@ module Github
     end
 
     def fetch_plan
-      plan = Plan.find_by_github_repo_name(@payload.dig('repository', 'full_name'))
+      plan = Plan.find_by(github_repo_name: @payload.dig('repository', 'full_name'))
 
       return plan.bamboo_ci_plan_name unless plan.nil?
 
