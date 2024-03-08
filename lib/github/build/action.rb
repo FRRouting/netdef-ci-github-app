@@ -42,6 +42,7 @@ module Github
       def create_jobs(rerun)
         @jobs.each do |job|
           ci_job = create_ci_job(job)
+          next if ci_job.nil?
 
           if rerun
             next unless ci_job.stage.configuration.can_retry?
@@ -64,7 +65,11 @@ module Github
       end
 
       def create_ci_job(job)
+        logger(Logger::INFO, "create_jobs - #{job.inspect}")
+
         stage_config = StageConfiguration.find_by(bamboo_stage_name: job[:stage])
+
+        return if stage_config.nil?
 
         stage = Stage.find_by(check_suite: @check_suite, name: stage_config.github_check_run_name)
 

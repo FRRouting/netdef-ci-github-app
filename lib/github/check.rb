@@ -52,6 +52,10 @@ module Github
       @app.create_issue_comment_reaction(repo, comment_id, '+1')
     end
 
+    def comment_reaction_thumb_down(repo, comment_id)
+      @app.create_issue_comment_reaction(repo, comment_id, '-1')
+    end
+
     def create(name)
       @app.create_check_run(
         @check_suite.pull_request.repository,

@@ -34,6 +34,8 @@ module Github
 
           next if stage.success?
 
+          RetryStage.create(check_suite: @check_suite, stage:, failure_jobs: stage.failure_jobs_output)
+
           url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
           output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 

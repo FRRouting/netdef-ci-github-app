@@ -27,9 +27,61 @@ module Github
         @logger_manager << GithubLogger.instance.create('github_app.log', logger_level)
 
         @payload = payload
+        @user = User.find_by(github_username: @payload.dig('comment', 'user', 'login'))
+        create_user if @user.nil?
       end
 
       private
+
+      def create_user
+        github = Github::Check.new(nil)
+        github_user = github.fetch_username(@payload.dig('comment', 'user', 'login'))
+        github_user ||= github.fetch_username(@payload.dig('sender', 'login'))
+
+        @user = User.find_by(github_id: github_user[:id])
+
+        puts ">>> Github user: #{@user.inspect}"
+
+        return unless @user.nil?
+
+        @user =
+          User.create(
+            github_username: @payload.dig('sender', 'login'),
+            github_id: github_user[:id],
+            group: Group.find_by(public: true)
+          )
+      end
+
+      def notify_error_rerun(comment_id: nil)
+        @github_check = Github::Check.new(nil)
+
+        comment_thumb_down(comment_id) unless comment_id.nil?
+
+        logger(Logger::WARN, 'No permission to run')
+
+        [402, 'No permission to run']
+      end
+
+      def reach_max_rerun_per_pull_request?
+        max_rerun = @user.group.feature.max_rerun_per_pull_request
+
+        return false if max_rerun.zero?
+
+        github_check = Github::Check.new(nil)
+        pull_request_info = github_check.pull_request_info(pr_id, repo)
+
+        if max_rerun <
+           CheckSuite.where(work_branch: pull_request_info.dig(:head, :ref), re_run: true).count
+          return true
+        end
+
+        false
+      end
+
+      def can_rerun?
+        logger(Logger::INFO, ">>> User: #{@user} - rerun: #{@user.group.feature.rerun}")
+        @user.group.feature.rerun
+      end
 
       def fetch_run_ci_by_pr
         CheckSuite

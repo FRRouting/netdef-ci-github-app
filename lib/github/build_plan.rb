@@ -29,6 +29,7 @@ module Github
       raise "Invalid payload:\n#{payload}" if @payload.nil? or @payload.empty?
 
       @logger.debug 'This is a Pull Request - proceed with branch check'
+      create_user
     end
 
     def create
@@ -68,6 +69,22 @@ module Github
 
     private
 
+    def create_user
+      @user = User.find_by(github_username: @payload.dig('pull_request', 'user', 'login'))
+
+      return unless @user.nil?
+
+      github = Github::Check.new(nil)
+      github_user = github.fetch_username(@payload.dig('pull_request', 'user', 'login'))
+
+      @user =
+        User.create(
+          github_username: @payload.dig('pull_request', 'user', 'login'),
+          github_id: github_user[:id],
+          group: Group.find_by(public: true)
+        )
+    end
+
     def fetch_pull_request
       @pull_request = PullRequest.find_by(github_pr_id: github_pr, repository: @payload.dig('repository', 'full_name'))
 
@@ -85,7 +102,7 @@ module Github
     def create_pull_request
       @pull_request =
         PullRequest.create(
-          author: @payload.dig('pull_request', 'user', 'login'),
+          author: @user.github_username,
           github_pr_id: github_pr,
           branch_name: @payload.dig('pull_request', 'head', 'ref'),
           repository: @payload.dig('repository', 'full_name'),
