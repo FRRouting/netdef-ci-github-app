@@ -42,7 +42,7 @@ module Github
 
         puts ">>> Github user: #{@user.inspect}"
 
-        return unless @user.nil?
+        return if valid_user_and_payload? github_user
 
         @user =
           User.create(
@@ -50,6 +50,10 @@ module Github
             github_id: github_user[:id],
             group: Group.find_by(public: true)
           )
+      end
+
+      def valid_user_and_payload?(github_user)
+        !@user.nil? or @payload.nil? or @payload.empty? or github_user.nil? or github_user.empty?
       end
 
       def notify_error_rerun(comment_id: nil)
@@ -79,7 +83,6 @@ module Github
       end
 
       def can_rerun?
-        logger(Logger::INFO, ">>> User: #{@user} - rerun: #{@user.group.feature.rerun}")
         @user.group.feature.rerun
       end
 

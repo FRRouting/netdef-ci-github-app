@@ -73,13 +73,14 @@ module Github
       @user = User.find_by(github_username: @payload.dig('pull_request', 'user', 'login'))
 
       return unless @user.nil?
+      return if @payload.dig('pull_request', 'user', 'login').nil?
 
       github = Github::Check.new(nil)
       github_user = github.fetch_username(@payload.dig('pull_request', 'user', 'login'))
 
       @user =
         User.create(
-          github_username: @payload.dig('pull_request', 'user', 'login'),
+          github_username: @payload.dig('pull_request', 'user', 'login') ,
           github_id: github_user[:id],
           group: Group.find_by(public: true)
         )
@@ -102,7 +103,7 @@ module Github
     def create_pull_request
       @pull_request =
         PullRequest.create(
-          author: @user.github_username,
+          author: @user&.github_username,
           github_pr_id: github_pr,
           branch_name: @payload.dig('pull_request', 'head', 'ref'),
           repository: @payload.dig('repository', 'full_name'),

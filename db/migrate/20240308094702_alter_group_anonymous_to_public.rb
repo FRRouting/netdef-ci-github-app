@@ -11,5 +11,7 @@
 class AlterGroupAnonymousToPublic < ActiveRecord::Migration[6.0]
   def change
     rename_column :groups, :anonymous, :public
+
+    add_index :groups, [:public], unique: true
   end
 end

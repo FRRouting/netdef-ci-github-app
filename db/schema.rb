@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
+ActiveRecord::Schema[7.0].define(version: 2024_03_08_094702) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -55,6 +55,31 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
   end
 
+  create_table "companies", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "email", null: false
+    t.string "contact", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "features", force: :cascade do |t|
+    t.boolean "rerun", default: true, null: false
+    t.integer "max_rerun_per_pull_request", default: 3, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "group_id"
+    t.index ["group_id"], name: "index_features_on_group_id"
+  end
+
+  create_table "groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.boolean "public", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["public"], name: "index_groups_on_public", unique: true
+  end
+
   create_table "plans", force: :cascade do |t|
     t.string "bamboo_ci_plan_name", null: false
     t.string "github_repo_name", default: "0", null: false
@@ -83,6 +108,16 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
     t.string "plan"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+  end
+
+  create_table "retry_stages", force: :cascade do |t|
+    t.text "failure_jobs", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "check_suite_id"
+    t.bigint "stage_id"
+    t.index ["check_suite_id"], name: "index_retry_stages_on_check_suite_id"
+    t.index ["stage_id"], name: "index_retry_stages_on_stage_id"
   end
 
   create_table "stage_configurations", force: :cascade do |t|
@@ -119,12 +154,29 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
     t.index ["ci_job_id"], name: "index_topotest_failures_on_ci_job_id"
   end
 
+  create_table "users", force: :cascade do |t|
+    t.string "github_id", null: false
+    t.string "github_username", null: false
+    t.string "email"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "company_id"
+    t.bigint "group_id"
+    t.index ["company_id"], name: "index_users_on_company_id"
+    t.index ["group_id"], name: "index_users_on_group_id"
+  end
+
   add_foreign_key "check_suites", "pull_requests"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
+  add_foreign_key "features", "groups"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
+  add_foreign_key "retry_stages", "check_suites"
+  add_foreign_key "retry_stages", "stages"
   add_foreign_key "stages", "check_suites"
   add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"
+  add_foreign_key "users", "companies"
+  add_foreign_key "users", "groups"
 end

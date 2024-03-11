@@ -55,6 +55,8 @@ describe Github::Build::Action do
     before do
       allow(Stage).to receive(:create).and_return(stage)
       allow(stage).to receive(:persisted?).and_return(false)
+
+      allow(SlackBot.instance).to receive(:stage_in_progress_notification)
     end
 
     it 'must create a stage' do

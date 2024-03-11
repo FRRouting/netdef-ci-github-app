@@ -13,6 +13,7 @@ describe Github::ReRun::Command do
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
+  let(:group) { create(:group) }
 
   before do
     allow(File).to receive(:read).and_return('')
@@ -22,6 +23,16 @@ describe Github::ReRun::Command do
   describe 'Invalid payload' do
     context 'when receives an empty payload' do
       let(:payload) { {} }
+
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+      end
 
       it 'must returns error' do
         expect(rerun.start).to eq([422, 'Payload can not be blank'])
@@ -51,12 +62,17 @@ describe Github::ReRun::Command do
               { 'number' => check_suite.pull_request.github_pr_id }
             ]
           },
-          'repository' => { 'full_name' => check_suite.pull_request.repository }
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
+      let(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let(:fake_unavailable_jobs) { Github::Build::UnavailableJobs.new(check_suite) }
 
       before do
+        user
+
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
         allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
         allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
@@ -69,6 +85,12 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:skipped)
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: check_suite.commit_sha_ref } })
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+
+        allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable_jobs)
+        allow(fake_unavailable_jobs).to receive(:update)
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -81,7 +103,7 @@ describe Github::ReRun::Command do
 
       it 'must returns success' do
         expect(rerun.start).to eq([201, 'Starting re-run (command)'])
-        expect(check_suites.size).to eq(1)
+        expect(check_suites.size).to eq(2)
         expect(check_suites.last.re_run).to be_truthy
       end
     end
@@ -103,12 +125,15 @@ describe Github::ReRun::Command do
               { 'number' => 0 }
             ]
           },
-          'repository' => { 'full_name' => check_suite.pull_request.repository }
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
+      let(:user) { create(:user, github_username: check_suite.pull_request.author) }
 
       before do
+        user
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
         allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
         allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
@@ -119,6 +144,9 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:pull_request_info)
+                                      .and_return({ head: { ref: check_suite.commit_sha_ref } })
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)

@@ -90,7 +90,9 @@ module Github
 
         logger(Logger::INFO, ">>> Enqueued #{stage.inspect}")
 
-        stage.enqueue(@github, output: initial_output(stage))
+        stage_configure_status(stage, stage_config)
+
+        stage
       end
 
       def create_stage(stage_config)
@@ -102,13 +104,17 @@ module Github
                        status: 'queued',
                        name: name)
 
+        stage_configure_status(stage, stage_config)
+
+        stage
+      end
+
+      def stage_configure_status(stage, stage_config)
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 
         stage.enqueue(@github, output: output)
         stage.in_progress(@github) if stage_config.start_in_progress?
-
-        stage
       end
 
       def initial_output(ci_job)
