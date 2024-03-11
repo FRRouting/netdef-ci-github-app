@@ -41,10 +41,7 @@ module Reports
     end
 
     def save_rerun_info(result, output, filename, title)
-      puts result.inspect
       case output
-      when 'print'
-        raw_output(result)
       when 'json'
         File.write(filename, json_output(result).to_json)
       when 'file'
@@ -53,34 +50,60 @@ module Reports
           raw_output(result, file_descriptor: f)
         end
       else
-        puts result
+        puts "\n#{title}"
+        raw_output(result)
       end
     end
 
     def raw_output(result, file_descriptor: nil)
       json_output(result).each_pair do |author, data|
+        puts "#{author}: ReRuns #{data[:total]} - Pull Requests details\n" \
+             "#{print_pull_request_info(data[:pull_requests]).join("\n")}\n"
+
         line = "#{author}: ReRuns #{data[:total]} - Pull Requests details #{data[:pull_requests].inspect}\n"
-        puts line
         file_descriptor&.write(line)
       end
     end
 
-    def json_output(result)
-      json_obj = {}
-      result.each do |entry|
-        author, pr_id = entry[0]
-        pr = PullRequest.find(pr_id)
-
-        if json_obj[author]
-          json_obj[author][:pull_requests] << { pr.github_pr_id => entry[1] }
-          json_obj[author][:total] = json_obj[author][:total] + entry[1]
-        else
-          json_obj[author] = { total: entry[1] }
-          json_obj[author][:pull_requests] = [{ pr.github_pr_id => entry[1] }]
+    def print_pull_request_info(pull_requests)
+      info = []
+      pull_requests.each do |pull_request|
+        pull_request.each_pair do |pr_id, counter|
+          info << "- https://github.com/FRRouting/frr/pull/#{pr_id} - #{counter}"
         end
       end
 
-      json_obj
+      info
+    end
+
+    def json_output(result)
+      @json_obj = {}
+      result.each do |entry|
+        build_json(entry)
+      end
+
+      @json_obj.sort_by { |_author, entry| entry[:total] }.reverse.to_h
+    end
+
+    def build_json(entry)
+      author, pr_id = entry[0]
+      pr = PullRequest.find(pr_id)
+
+      update_author(author, entry, pr)
+      new_author(author, entry, pr)
+    end
+
+    def new_author(author, entry, pull_request)
+      return if @json_obj.key? author
+
+      @json_obj[author] = { total: entry[1], pull_requests: [{ pull_request.github_pr_id => entry[1] }] }
+    end
+
+    def update_author(author, entry, pull_request)
+      return unless @json_obj.key? author
+
+      @json_obj[author][:pull_requests] << { pull_request.github_pr_id => entry[1] }
+      @json_obj[author][:total] = @json_obj[author][:total] + entry[1]
     end
   end
 end
