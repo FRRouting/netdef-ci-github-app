@@ -14,4 +14,3 @@ class AuditRetry < ActiveRecord::Base
   has_and_belongs_to_many :ci_jobs
   belongs_to :check_suite
 end
-

@@ -18,4 +18,3 @@ FactoryBot.define do
     check_suite { create(:check_suite) }
   end
 end
-
