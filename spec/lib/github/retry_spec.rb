@@ -67,6 +67,11 @@ describe Github::Retry do
         {
           'check_run' => {
             'id' => ci_job_build_stage.check_ref
+          },
+          'sender' => {
+            'login' => 'test',
+            'id' => 1,
+            'type' => 'user'
           }
         }
       end
@@ -100,6 +105,12 @@ describe Github::Retry do
       it 'must returns success' do
         expect(github_retry.start).to eq([200, 'Retrying failure jobs'])
         expect(ci_job.reload.status).to eq('queued')
+      end
+
+      it 'must create audit retry' do
+        github_retry.start
+        expect(AuditRetry.count).to eq(1)
+        expect(AuditRetry.first.github_username).to eq('test')
       end
 
       it 'must still have its previous status' do

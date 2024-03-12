@@ -61,7 +61,14 @@ module Github
     def create_ci_jobs(check_suite)
       github_check = Github::Check.new(check_suite)
 
-      build_retry = Github::Build::Retry.new(check_suite, github_check)
+      audit_retry =
+        AuditRetry.create(check_suite: check_suite,
+                          github_username: @payload.dig('sender', 'login'),
+                          github_id: @payload.dig('sender', 'id'),
+                          github_type: @payload.dig('sender', 'type'),
+                          retry_type: 'partial')
+
+      build_retry = Github::Build::Retry.new(check_suite, github_check, audit_retry)
 
       build_retry.enqueued_stages
       build_retry.enqueued_failure_tests
