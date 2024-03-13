@@ -44,7 +44,8 @@ module Reports
         {
           check_suite_id: audit_retry.check_suite.id,
           bamboo_job: audit_retry.check_suite.bamboo_ci_ref,
-          github_username: audit_retry.github_username
+          github_username: audit_retry.github_username,
+          tests_or_builds: audit_retry.ci_jobs.map(&:name)
         }
     end
 
@@ -70,8 +71,20 @@ module Reports
             print("  - Check Suite: #{cs[:check_suite_id]}", file_descriptor)
             print("    - Bamboo Job: #{cs[:bamboo_job]}", file_descriptor)
             print("    - Github Username: #{cs[:github_username]}", file_descriptor)
+
+            print_test_build_retry(cs, file_descriptor)
           end
         end
+      end
+    end
+
+    def print_test_build_retry(info, file_descriptor)
+      return if info[:tests_or_builds].nil? or info[:tests_or_builds].empty?
+
+      print('    - Retried tests', file_descriptor)
+
+      info[:tests_or_builds].each do |entry|
+        print("      - #{entry}", file_descriptor)
       end
     end
 
