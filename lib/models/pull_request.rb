@@ -28,4 +28,8 @@ class PullRequest < ActiveRecord::Base
 
     check_suites.last.finished?
   end
+
+  def current_execution?(check_suite)
+    check_suites.last == check_suite
+  end
 end
