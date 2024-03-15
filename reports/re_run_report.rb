@@ -14,9 +14,11 @@ require_relative '../database_loader'
 module Reports
   class ReRunReport
     def report(begin_date, end_date, output: 'print', filename: 'rerun_report.json')
-      @result = { full: {}, partial: {} }
+      @result = {}
+
       AuditRetry
         .where(created_at: [begin_date..end_date])
+        .order(:created_at)
         .each do |audit_retry|
         generate_result(audit_retry)
       end
@@ -29,23 +31,25 @@ module Reports
     def generate_result(audit_retry)
       report_initializer(audit_retry)
 
-      @result[audit_retry.retry_type.to_sym][audit_retry.check_suite.pull_request.github_pr_id][:total] += 1
+      @result[audit_retry.check_suite.pull_request.github_pr_id][:total] += 1
 
       check_suite_detail(audit_retry)
     end
 
     def report_initializer(audit_retry)
-      @result[audit_retry.retry_type.to_sym][audit_retry.check_suite.pull_request.github_pr_id] ||=
+      @result[audit_retry.check_suite.pull_request.github_pr_id] ||=
         { total: 0, check_suites: [] }
     end
 
     def check_suite_detail(audit_retry)
-      @result[audit_retry.retry_type.to_sym][audit_retry.check_suite.pull_request.github_pr_id][:check_suites] <<
+      @result[audit_retry.check_suite.pull_request.github_pr_id][:check_suites] <<
         {
           check_suite_id: audit_retry.check_suite.id,
           bamboo_job: audit_retry.check_suite.bamboo_ci_ref,
           github_username: audit_retry.github_username,
-          tests_or_builds: audit_retry.ci_jobs.map(&:name)
+          tests_or_builds: audit_retry.ci_jobs.map(&:name),
+          requested_at: audit_retry.created_at,
+          type: audit_retry.retry_type
         }
     end
 
@@ -63,17 +67,16 @@ module Reports
     end
 
     def raw_output(result, file_descriptor: nil)
-      result.each do |type, prs|
-        print("\n#{type.capitalize} reruns", file_descriptor)
-        prs.each do |pr, info|
-          print("PR: #{pr} - Total: #{info[:total]}", file_descriptor)
-          info[:check_suites].each do |cs|
-            print("  - Check Suite: #{cs[:check_suite_id]}", file_descriptor)
-            print("    - Bamboo Job: #{cs[:bamboo_job]}", file_descriptor)
-            print("    - Github Username: #{cs[:github_username]}", file_descriptor)
+      result.each_pair do |pull_request, info|
+        print("\nPull Request: ##{pull_request} - Reruns: #{info[:total]}", file_descriptor)
 
-            print_test_build_retry(cs, file_descriptor)
-          end
+        info[:check_suites].each do |cs|
+          print("  - [#{cs[:type]}] Check Suite: #{cs[:check_suite_id]} - Requested at: #{cs[:requested_at]}",
+                file_descriptor)
+          print("    - Bamboo Job: #{cs[:bamboo_job]}", file_descriptor)
+          print("    - Github Username: #{cs[:github_username]}", file_descriptor)
+
+          print_test_build_retry(cs, file_descriptor)
         end
       end
     end
