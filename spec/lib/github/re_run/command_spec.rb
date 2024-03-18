@@ -73,7 +73,7 @@ describe Github::ReRun::Command do
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
-        allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return(any_args)
 
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
@@ -81,7 +81,8 @@ describe Github::ReRun::Command do
 
       it 'must returns success' do
         expect(rerun.start).to eq([201, 'Starting re-run (command)'])
-        expect(check_suites.size).to eq(1)
+        expect(check_suites.size).to eq(2)
+        expect(check_suites.first.re_run).to be_falsey
         expect(check_suites.last.re_run).to be_truthy
       end
     end
