@@ -15,6 +15,8 @@ require 'netrc'
 require 'yaml'
 require 'logger'
 
+require_relative '../helpers/configuration'
+
 module Github
   class Check
     attr_reader :app, :check_suite
