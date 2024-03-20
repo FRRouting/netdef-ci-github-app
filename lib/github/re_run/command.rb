@@ -32,6 +32,8 @@ module Github
 
         stop_previous_execution
 
+        check_suite = create_check_suite(check_suite)
+
         bamboo_plan = start_new_execution(check_suite)
         ci_jobs(check_suite, bamboo_plan)
 
@@ -39,6 +41,18 @@ module Github
       end
 
       private
+
+      def create_check_suite(check_suite)
+        CheckSuite.create(
+          pull_request: check_suite.pull_request,
+          author: check_suite.author,
+          commit_sha_ref: check_suite.commit_sha_ref,
+          work_branch: check_suite.work_branch,
+          base_sha_ref: check_suite.base_sha_ref,
+          merge_branch: check_suite.merge_branch,
+          re_run: true
+        )
+      end
 
       def fetch_check_suite
         CheckSuite

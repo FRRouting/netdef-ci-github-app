@@ -10,9 +10,27 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
+ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+
+  create_table "audit_retries", force: :cascade do |t|
+    t.string "github_username"
+    t.string "github_id"
+    t.string "github_type"
+    t.string "retry_type"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "check_suite_id"
+    t.index ["check_suite_id"], name: "index_audit_retries_on_check_suite_id"
+  end
+
+  create_table "audit_retries_ci_jobs", id: false, force: :cascade do |t|
+    t.bigint "ci_job_id"
+    t.bigint "audit_retry_id"
+    t.index ["audit_retry_id"], name: "index_audit_retries_ci_jobs_on_audit_retry_id"
+    t.index ["ci_job_id"], name: "index_audit_retries_ci_jobs_on_ci_job_id"
+  end
 
   create_table "audit_statuses", force: :cascade do |t|
     t.integer "status", default: 0, null: false
@@ -119,6 +137,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_07_070831) do
     t.index ["ci_job_id"], name: "index_topotest_failures_on_ci_job_id"
   end
 
+  add_foreign_key "audit_retries", "check_suites"
   add_foreign_key "check_suites", "pull_requests"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"

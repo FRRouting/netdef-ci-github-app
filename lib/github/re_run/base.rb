@@ -80,6 +80,13 @@ module Github
         bamboo_plan_run = BambooCi::PlanRun.new(check_suite, logger_level: @logger_level)
         bamboo_plan_run.ci_variables = ci_vars
         bamboo_plan_run.start_plan
+
+        AuditRetry.create(check_suite: check_suite,
+                          github_username: @payload.dig('sender', 'login'),
+                          github_id: @payload.dig('sender', 'id'),
+                          github_type: @payload.dig('sender', 'type'),
+                          retry_type: 'full')
+
         bamboo_plan_run
       end
 

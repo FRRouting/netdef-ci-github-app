@@ -9,10 +9,11 @@
 #  frozen_string_literal: true
 
 describe Github::Build::Retry do
-  let(:github_retry) { described_class.new(check_suite, fake_github_check) }
+  let(:github_retry) { described_class.new(check_suite, fake_github_check, audit_retry) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
+  let(:audit_retry) { create(:audit_retry) }
 
   before do
     allow(File).to receive(:read).and_return('')
