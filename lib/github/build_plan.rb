@@ -80,7 +80,7 @@ module Github
 
       @user =
         User.create(
-          github_username: @payload.dig('pull_request', 'user', 'login') ,
+          github_username: @payload.dig('pull_request', 'user', 'login'),
           github_id: github_user[:id],
           group: Group.find_by(public: true)
         )

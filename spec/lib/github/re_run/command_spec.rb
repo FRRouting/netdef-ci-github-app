@@ -146,7 +146,7 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:pull_request_info)
-                                      .and_return({ head: { ref: check_suite.commit_sha_ref } })
+          .and_return({ head: { ref: check_suite.commit_sha_ref } })
         allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
