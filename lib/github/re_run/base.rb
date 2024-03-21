@@ -28,6 +28,7 @@ module Github
 
         @payload = payload
         @user = User.find_by(github_username: @payload.dig('comment', 'user', 'login'))
+        @user ||= User.find_by(github_username: @payload.dig('sender', 'login'))
         create_user if @user.nil?
       end
 

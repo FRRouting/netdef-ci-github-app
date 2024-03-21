@@ -67,7 +67,9 @@ describe Github::ReRun::Command do
         }
       end
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
-      let(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let(:feature) { create(:feature, max_rerun_per_pull_request: 0) }
+      let(:group) { create(:group, feature: feature) }
+      let(:user) { create(:user, github_username: check_suite.pull_request.author, group: group) }
       let(:fake_unavailable_jobs) { Github::Build::UnavailableJobs.new(check_suite) }
 
       before do
@@ -160,6 +162,66 @@ describe Github::ReRun::Command do
 
       it 'must returns success' do
         expect(rerun.start).to eq([404, 'Failed to fetch a check suite'])
+      end
+    end
+
+    context 'when max_retries is reached' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
+      let(:previous_check_suites) do
+        create_list(:check_suite, 5,
+                    re_run: true,
+                    pull_request: check_suite.pull_request,
+                    work_branch: check_suite.work_branch)
+      end
+      let(:payload) do
+        {
+          'action' => 'created',
+          'check_suite' => {
+            'head_sha' => check_suite.commit_sha_ref,
+            'pull_requests' => [
+              { 'number' => 0 }
+            ]
+          },
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'sender' => { 'login' => check_suite.pull_request.author }
+        }
+      end
+      let(:group) { create(:group) }
+
+      before do
+        previous_check_suites
+        group
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(check_suite)
+        allow(fake_github_check).to receive(:add_comment)
+        allow(fake_github_check).to receive(:cancelled)
+        allow(fake_github_check).to receive(:in_progress)
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:pull_request_info)
+                                      .and_return({ head: { ref: check_suite.work_branch } })
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive(:start_plan).and_return(200)
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
+
+        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+      end
+
+      it 'must returns error' do
+        expect(rerun.start).to eq([402, 'No permission to run'])
       end
     end
   end
