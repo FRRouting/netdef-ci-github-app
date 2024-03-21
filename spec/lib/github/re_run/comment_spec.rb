@@ -380,7 +380,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:pull_request_info)
-                                      .and_return({ head: { ref: check_suite.work_branch } })
+          .and_return({ head: { ref: check_suite.work_branch } })
         allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
         allow(fake_github_check).to receive(:comment_reaction_thumb_down)
 
