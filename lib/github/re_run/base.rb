@@ -67,6 +67,10 @@ module Github
         [402, 'No permission to run']
       end
 
+      def comment_thumb_down(comment_id)
+        @github_check.comment_reaction_thumb_down(repo, comment_id)
+      end
+
       def reach_max_rerun_per_pull_request?
         max_rerun = @user.group.feature.max_rerun_per_pull_request
 
@@ -170,7 +174,17 @@ module Github
       end
 
       def pr_id
-        @payload.dig('issue', 'number') || @payload.dig('check_suite', 'pull_requests')&.last&.[]('number')
+        pr_id_from_issue || pr_id_from_check_suite
+      end
+
+      def pr_id_from_issue
+        @payload.dig('issue', 'number')
+      end
+
+      def pr_id_from_check_suite
+        return if @payload.dig('check_suite', 'pull_requests').nil?
+
+        @payload.dig('check_suite', 'pull_requests').last&.[]('number')
       end
 
       def repo

@@ -138,12 +138,6 @@ module Github
         @github_check.comment_reaction_thumb_up(repo, comment_id)
       end
 
-      def comment_thumb_down(comment_id)
-        return if comment_id.nil?
-
-        @github_check.comment_reaction_thumb_down(repo, comment_id)
-      end
-
       def fetch_old_check_suite(sha = sha256)
         return if sha.nil?
 
