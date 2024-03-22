@@ -21,7 +21,14 @@ module Github
 
       def start
         return [422, 'Payload can not be blank'] if @payload.nil? or @payload.empty?
+        return notify_error_rerun if !can_rerun? or reach_max_rerun_per_pull_request?
 
+        __run__
+      end
+
+      private
+
+      def __run__
         logger(Logger::DEBUG, ">>> Github::ReRun::Command - payload: #{@payload.inspect}")
 
         check_suite = fetch_check_suite
@@ -39,8 +46,6 @@ module Github
 
         [201, 'Starting re-run (command)']
       end
-
-      private
 
       def create_check_suite(check_suite)
         CheckSuite.create(

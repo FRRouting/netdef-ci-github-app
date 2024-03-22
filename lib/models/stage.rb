@@ -88,6 +88,12 @@ class Stage < ActiveRecord::Base
     AuditStatus.create(auditable: self, status: :refresh, agent: agent, created_at: Time.now)
   end
 
+  def failure_jobs_output
+    jobs.where(status: :failure).map do |job|
+      "#{job.name} - #{job.topotest_failures.map(&:to_h)}"
+    end
+  end
+
   private
 
   def in_progress_notification

@@ -9,6 +9,11 @@
 #  frozen_string_literal: true
 
 describe 'GithubApp' do
+  let(:fake_client) { Octokit::Client.new }
+  let(:fake_github_check) { Github::Check.new(nil) }
+  let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
+  let(:fake_check_run) { create(:check_suite) }
+
   context 'when ping route is called' do
     it 'returns success' do
       get '/ping'
@@ -204,10 +209,28 @@ describe 'GithubApp' do
           }
         end
 
-        let(:payload) { { x: 1, 'action' => 'rerequested' } }
+        let(:user) { create(:user) }
+        let(:payload) do
+          {
+            x: 1,
+            'action' => 'rerequested',
+            'sender' => { 'login' => user.github_username },
+            'issue' => { 'number' => 1 },
+            'repository' => { 'full_name' => 'blah' }
+          }
+        end
 
         before do
           allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+
+          allow(Octokit::Client).to receive(:new).and_return(fake_client)
+          allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+          allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+          allow(Github::Check).to receive(:new).and_return(fake_github_check)
+          allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+          allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+          allow(fake_github_check).to receive(:pull_request_info).and_return({ head: { ref: '1234' } })
         end
 
         it 'must returns error' do
@@ -226,10 +249,28 @@ describe 'GithubApp' do
           }
         end
 
-        let(:payload) { { x: 1, 'action' => 'rerequested' } }
+        let(:user) { create(:user) }
+        let(:payload) do
+          {
+            x: 1,
+            'action' => 'rerequested',
+            'sender' => { 'login' => user.github_username },
+            'issue' => { 'number' => 1 },
+            'repository' => { 'full_name' => 'blah' }
+          }
+        end
 
         before do
           allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+
+          allow(Octokit::Client).to receive(:new).and_return(fake_client)
+          allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+          allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+          allow(Github::Check).to receive(:new).and_return(fake_github_check)
+          allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+          allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+          allow(fake_github_check).to receive(:pull_request_info).and_return({ head: { ref: '1234' } })
         end
 
         it 'must returns error' do

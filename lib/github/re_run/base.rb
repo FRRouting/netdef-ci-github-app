@@ -27,9 +27,69 @@ module Github
         @logger_manager << GithubLogger.instance.create('github_app.log', logger_level)
 
         @payload = payload
+        @user = User.find_by(github_username: @payload.dig('comment', 'user', 'login'))
+        @user ||= User.find_by(github_username: @payload.dig('sender', 'login'))
+        create_user if @user.nil?
       end
 
       private
+
+      def create_user
+        github = Github::Check.new(nil)
+        github_user = github.fetch_username(@payload.dig('comment', 'user', 'login'))
+        github_user ||= github.fetch_username(@payload.dig('sender', 'login'))
+
+        @user = User.find_by(github_id: github_user[:id])
+
+        puts ">>> Github user: #{@user.inspect}"
+
+        return if valid_user_and_payload? github_user
+
+        @user =
+          User.create(
+            github_username: @payload.dig('sender', 'login'),
+            github_id: github_user[:id],
+            group: Group.find_by(public: true)
+          )
+      end
+
+      def valid_user_and_payload?(github_user)
+        !@user.nil? or @payload.nil? or @payload.empty? or github_user.nil? or github_user.empty?
+      end
+
+      def notify_error_rerun(comment_id: nil)
+        @github_check = Github::Check.new(nil)
+
+        comment_thumb_down(comment_id) unless comment_id.nil?
+
+        logger(Logger::WARN, 'No permission to run')
+
+        [402, 'No permission to run']
+      end
+
+      def comment_thumb_down(comment_id)
+        @github_check.comment_reaction_thumb_down(repo, comment_id)
+      end
+
+      def reach_max_rerun_per_pull_request?
+        max_rerun = @user.group.feature.max_rerun_per_pull_request
+
+        return false if max_rerun.zero?
+
+        github_check = Github::Check.new(nil)
+        pull_request_info = github_check.pull_request_info(pr_id, repo)
+
+        if max_rerun <
+           CheckSuite.where(work_branch: pull_request_info.dig(:head, :ref), re_run: true).count
+          return true
+        end
+
+        false
+      end
+
+      def can_rerun?
+        @user.group.feature.rerun
+      end
 
       def fetch_run_ci_by_pr
         CheckSuite
@@ -114,7 +174,17 @@ module Github
       end
 
       def pr_id
-        @payload.dig('issue', 'number') || @payload.dig('check_suite', 'pull_requests')&.last&.[]('number')
+        pr_id_from_issue || pr_id_from_check_suite
+      end
+
+      def pr_id_from_issue
+        @payload.dig('issue', 'number')
+      end
+
+      def pr_id_from_check_suite
+        return if @payload.dig('check_suite', 'pull_requests').nil?
+
+        @payload.dig('check_suite', 'pull_requests').last&.[]('number')
       end
 
       def repo
