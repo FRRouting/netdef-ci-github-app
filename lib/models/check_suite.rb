@@ -17,6 +17,7 @@ class CheckSuite < ActiveRecord::Base
   belongs_to :pull_request
   has_many :ci_jobs, dependent: :delete_all
   has_many :stages, dependent: :delete_all
+  has_many :audit_retries, dependent: :delete_all
 
   def finished?
     !running?

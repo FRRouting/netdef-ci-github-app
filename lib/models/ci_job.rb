@@ -18,6 +18,7 @@ class CiJob < ActiveRecord::Base
 
   has_many :topotest_failures, dependent: :delete_all
   has_many :audit_statuses, as: :auditable
+  has_and_belongs_to_many :audit_retries
   belongs_to :stage
   belongs_to :check_suite
 

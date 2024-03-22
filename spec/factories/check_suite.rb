@@ -32,5 +32,12 @@ FactoryBot.define do
         create_list(:ci_job, 5, check_suite: check_suite, status: 2)
       end
     end
+
+    trait :with_in_progress do
+      after(:create) do |check_suite|
+        stage = create(:stage, check_suite: check_suite)
+        create_list(:ci_job, 5, check_suite: check_suite, stage: stage, status: 1)
+      end
+    end
   end
 end

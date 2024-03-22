@@ -77,6 +77,8 @@ module Github
         slack_notify_failure
       end
 
+      return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
+
       summary = Github::Build::Summary.new(@job)
       summary.build_summary
 

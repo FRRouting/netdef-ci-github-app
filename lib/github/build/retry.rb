@@ -13,11 +13,12 @@ require_relative 'action'
 module Github
   module Build
     class Retry
-      def initialize(check_suite, github, logger_level: Logger::INFO)
+      def initialize(check_suite, github, audit_retry, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
         @loggers = []
         @stages_config = StageConfiguration.all
+        @audit_retry = audit_retry
 
         %w[github_app.log github_build_retry.log].each do |filename|
           @loggers << GithubLogger.instance.create(filename, logger_level)
@@ -48,6 +49,8 @@ module Github
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)
           ci_job.update(retry: ci_job.retry + 1)
+          @audit_retry.ci_jobs << ci_job
+          @audit_retry.save
         end
       end
 

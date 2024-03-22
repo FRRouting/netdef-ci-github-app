@@ -32,7 +32,7 @@ describe SlackBot do
   context 'when testing notification message' do
     it { expect { slack_bot.notify_success(job) }.not_to raise_error }
     it { expect { slack_bot.notify_errors(job) }.not_to raise_error }
-    it { expect { slack_bot.notify_cancelled(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.notify_cancelled(job) }.not_to raise_error }
     it { expect { slack_bot.execution_started_notification(job.check_suite) }.not_to raise_error }
     it { expect { slack_bot.execution_finished_notification(job.check_suite) }.not_to raise_error }
     it { expect { slack_bot.invalid_rerun_group(job) }.not_to raise_error }
@@ -51,7 +51,7 @@ describe SlackBot do
 
     it { expect { slack_bot.notify_success(job) }.not_to raise_error }
     it { expect { slack_bot.notify_errors(job) }.not_to raise_error }
-    it { expect { slack_bot.notify_cancelled(job, subscription) }.not_to raise_error }
+    it { expect { slack_bot.notify_cancelled(job) }.not_to raise_error }
     it { expect { slack_bot.execution_started_notification(job.check_suite) }.not_to raise_error }
     it { expect { slack_bot.execution_finished_notification(job.check_suite) }.not_to raise_error }
     it { expect { slack_bot.invalid_rerun_group(job) }.not_to raise_error }
