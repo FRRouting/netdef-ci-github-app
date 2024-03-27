@@ -76,6 +76,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -124,6 +125,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -192,6 +194,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -271,6 +274,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -304,6 +308,7 @@ describe Github::ReRun::Comment do
       allow(fake_github_check).to receive(:cancelled)
       allow(fake_github_check).to receive(:queued)
       allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
+      allow(fake_github_check).to receive(:fetch_username).and_return({})
 
       allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
       allow(fake_plan_run).to receive(:start_plan).and_return(200)
