@@ -15,4 +15,3 @@ class AddGithubUserRelations < ActiveRecord::Migration[6.0]
     add_reference :audit_retries, :github_user, foreign_key: true
   end
 end
-
