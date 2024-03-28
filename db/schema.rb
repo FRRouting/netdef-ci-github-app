@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
+ActiveRecord::Schema[7.0].define(version: 2024_03_27_112035) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -22,7 +22,9 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
+    t.bigint "github_user_id"
     t.index ["check_suite_id"], name: "index_audit_retries_on_check_suite_id"
+    t.index ["github_user_id"], name: "index_audit_retries_on_github_user_id"
   end
 
   create_table "audit_retries_ci_jobs", id: false, force: :cascade do |t|
@@ -55,6 +57,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
     t.boolean "re_run", default: false
     t.integer "retry", default: 0
     t.boolean "sync", default: false
+    t.bigint "github_user_id"
+    t.index ["github_user_id"], name: "index_check_suites_on_github_user_id"
     t.index ["pull_request_id"], name: "index_check_suites_on_pull_request_id"
   end
 
@@ -71,6 +75,20 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
     t.bigint "stage_id"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
+  end
+
+  create_table "github_users", force: :cascade do |t|
+    t.string "github_login"
+    t.string "github_username"
+    t.string "github_email"
+    t.integer "github_id"
+    t.string "github_organization"
+    t.string "github_type"
+    t.string "organization_name"
+    t.string "organization_url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["github_id"], name: "index_github_users_on_github_id", unique: true
   end
 
   create_table "plans", force: :cascade do |t|
@@ -101,6 +119,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
     t.string "plan"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "github_user_id"
+    t.index ["github_user_id"], name: "index_pull_requests_on_github_user_id"
   end
 
   create_table "stage_configurations", force: :cascade do |t|
@@ -138,11 +158,14 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_12_134402) do
   end
 
   add_foreign_key "audit_retries", "check_suites"
+  add_foreign_key "audit_retries", "github_users"
+  add_foreign_key "check_suites", "github_users"
   add_foreign_key "check_suites", "pull_requests"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
+  add_foreign_key "pull_requests", "github_users"
   add_foreign_key "stages", "check_suites"
   add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"

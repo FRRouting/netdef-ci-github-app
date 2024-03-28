@@ -16,6 +16,7 @@ require_relative '../parsers/pull_request_commit'
 require_relative '../check'
 require_relative '../build/action'
 require_relative '../build/unavailable_jobs'
+require_relative '../user_info'
 
 module Github
   module ReRun
@@ -81,11 +82,14 @@ module Github
         bamboo_plan_run.ci_variables = ci_vars
         bamboo_plan_run.start_plan
 
-        AuditRetry.create(check_suite: check_suite,
-                          github_username: @payload.dig('sender', 'login'),
-                          github_id: @payload.dig('sender', 'id'),
-                          github_type: @payload.dig('sender', 'type'),
-                          retry_type: 'full')
+        audit_retry =
+          AuditRetry.create(check_suite: check_suite,
+                            github_username: @payload.dig('sender', 'login'),
+                            github_id: @payload.dig('sender', 'id'),
+                            github_type: @payload.dig('sender', 'type'),
+                            retry_type: 'full')
+
+        Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
 
         bamboo_plan_run
       end

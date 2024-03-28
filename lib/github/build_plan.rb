@@ -16,6 +16,7 @@ require_relative '../bamboo_ci/running_plan'
 require_relative '../bamboo_ci/plan_run'
 require_relative 'check'
 require_relative 'build/action'
+require_relative 'user_info'
 
 module Github
   class BuildPlan
@@ -91,9 +92,13 @@ module Github
           repository: @payload.dig('repository', 'full_name'),
           plan: fetch_plan
         )
+
+      Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), pull_request: @pull_request)
     end
 
     def start_new_execution
+      Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), check_suite: @check_suite)
+
       @bamboo_plan_run = BambooCi::PlanRun.new(@check_suite, logger_level: @logger.level)
       @bamboo_plan_run.ci_variables = ci_vars
       @bamboo_plan_run.start_plan
