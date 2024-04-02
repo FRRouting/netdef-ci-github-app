@@ -14,4 +14,6 @@ class GithubUser < ActiveRecord::Base
   has_many :pull_requests, dependent: :nullify
   has_many :check_suites, dependent: :nullify
   has_many :audit_retries, dependent: :nullify
+
+  belongs_to :group
 end

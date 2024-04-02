@@ -69,7 +69,7 @@ describe Github::ReRun::Command do
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
       let(:feature) { create(:feature, max_rerun_per_pull_request: 0) }
       let(:group) { create(:group, feature: feature) }
-      let(:user) { create(:user, github_username: check_suite.pull_request.author, group: group) }
+      let(:user) { create(:github_user, github_username: check_suite.pull_request.author, group: group) }
       let(:fake_unavailable_jobs) { Github::Build::UnavailableJobs.new(check_suite) }
 
       before do
@@ -135,7 +135,7 @@ describe Github::ReRun::Command do
         }
       end
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
-      let(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
 
       before do
         user

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_03_27_112035) do
+ActiveRecord::Schema[7.0].define(version: 2024_04_02_114622) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -94,14 +94,6 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_27_112035) do
     t.index ["group_id"], name: "index_features_on_group_id"
   end
 
-  create_table "groups", force: :cascade do |t|
-    t.string "name", null: false
-    t.boolean "public", default: true, null: false
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.index ["public"], name: "index_groups_on_public", unique: true
-  end
-
   create_table "github_users", force: :cascade do |t|
     t.string "github_login"
     t.string "github_username"
@@ -113,7 +105,17 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_27_112035) do
     t.string "organization_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "group_id"
     t.index ["github_id"], name: "index_github_users_on_github_id", unique: true
+    t.index ["group_id"], name: "index_github_users_on_group_id"
+  end
+
+  create_table "groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.boolean "public", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["public"], name: "index_groups_on_public", unique: true
   end
 
   create_table "plans", force: :cascade do |t|
@@ -192,18 +194,6 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_27_112035) do
     t.index ["ci_job_id"], name: "index_topotest_failures_on_ci_job_id"
   end
 
-  create_table "users", force: :cascade do |t|
-    t.string "github_id", null: false
-    t.string "github_username", null: false
-    t.string "email"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "company_id"
-    t.bigint "group_id"
-    t.index ["company_id"], name: "index_users_on_company_id"
-    t.index ["group_id"], name: "index_users_on_group_id"
-  end
-
   add_foreign_key "audit_retries", "check_suites"
   add_foreign_key "audit_retries", "github_users"
   add_foreign_key "check_suites", "github_users"
@@ -211,14 +201,13 @@ ActiveRecord::Schema[7.0].define(version: 2024_03_27_112035) do
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
   add_foreign_key "features", "groups"
+  add_foreign_key "github_users", "groups"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
+  add_foreign_key "pull_requests", "github_users"
   add_foreign_key "retry_stages", "check_suites"
   add_foreign_key "retry_stages", "stages"
-  add_foreign_key "pull_requests", "github_users"
   add_foreign_key "stages", "check_suites"
   add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"
-  add_foreign_key "users", "companies"
-  add_foreign_key "users", "groups"
 end

@@ -11,6 +11,6 @@
 require 'otr-activerecord'
 
 class Group < ActiveRecord::Base
-  has_many :users
+  has_many :github_users, dependent: :nullify
   has_one :feature
 end

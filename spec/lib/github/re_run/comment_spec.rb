@@ -97,7 +97,7 @@ describe Github::ReRun::Comment do
     let(:fake_translation) { create(:stage_configuration) }
 
     context 'when receives a valid command' do
-      let!(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
 
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
       let(:ci_jobs) do
@@ -150,7 +150,7 @@ describe Github::ReRun::Comment do
     end
 
     context 'when receives a valid command but can save' do
-      let!(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
 
       let(:pull_request) { create(:pull_request) }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
@@ -205,7 +205,7 @@ describe Github::ReRun::Comment do
     end
 
     context 'when has two opened PRs' do
-      let!(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
       let(:first_pr) { create(:pull_request, github_pr_id: 12, id: 11, repository: 'test') }
       let(:second_pr) { create(:pull_request, github_pr_id: 13, id: 12, repository: 'test') }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: first_pr) }
@@ -287,7 +287,7 @@ describe Github::ReRun::Comment do
     end
 
     context 'when you receive an comment' do
-      let!(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
 
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: check_suite.commit_sha_ref, re_run: true) }
@@ -515,7 +515,7 @@ describe Github::ReRun::Comment do
     end
 
     context 'when you receive an comment and does not exist a PR' do
-      let!(:user) { create(:user) }
+      let!(:user) { create(:github_user) }
 
       let(:commit_sha) { Faker::Internet.uuid }
 
@@ -566,7 +566,7 @@ describe Github::ReRun::Comment do
     end
 
     context 'when can not save check_suite' do
-      let!(:user) { create(:user, github_username: check_suite.pull_request.author) }
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
 
       let(:commit_sha) { Faker::Internet.uuid }
       let(:check_suite) { create(:check_suite) }

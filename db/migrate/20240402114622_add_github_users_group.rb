@@ -1,6 +1,6 @@
 #  SPDX-License-Identifier: BSD-2-Clause
 #
-#  user.rb
+#  20240402114622_add_github_users_group.rb
 #  Part of NetDEF CI System
 #
 #  Copyright (c) 2024 by
@@ -8,11 +8,8 @@
 #
 #  frozen_string_literal: true
 
-require 'otr-activerecord'
-
-class User < ActiveRecord::Base
-  belongs_to :company
-  belongs_to :group
-
-  validates :github_id, presence: true, uniqueness: true
+class AddGithubUsersGroup < ActiveRecord::Migration[6.0]
+  def change
+    add_reference :github_users, :group, foreign_key: true
+  end
 end

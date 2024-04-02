@@ -30,6 +30,7 @@ describe Github::BuildPlan do
         'number' => pr_number,
         'pull_request' => {
           'user' => {
+            'id' => 123,
             'login' => author
           },
 
@@ -63,13 +64,9 @@ describe Github::BuildPlan do
       allow(fake_github_check).to receive(:create).and_return(fake_check_run)
       allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
       allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
-      allow(fake_github_check).to receive(:fetch_username).and_return({})
+      allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1, login: author, name: author })
 
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
-
-      allow(Github::Check).to receive(:new).and_return(fake_github_check)
-      allow(fake_github_check).to receive(:create).and_return(fake_check_run)
-      allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
     end
 
     context 'when action is opened' do
@@ -323,6 +320,8 @@ describe Github::BuildPlan do
         allow(Github::Check).to receive(:new).and_return(fake_github_check)
         allow(fake_github_check).to receive(:create).and_return(fake_check_run)
         allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+
+        create(:group)
       end
 
       it 'must returns an error' do

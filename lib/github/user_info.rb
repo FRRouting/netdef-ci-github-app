@@ -10,6 +10,8 @@
 
 module Github
   class UserInfo
+    attr_reader :user
+
     def initialize(github_id, pull_request: nil, check_suite: nil, audit_retry: nil)
       @github_id = github_id
       @github = Github::Check.new nil
@@ -27,6 +29,21 @@ module Github
       fetch
     end
 
+    def add_pull_request(pull_request = @pull_request)
+      @user.pull_requests << pull_request
+      @user.save
+    end
+
+    def add_check_suite(check_suite = @check_suite)
+      @user.check_suites << check_suite
+      @user.save
+    end
+
+    def add_retry(audit_retry = @audit_retry)
+      @user.audit_retries << audit_retry
+      @user.save
+    end
+
     private
 
     def fetch
@@ -41,21 +58,6 @@ module Github
       add_pull_request unless @pull_request.nil?
       add_check_suite unless @check_suite.nil?
       add_retry unless @audit_retry.nil?
-    end
-
-    def add_pull_request
-      @user.pull_requests << @pull_request
-      @user.save
-    end
-
-    def add_check_suite
-      @user.check_suites << @check_suite
-      @user.save
-    end
-
-    def add_retry
-      @user.audit_retries << @audit_retry
-      @user.save
     end
 
     def update_user_info
@@ -78,7 +80,8 @@ module Github
           github_email: @info[:email],
           github_type: @info[:type],
           organization_url: @info[:organizations_url],
-          github_organization: @info[:company]
+          github_organization: @info[:company],
+          group: Group.find_by(public: true)
         )
     end
   end

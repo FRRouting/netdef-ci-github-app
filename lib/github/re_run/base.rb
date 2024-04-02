@@ -28,31 +28,11 @@ module Github
         @logger_manager << GithubLogger.instance.create('github_app.log', logger_level)
 
         @payload = payload
-        @user = User.find_by(github_username: @payload.dig('comment', 'user', 'login'))
-        @user ||= User.find_by(github_username: @payload.dig('sender', 'login'))
-        create_user if @user.nil?
+
+        @user = Github::UserInfo.new(@payload.dig('sender', 'id')).user
       end
 
       private
-
-      def create_user
-        github = Github::Check.new(nil)
-        github_user = github.fetch_username(@payload.dig('comment', 'user', 'login'))
-        github_user ||= github.fetch_username(@payload.dig('sender', 'login'))
-
-        @user = User.find_by(github_id: github_user[:id])
-
-        puts ">>> Github user: #{@user.inspect}"
-
-        return if valid_user_and_payload? github_user
-
-        @user =
-          User.create(
-            github_username: @payload.dig('sender', 'login'),
-            github_id: github_user[:id],
-            group: Group.find_by(public: true)
-          )
-      end
 
       def valid_user_and_payload?(github_user)
         !@user.nil? or @payload.nil? or @payload.empty? or github_user.nil? or github_user.empty?

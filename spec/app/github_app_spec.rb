@@ -209,7 +209,7 @@ describe 'GithubApp' do
           }
         end
 
-        let(:user) { create(:user) }
+        let(:user) { create(:github_user) }
         let(:payload) do
           {
             x: 1,
@@ -249,7 +249,7 @@ describe 'GithubApp' do
           }
         end
 
-        let(:user) { create(:user) }
+        let(:user) { create(:github_user) }
         let(:payload) do
           {
             x: 1,
