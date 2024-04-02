@@ -9,6 +9,7 @@
 #  frozen_string_literal: true
 
 require 'json'
+require 'csv'
 require_relative '../database_loader'
 
 module Reports
@@ -57,12 +58,27 @@ module Reports
       case output
       when 'json'
         File.write(filename, result.to_json)
+      when 'csv'
+        create_csv(filename)
       when 'file'
         File.open(filename, 'a') do |f|
           raw_output(result, file_descriptor: f)
         end
       else
         raw_output(result)
+      end
+    end
+
+    def create_csv(filename)
+      CSV.open(filename, 'wb') do |csv_input|
+        csv_input << %w[PullRequest CheckSuiteId BambooJob GithubUsername RequestedAt Type TestsOrBuilds]
+        @result.each_pair do |pull_requst, info|
+          info[:check_suites].each do |cs|
+            csv_input << [pull_requst,
+                          cs[:check_suite_id], cs[:bamboo_job], cs[:requested_at],
+                          cs[:github_username], cs[:type], cs[:tests_or_builds].join(',')]
+          end
+        end
       end
     end
 
