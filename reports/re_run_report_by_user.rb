@@ -9,18 +9,19 @@
 #  frozen_string_literal: true
 
 require 'json'
-require 'csv'
 require_relative '../database_loader'
 
 module Reports
-  class ReRunReport
-    def report(begin_date, end_date, output: 'print', filename: 'rerun_report.json')
+  class ReRunReportByUser
+    def report(begin_date, end_date, user, output: 'print', filename: 'rerun_report.json')
       @result = {}
 
-      AuditRetry
-        .where(created_at: [begin_date..end_date])
-        .order(:created_at)
+      audit_retries = AuditRetry.where(github_username: user).order(:created_at)
+      audit_retries = audit_retries.where(created_at: [begin_date..end_date]) unless begin_date.nil? or end_date.nil?
+
+      audit_retries
         .each do |audit_retry|
+        puts audit_retry.inspect
         generate_result(audit_retry)
       end
 
@@ -116,7 +117,7 @@ end
 
 return unless __FILE__ == $PROGRAM_NAME
 
-begin_date = ARGV[0]
-end_date = ARGV[1]
+begin_date = ARGV[1]
+end_date = ARGV[2]
 
-Reports::ReRunReport.new.report(begin_date, end_date, output: ARGV[2], filename: ARGV[3])
+Reports::ReRunReportByUser.new.report(begin_date, end_date, ARGV[0], output: ARGV[3], filename: ARGV[4])
