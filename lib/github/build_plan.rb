@@ -84,8 +84,7 @@ module Github
     end
 
     def create_pull_request
-      user_info = Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'))
-      @user = user_info.user
+      @user = Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id')).user
 
       @pull_request =
         PullRequest.create(
@@ -96,7 +95,7 @@ module Github
           plan: fetch_plan
         )
 
-      user_info.add_pull_request(@pull_request)
+      Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), pull_request: @pull_request)
       @pull_request
     end
 
