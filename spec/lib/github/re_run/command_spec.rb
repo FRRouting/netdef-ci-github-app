@@ -87,6 +87,7 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:skipped)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
         allow(fake_github_check).to receive(:pull_request_info)
           .and_return({ head: { ref: check_suite.commit_sha_ref } })
         allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })

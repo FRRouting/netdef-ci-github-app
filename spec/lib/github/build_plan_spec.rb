@@ -63,6 +63,7 @@ describe Github::BuildPlan do
       allow(fake_github_check).to receive(:create).and_return(fake_check_run)
       allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
       allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
+      allow(fake_github_check).to receive(:fetch_username).and_return({})
 
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
 
@@ -250,6 +251,12 @@ describe Github::BuildPlan do
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
+
         allow(CheckSuite).to receive(:create).and_return(check_suite)
         allow(check_suite).to receive(:persisted?).and_return(false)
 
@@ -271,6 +278,12 @@ describe Github::BuildPlan do
         allow(Octokit::Client).to receive(:new).and_return(fake_client)
         allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
         allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(400)
@@ -298,6 +311,12 @@ describe Github::BuildPlan do
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return([])
 

@@ -68,6 +68,8 @@ module Github
                           github_type: @payload.dig('sender', 'type'),
                           retry_type: 'partial')
 
+      Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
+
       build_retry = Github::Build::Retry.new(check_suite, github_check, audit_retry)
 
       build_retry.enqueued_stages
