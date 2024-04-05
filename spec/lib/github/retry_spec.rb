@@ -92,6 +92,7 @@ describe Github::Retry do
         allow(Github::Check).to receive(:new).and_return(fake_github_check)
         allow(fake_github_check).to receive(:create).and_return(ci_job.check_suite)
         allow(fake_github_check).to receive(:queued)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)
@@ -156,6 +157,7 @@ describe Github::Retry do
         allow(fake_github_check).to receive(:get_check_run).and_return(output)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:failure)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::Retry).to receive(:restart)
