@@ -120,6 +120,8 @@ module Github
         ci_job.cancelled(@github_check)
       end
 
+      @last_check_suite.update(cancelled_in_stage: @last_check_suite.stages.where(status: :in_progress).last)
+
       @last_check_suite.stages.where(status: %w[queued in_progress]).each do |stage|
         stage.cancelled(@github_check)
       end
@@ -169,6 +171,7 @@ module Github
     end
 
     def stop_execution_message
+      @last_check_suite.update(cancelled_by_new_check_suite: @check_suite)
       BambooCi::StopPlan.comment(@last_check_suite, @check_suite)
     end
 
