@@ -40,4 +40,23 @@ describe PullRequest do
       expect(pull_request.finished?).to be_falsey
     end
   end
+
+  context 'when current execution is not the last check suite' do
+    let(:pull_request) { create(:pull_request) }
+    let(:check_suite1) { create(:check_suite, pull_request: pull_request) }
+    let(:check_suite2) { create(:check_suite, pull_request: pull_request) }
+    let(:check_suite3) { create(:check_suite, pull_request: pull_request) }
+
+    before do
+      check_suite1
+      check_suite2
+      check_suite3
+
+      allow(pull_request).to receive(:check_suites).and_return([check_suite2, check_suite3, check_suite1])
+    end
+
+    it 'must return true' do
+      expect(pull_request.current_execution?(check_suite3)).to be_truthy
+    end
+  end
 end

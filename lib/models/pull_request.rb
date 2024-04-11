@@ -26,10 +26,14 @@ class PullRequest < ActiveRecord::Base
   def finished?
     return true if new?
 
-    check_suites.last.finished?
+    current_execution&.finished?
   end
 
   def current_execution?(check_suite)
-    check_suites.last == check_suite
+    current_execution == check_suite
+  end
+
+  def current_execution
+    check_suites.max_by(&:id)
   end
 end
