@@ -21,6 +21,8 @@ class CheckSuite < ActiveRecord::Base
   has_many :stages, dependent: :delete_all
   has_many :audit_retries, dependent: :delete_all
 
+  default_scope -> { order(id: :asc) }, all_queries: true
+
   def finished?
     !running?
   end
