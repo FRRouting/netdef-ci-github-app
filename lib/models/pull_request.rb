@@ -19,17 +19,18 @@ class PullRequest < ActiveRecord::Base
   has_many :check_suites, dependent: :delete_all
   has_many :pull_request_subscriptions, dependent: :delete_all
 
-  def new?
-    check_suites.nil? or check_suites.empty?
-  end
-
   def finished?
-    return true if new?
+    return true if check_suites.nil? or check_suites.empty?
 
-    check_suites.last.finished?
+    current_execution.finished?
   end
 
   def current_execution?(check_suite)
-    check_suites.last == check_suite
+    current_execution == check_suite
+  end
+
+  # @return [CheckSuite]
+  def current_execution
+    check_suites.order(id: :asc).last
   end
 end
