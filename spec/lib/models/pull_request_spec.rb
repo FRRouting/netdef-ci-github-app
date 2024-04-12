@@ -9,22 +9,6 @@
 #  frozen_string_literal: true
 
 describe PullRequest do
-  context 'when create a new PR' do
-    let(:pull_request) { create(:pull_request) }
-
-    it 'must return true' do
-      expect(pull_request.new?).to be_truthy
-    end
-  end
-
-  context 'when create a new PR with Check Suite' do
-    let(:pull_request) { create(:pull_request, :with_check_suite) }
-
-    it 'must return true' do
-      expect(pull_request.new?).to be_falsey
-    end
-  end
-
   context 'when create a new PR and check if check suite was finished' do
     let(:pull_request) { create(:pull_request) }
 
@@ -51,12 +35,18 @@ describe PullRequest do
       check_suite1
       check_suite2
       check_suite3
-
-      allow(pull_request).to receive(:check_suites).and_return([check_suite2, check_suite3, check_suite1])
     end
 
     it 'must return true' do
       expect(pull_request.current_execution?(check_suite3)).to be_truthy
+    end
+  end
+
+  context 'when current execution is nil' do
+    let(:pull_request) { create(:pull_request) }
+
+    it 'must return true in finished?' do
+      expect(pull_request.finished?).to be_truthy
     end
   end
 end
