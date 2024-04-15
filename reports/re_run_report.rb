@@ -14,8 +14,11 @@ require_relative '../database_loader'
 
 module Reports
   class ReRunReport
+    OFFENDER_LIMIT = 4
+
     def report(begin_date, end_date, output: 'print', filename: 'rerun_report.json')
       @result = {}
+      @offenders = []
 
       AuditRetry
         .where(created_at: [begin_date..end_date])
@@ -33,6 +36,11 @@ module Reports
       report_initializer(audit_retry)
 
       @result[audit_retry.check_suite.pull_request.github_pr_id][:total] += 1
+
+      if @result[audit_retry.check_suite.pull_request.github_pr_id][:total] > OFFENDER_LIMIT and
+         !@offenders.include?(audit_retry.check_suite.pull_request.github_pr_id)
+        @offenders << audit_retry.check_suite.pull_request.github_pr_id
+      end
 
       check_suite_detail(audit_retry)
     end
@@ -94,6 +102,11 @@ module Reports
 
           print_test_build_retry(cs, file_descriptor)
         end
+      end
+
+      puts "\nOffenders PR (LIMIT #{OFFENDER_LIMIT}):"
+      @offenders.each do |offender|
+        print("Offender: ##{offender}", file_descriptor)
       end
     end
 
