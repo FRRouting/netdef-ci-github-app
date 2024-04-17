@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_04_08_164410) do
+ActiveRecord::Schema[7.0].define(version: 2024_04_17_102854) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -58,8 +58,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_08_164410) do
     t.integer "retry", default: 0
     t.boolean "sync", default: false
     t.bigint "github_user_id"
-    t.bigint "cancelled_by_id"
-    t.index ["cancelled_by_id"], name: "index_check_suites_on_cancelled_by_id"
+    t.bigint "cancelled_previous_check_suite_id"
+    t.index ["cancelled_previous_check_suite_id"], name: "index_check_suites_on_cancelled_previous_check_suite_id"
     t.index ["github_user_id"], name: "index_check_suites_on_github_user_id"
     t.index ["pull_request_id"], name: "index_check_suites_on_pull_request_id"
   end
@@ -110,6 +110,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_08_164410) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "pull_request_id"
+    t.string "channel", default: "slack"
+    t.string "email"
     t.index ["pull_request_id"], name: "index_pull_request_subscriptions_on_pull_request_id"
   end
 
@@ -163,9 +165,9 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_08_164410) do
 
   add_foreign_key "audit_retries", "check_suites"
   add_foreign_key "audit_retries", "github_users"
+  add_foreign_key "check_suites", "check_suites", column: "cancelled_previous_check_suite_id"
   add_foreign_key "check_suites", "github_users"
   add_foreign_key "check_suites", "pull_requests"
-  add_foreign_key "check_suites", "stages", column: "cancelled_by_id"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
   add_foreign_key "plans", "check_suites"
