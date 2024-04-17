@@ -37,12 +37,16 @@ module Reports
 
       @result[audit_retry.check_suite.pull_request.github_pr_id][:total] += 1
 
-      if @result[audit_retry.check_suite.pull_request.github_pr_id][:total] > OFFENDER_LIMIT and
-         !@offenders.include?(audit_retry.check_suite.pull_request.github_pr_id)
-        @offenders << audit_retry.check_suite.pull_request.github_pr_id
-      end
+      add_offender(audit_retry)
 
       check_suite_detail(audit_retry)
+    end
+
+    def add_offender(audit_retry)
+      return if @result[audit_retry.check_suite.pull_request.github_pr_id][:total] < OFFENDER_LIMIT
+      return if @offenders.include?(audit_retry.check_suite.pull_request.github_pr_id)
+
+      @offenders << audit_retry.check_suite.pull_request.github_pr_id
     end
 
     def report_initializer(audit_retry)
@@ -104,10 +108,7 @@ module Reports
         end
       end
 
-      puts "\nOffenders PR (LIMIT #{OFFENDER_LIMIT}):"
-      @offenders.each do |offender|
-        print("Offender: ##{offender}", file_descriptor)
-      end
+      ci_offenders(file_descriptor)
     end
 
     def print_test_build_retry(info, file_descriptor)
@@ -123,6 +124,15 @@ module Reports
     def print(line, file_descriptor)
       puts line
       file_descriptor&.write line
+    end
+
+    def ci_offenders(file_descriptor)
+      return if @offenders.empty?
+
+      puts "\nOffenders PR (LIMIT #{OFFENDER_LIMIT}):"
+      @offenders.each do |offender|
+        print("Offender: ##{offender}", file_descriptor)
+      end
     end
   end
 end
