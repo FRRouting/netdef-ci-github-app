@@ -14,7 +14,7 @@ require_relative '../database_loader'
 
 module Reports
   class ChainedRerun
-    def report(begin_date, end_date, output: 'print', filename: 'rerun_report.json')
+    def report(begin_date, end_date)
       @result = {}
       @offenders = []
 
@@ -70,4 +70,4 @@ ActiveRecord::Base.logger = Logger.new('/dev/null')
 begin_date = ARGV[0]
 end_date = ARGV[1]
 
-Reports::ChainedRerun.new.report(begin_date, end_date, output: ARGV[2], filename: ARGV[3])
+Reports::ChainedRerun.new.report(begin_date, end_date)
