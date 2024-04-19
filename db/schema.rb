@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_04_17_102854) do
+ActiveRecord::Schema[7.0].define(version: 2024_04_17_130601) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -58,10 +58,12 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_17_102854) do
     t.integer "retry", default: 0
     t.boolean "sync", default: false
     t.bigint "github_user_id"
+    t.bigint "stopped_in_stage_id"
     t.bigint "cancelled_previous_check_suite_id"
     t.index ["cancelled_previous_check_suite_id"], name: "index_check_suites_on_cancelled_previous_check_suite_id"
     t.index ["github_user_id"], name: "index_check_suites_on_github_user_id"
     t.index ["pull_request_id"], name: "index_check_suites_on_pull_request_id"
+    t.index ["stopped_in_stage_id"], name: "index_check_suites_on_stopped_in_stage_id"
   end
 
   create_table "ci_jobs", force: :cascade do |t|
@@ -110,8 +112,6 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_17_102854) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "pull_request_id"
-    t.string "channel", default: "slack"
-    t.string "email"
     t.index ["pull_request_id"], name: "index_pull_request_subscriptions_on_pull_request_id"
   end
 
@@ -146,8 +146,6 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_17_102854) do
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
     t.bigint "stage_configuration_id"
-    t.bigint "cancelled_at_stage_id"
-    t.index ["cancelled_at_stage_id"], name: "index_stages_on_cancelled_at_stage_id"
     t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
     t.index ["stage_configuration_id"], name: "index_stages_on_stage_configuration_id"
   end
@@ -168,13 +166,13 @@ ActiveRecord::Schema[7.0].define(version: 2024_04_17_102854) do
   add_foreign_key "check_suites", "check_suites", column: "cancelled_previous_check_suite_id"
   add_foreign_key "check_suites", "github_users"
   add_foreign_key "check_suites", "pull_requests"
+  add_foreign_key "check_suites", "stages", column: "stopped_in_stage_id"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
   add_foreign_key "pull_requests", "github_users"
   add_foreign_key "stages", "check_suites"
-  add_foreign_key "stages", "check_suites", column: "cancelled_at_stage_id"
   add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"
 end
