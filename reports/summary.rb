@@ -30,22 +30,24 @@ failures = TopotestFailure
            .reverse
            .to_h
 
-build_errors = CiJob
-               .where("name ILIKE '% build'")
-               .where(created_at: [begin_date..end_date], status: %i[failure skipped])
+build_errors = Stage
+               .joins(:jobs)
+               .where(name: 'Build')
+               .where(jobs: { created_at: [begin_date..end_date], status: %i[failure skipped] })
+               .map(&:check_suite_id)
+               .uniq
 
 build_errors_count = build_errors.size
 build_errors_author = CheckSuite
-                      .where(id: build_errors.map(&:check_suite_id).uniq)
-                      .group(:author, :pull_request_id)
+                      .unscoped
+                      .select('check_suites.author, COUNT(check_suites.author) as count')
+                      .where(id: build_errors).where.not(author: 'mergify[bot]')
+                      .group('check_suites.author')
+                      .order('count DESC')
                       .limit(10)
-                      .count('check_suites.author')
-                      .sort_by { |_k, v| v }
                       .reverse
-                      .map do |key, value|
-                        author, pr_id = key
-                        pr = PullRequest.find(pr_id)
-                        { "#{author}: PR ##{pr.github_pr_id}": value }
+                      .map do |entry|
+                        { "#{entry.author}": entry.count }
                       end
 
 puts "Report from #{begin_date} to #{end_date}\n\n"
