@@ -118,17 +118,10 @@ module Github
       end
 
       def finished_execution?(check_suite)
-        return false unless current_execution?(check_suite)
+        return false unless check_suite.pull_request.current_execution?(check_suite)
         return false unless check_suite.finished?
 
         SlackBot.instance.execution_finished_notification(check_suite)
-      end
-
-      def current_execution?(check_suite)
-        pull_request = check_suite.pull_request
-        last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
-
-        check_suite.id == last_check_suite.id
       end
 
       def slack_notify_success(job)
