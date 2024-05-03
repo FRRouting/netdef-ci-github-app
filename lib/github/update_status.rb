@@ -79,10 +79,7 @@ module Github
 
       return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
 
-      summary = Github::Build::Summary.new(@job)
-      summary.build_summary
-
-      finished_execution?
+      update_build_summary_or_finished
 
       [200, 'Success']
     rescue StandardError => e
@@ -91,14 +88,12 @@ module Github
       [500, 'Internal Server Error']
     end
 
-    def finished_execution?
-      return false unless current_execution?
-      return false unless @check_suite.finished?
+    def update_build_summary_or_finished
+      summary = Github::Build::Summary.new(@job)
+      summary.build_summary
 
-      logger Logger::INFO, ">>> @check_suite#{@check_suite.inspect} -> finished? #{@check_suite.finished?}"
-      logger Logger::INFO, @check_suite.ci_jobs.last.inspect
-
-      SlackBot.instance.execution_finished_notification(@check_suite)
+      finished = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @job.check_suite.bamboo_ci_ref })
+      finished.finished
     end
 
     def current_execution?
