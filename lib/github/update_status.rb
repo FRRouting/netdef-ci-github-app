@@ -92,6 +92,10 @@ module Github
       summary = Github::Build::Summary.new(@job)
       summary.build_summary
 
+      return unless @job.finished?
+
+      logger(Logger::INFO, "Github::PlanExecution::Finished: '#{@job.check_suite.bamboo_ci_ref}'")
+
       finished = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @job.check_suite.bamboo_ci_ref })
       finished.finished
     end

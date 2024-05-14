@@ -80,6 +80,8 @@ module Github
 
         return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
 
+        logger(Logger::INFO, "must_update_previous_stage: #{previous_stage.inspect}")
+
         finished_stage_summary(previous_stage)
       end
 
