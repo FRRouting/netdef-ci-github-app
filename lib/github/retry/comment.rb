@@ -53,12 +53,14 @@ module Github
 
       def fetch_stage
         pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        return unless pull_request
+
         check_suite = pull_request.check_suites.last
         @stage = check_suite.stages_failure.min_by(&:id)
       end
 
       def pr_id
-        @payload.dig('issue', 'number') || @payload.dig('check_suite', 'pull_requests')&.last&.[]('number')
+        @payload.dig('issue', 'number')
       end
 
       def comment_id

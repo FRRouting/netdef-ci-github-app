@@ -139,7 +139,8 @@ class GithubApp < Sinatra::Base
       when /ci:rerun/
         halt Github::ReRun::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
       else
-        logger.debug '>>> Invalid comment command'
+        logger.debug '>>> Just a comment'
+        halt 200, 'Just a comment'
       end
     when 'check_suite'
       logger.debug '>>> Received a new check_suite command'
