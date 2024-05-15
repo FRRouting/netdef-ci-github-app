@@ -62,6 +62,7 @@ module Github
 
       def github_reaction_feedback_down(comment_id)
         return if comment_id.nil?
+        return if @stage.check_suite.nil?
 
         github_check = Github::Check.new(@stage.check_suite)
         github_check.comment_reaction_thumb_down(@stage.check_suite.pull_request.repository, comment_id)
