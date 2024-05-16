@@ -1,4 +1,3 @@
-# frozen_string_literal: true
 #  SPDX-License-Identifier: BSD-2-Clause
 #
 #  command.rb
@@ -7,6 +6,7 @@
 #  Copyright (c) 2024 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
+# frozen_string_literal: true
 
 require_relative 'base'
 
