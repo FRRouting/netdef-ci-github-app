@@ -98,7 +98,10 @@ module Github
 
         reason = slack_notification
 
-        output = { title: previous_stage.dig(:output, :title).to_s, summary: previous_stage.dig(:output, :summary).to_s }
+        output = {
+          title: previous_stage.dig(:output, :title).to_s,
+          summary: previous_stage.dig(:output, :summary).to_s
+        }
 
         @stage.enqueue(github_check)
         @stage.failure(github_check, output: output)
