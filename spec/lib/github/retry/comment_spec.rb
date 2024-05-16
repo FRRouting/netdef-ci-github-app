@@ -119,7 +119,7 @@ describe Github::Retry::Comment do
       let(:payload) do
         {
           'action' => 'created',
-          'comment' => { 'body' => "ci:retry", 'id' => 1 },
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
           'repository' => { 'full_name' => 'test' },
           'issue' => { 'number' => 0 }
         }
