@@ -8,16 +8,6 @@
 #
 #  frozen_string_literal: true
 
-#  SPDX-License-Identifier: BSD-2-Clause
-#
-#  comment.rb
-#  Part of NetDEF CI System
-#
-#  Copyright (c) 2024 by
-#  Network Device Education Foundation, Inc. ("NetDEF")
-#
-#  frozen_string_literal: true
-
 require_relative 'base'
 
 module Github
@@ -55,8 +45,8 @@ module Github
         pull_request = PullRequest.find_by(github_pr_id: pr_id)
         return unless pull_request
 
-        check_suite = pull_request.check_suites.last
-        @stage = check_suite.stages_failure.min_by(&:id)
+        @check_suite = pull_request.check_suites.last
+        @stage = @check_suite.stages_failure.min_by(&:id)
       end
 
       def pr_id

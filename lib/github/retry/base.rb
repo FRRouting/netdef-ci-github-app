@@ -8,16 +8,6 @@
 #
 #  frozen_string_literal: true
 
-#  SPDX-License-Identifier: BSD-2-Clause
-#
-#  base.rb
-#  Part of NetDEF CI System
-#
-#  Copyright (c) 2024 by
-#  Network Device Education Foundation, Inc. ("NetDEF")
-#
-#  frozen_string_literal: true
-
 require 'logger'
 
 require_relative '../../../database_loader'
@@ -61,11 +51,10 @@ module Github
       end
 
       def github_reaction_feedback_down(comment_id)
-        return if comment_id.nil?
-        return if @stage.nil?
+        return if comment_id.nil? or @check_suite.nil?
 
-        github_check = Github::Check.new(@stage.check_suite)
-        github_check.comment_reaction_thumb_down(@stage.check_suite.pull_request.repository, comment_id)
+        github_check = Github::Check.new(@check_suite)
+        github_check.comment_reaction_thumb_down(@check_suite.pull_request.repository, comment_id)
       end
 
       def normal_flow

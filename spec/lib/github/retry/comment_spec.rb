@@ -103,4 +103,31 @@ describe Github::Retry::Comment do
       end
     end
   end
+
+  describe 'Invalid payload' do
+    let(:fake_client) { Octokit::Client.new }
+    let(:fake_github_check) { Github::Check.new(nil) }
+    let(:fake_translation) { create(:stage_configuration) }
+
+    before do
+      allow(Octokit::Client).to receive(:new).and_return(fake_client)
+      allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+      allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+    end
+
+    context 'when receives an invalid PR' do
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => "ci:retry", 'id' => 1 },
+          'repository' => { 'full_name' => 'test' },
+          'issue' => { 'number' => 0 }
+        }
+      end
+
+      it 'must returns stage not found' do
+        expect(github_retry.start).to eq([404, 'Stage not found'])
+      end
+    end
+  end
 end
