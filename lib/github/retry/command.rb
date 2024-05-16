@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 #  SPDX-License-Identifier: BSD-2-Clause
 #
 #  command.rb
