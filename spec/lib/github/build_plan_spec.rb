@@ -173,6 +173,14 @@ describe Github::BuildPlan do
         expect(before_in_progress_jobs).not_to eq(after_in_progress_jobs)
         expect(before_success_jobs).to eq(after_success_jobs)
       end
+
+      it 'must set stopped_in_stage' do
+        expect(previous_check_suite.reload.stopped_in_stage).not_to eq(nil)
+      end
+
+      it 'must set cancelled_previous_check_suite' do
+        expect(check_suite.cancelled_previous_check_suite).to eq(previous_check_suite)
+      end
     end
   end
 

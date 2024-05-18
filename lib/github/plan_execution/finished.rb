@@ -40,16 +40,8 @@ module Github
         [200, 'Finished']
       end
 
-      private
-
-      # This method will move all tests that no longer exist in BambooCI to the skipped state,
-      # because there are no executions for them.
-      def clear_deleted_jobs
-        github_check = Github::Check.new(@check_suite)
-
-        @check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
-          ci_job.skipped(github_check)
-        end
+      def fetch_build_status
+        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
 
       # Checks if CI still running
@@ -61,6 +53,18 @@ module Github
         return false if build_status['currentStage'].casecmp('final').zero?
 
         true
+      end
+
+      private
+
+      # This method will move all tests that no longer exist in BambooCI to the skipped state,
+      # because there are no executions for them.
+      def clear_deleted_jobs
+        github_check = Github::Check.new(@check_suite)
+
+        @check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
+          ci_job.skipped(github_check)
+        end
       end
 
       def ci_stopped?(build_status)
@@ -118,17 +122,10 @@ module Github
       end
 
       def finished_execution?(check_suite)
-        return false unless current_execution?(check_suite)
+        return false unless check_suite.pull_request.current_execution?(check_suite)
         return false unless check_suite.finished?
 
         SlackBot.instance.execution_finished_notification(check_suite)
-      end
-
-      def current_execution?(check_suite)
-        pull_request = check_suite.pull_request
-        last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
-
-        check_suite.id == last_check_suite.id
       end
 
       def slack_notify_success(job)
@@ -157,10 +154,6 @@ module Github
 
       def fetch_ci_execution
         @result = get_status(@check_suite.bamboo_ci_ref)
-      end
-
-      def fetch_build_status
-        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
     end
   end
