@@ -33,6 +33,7 @@ module Github
 
           stage = Stage.find_by(check_suite: @check_suite, name: bamboo_stage.github_check_run_name)
 
+          next if stage.nil?
           next if stage.success?
 
           url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"

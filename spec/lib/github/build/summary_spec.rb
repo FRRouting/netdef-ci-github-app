@@ -12,6 +12,7 @@ describe Github::Build::Summary do
   let(:summary) { described_class.new(ci_job) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
+  let(:fake_finish_plan) { Github::PlanExecution::Finished.new({ 'bamboo_ref' => 'UBUNTU-1' }) }
   let(:pull_request) { create(:pull_request) }
   let(:check_suite) { create(:check_suite, pull_request: pull_request) }
   let(:position1) { BambooStageTranslation.find_by_position(1) }
@@ -23,6 +24,9 @@ describe Github::Build::Summary do
     allow(Octokit::Client).to receive(:new).and_return(fake_client)
     allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
     allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+    allow(Github::PlanExecution::Finished).to receive(:new).and_return(fake_finish_plan)
+    allow(fake_finish_plan).to receive(:fetch_build_status)
 
     allow(File).to receive(:read).and_return('')
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))

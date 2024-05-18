@@ -11,6 +11,12 @@
 describe Github::UpdateStatus do
   let(:update_status) { described_class.new(payload) }
   let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
+  let(:fake_finish_plan) { Github::PlanExecution::Finished.new({ 'bamboo_ref' => 'UBUNTU-1' }) }
+
+  before do
+    allow(Github::PlanExecution::Finished).to receive(:new).and_return(fake_finish_plan)
+    allow(fake_finish_plan).to receive(:fetch_build_status)
+  end
 
   describe 'Validates different Ci Job status' do
     let(:payload) do

@@ -27,7 +27,7 @@ module Github
           @loggers << GithubLogger.instance.create(filename, logger_level)
         end
 
-        @loggers << GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
+        @pr_log = GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
       end
 
       def build_summary
@@ -36,6 +36,8 @@ module Github
         check_and_update_github_ref(current_stage)
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
+        msg = "Github::Build::Summary - #{@job.inspect}, #{current_stage.inspect}, bamboo info: #{bamboo_info}"
+        @pr_log.info(msg)
 
         # Update current stage
         update_summary(current_stage)
@@ -51,6 +53,11 @@ module Github
       end
 
       private
+
+      def bamboo_info
+        finish = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @check_suite.bamboo_ci_ref })
+        finish.fetch_build_status
+      end
 
       def check_and_update_github_ref(current_stage)
         current_refs = @github.fetch_check_runs
@@ -72,6 +79,8 @@ module Github
         previous_stage = current_stage.previous_stage
 
         return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
+
+        logger(Logger::INFO, "must_update_previous_stage: #{previous_stage.inspect}")
 
         finished_stage_summary(previous_stage)
       end
