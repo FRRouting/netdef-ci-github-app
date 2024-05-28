@@ -36,11 +36,18 @@ module Github
 
         check_stages
         clear_deleted_jobs
+        update_all_stages
 
         [200, 'Finished']
       end
 
       private
+
+      def update_all_stages
+        @check_suite.stages.each do |stage|
+          build_summary(stage.jobs.last)
+        end
+      end
 
       # This method will move all tests that no longer exist in BambooCI to the skipped state,
       # because there are no executions for them.
