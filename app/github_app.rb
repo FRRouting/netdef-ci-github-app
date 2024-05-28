@@ -133,7 +133,7 @@ class GithubApp < Sinatra::Base
     when 'issue_comment'
       halt 404, 'Action not found' if payload.nil? or payload['comment'].nil?
 
-      case payload.dig('comment', 'body')
+      case payload.dig('comment', 'body').to_s.downcase
       when /ci:retry/
         halt Github::Retry::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
       when /ci:rerun/
