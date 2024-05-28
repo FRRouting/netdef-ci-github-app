@@ -25,6 +25,10 @@ class CheckSuite < ActiveRecord::Base
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
+  def stages_failure
+    stages.joins(:jobs).where(jobs: { status: %w[cancelled failure] }).all.uniq
+  end
+
   def finished?
     !running?
   end

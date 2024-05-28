@@ -41,6 +41,21 @@ module Github
         [200, 'Finished']
       end
 
+      def fetch_build_status
+        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
+      end
+
+      # Checks if CI still running
+      def in_progress?(build_status)
+        @logger.info ">>> ci_stopped?: #{ci_stopped?(build_status)}"
+        @logger.info ">>> ci_hanged?: #{ci_hanged?(build_status)}"
+
+        return false if ci_hanged?(build_status)
+        return false if build_status['currentStage'].casecmp('final').zero?
+
+        true
+      end
+
       private
 
       def update_all_stages
@@ -57,17 +72,6 @@ module Github
         @check_suite.ci_jobs.where(status: %w[queued in_progress]).each do |ci_job|
           ci_job.skipped(github_check)
         end
-      end
-
-      # Checks if CI still running
-      def in_progress?(build_status)
-        @logger.info ">>> ci_stopped?: #{ci_stopped?(build_status)}"
-        @logger.info ">>> ci_hanged?: #{ci_hanged?(build_status)}"
-
-        return false if ci_hanged?(build_status)
-        return false if build_status['currentStage'].casecmp('final').zero?
-
-        true
       end
 
       def ci_stopped?(build_status)
@@ -157,10 +161,6 @@ module Github
 
       def fetch_ci_execution
         @result = get_status(@check_suite.bamboo_ci_ref)
-      end
-
-      def fetch_build_status
-        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
     end
   end
