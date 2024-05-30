@@ -13,6 +13,7 @@ require 'otr-activerecord'
 OTR::ActiveRecord.db_dir = 'db'
 OTR::ActiveRecord.migrations_paths = ['db/migrate']
 OTR::ActiveRecord.configure_from_file! 'config/database.yml'
+ActiveRecord::Base.logger.level = Logger::WARN
 
 Dir['lib/models/*.rb'].each { |model| require_relative model }
 
