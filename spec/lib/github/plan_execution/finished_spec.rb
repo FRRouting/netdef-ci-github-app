@@ -77,6 +77,56 @@ describe Github::PlanExecution::Finished do
   end
 
   describe 'Finishing execution' do
+    context 'when receives a valid payload - but stages does not have tests' do
+      let(:check_suite) { create(:check_suite, :with_stages) }
+      let(:status) { 200 }
+      let(:body) do
+        {
+          'stages' => {
+            'stage' => [
+              'results' => {
+                'result' =>
+                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              }
+            ]
+          }
+        }
+      end
+      let(:payload) { { 'bamboo_ref' => check_suite.bamboo_ci_ref } }
+
+      it 'must returns error' do
+        expect(pla_exec.finished).to eq([200, 'Finished'])
+      end
+    end
+
+    context 'when receives a valid payload - but result has error' do
+      let(:status) { 200 }
+      let(:body) do
+        {
+          'status-code' => 400
+        }
+      end
+      let(:payload) { { 'bamboo_ref' => check_suite.bamboo_ci_ref } }
+
+      before do
+        stub_request(:get, url)
+          .with(
+            headers: {
+              'Accept' => %w[*/* application/json],
+              'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
+              'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
+              'Host' => '127.0.0.1',
+              'User-Agent' => 'Ruby'
+            }
+          )
+          .to_return(status: status, body: body.to_json, headers: {})
+      end
+
+      it 'must returns error' do
+        expect(pla_exec.finished).to eq([200, 'Finished'])
+      end
+    end
+
     context 'when receives a valid payload - Successful' do
       let(:status) { 200 }
       let(:body) do

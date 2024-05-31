@@ -40,8 +40,8 @@ class WatchDog
 
   def check_suites_fetch_map
     CheckSuite
-      .joins(:ci_jobs)
-      .where(ci_jobs: { status: %w[queued in_progress] }, created_at: [..Time.now])
+      .joins(:stages)
+      .where(stages: { status: %w[queued in_progress] }, created_at: [..Time.now])
       .map(&:id)
       .uniq
   end

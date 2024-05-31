@@ -12,6 +12,7 @@ require_relative '../../github/check'
 require_relative '../../bamboo_ci/download'
 require_relative '../../bamboo_ci/running_plan'
 require_relative '../../helpers/github_logger'
+require_relative '../../bamboo_ci/result'
 
 module Github
   module Build
