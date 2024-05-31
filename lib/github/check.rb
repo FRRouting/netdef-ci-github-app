@@ -111,7 +111,7 @@ module Github
     end
 
     def installation_id
-      @authenticate_app.find_app_installations.first['id'].to_i
+      @authenticate_app.find_app_installations(accept: 'application/vnd.github.v3+json').first['id'].to_i
     end
 
     def signature
@@ -198,7 +198,10 @@ module Github
 
       return if installation_id.zero?
 
-      token = @authenticate_app.create_app_installation_access_token(installation_id)[:token]
+      token =
+        @authenticate_app
+        .create_app_installation_access_token(installation_id, accept: 'application/vnd.github.v3+json')[:token]
+
       @app = Octokit::Client.new(bearer_token: token)
     end
   end
