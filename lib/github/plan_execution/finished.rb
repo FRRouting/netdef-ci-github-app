@@ -59,9 +59,15 @@ module Github
       private
 
       def update_all_stages
-        @check_suite.stages.each do |stage|
-          build_summary(stage.jobs.last)
-        end
+        last_stage =
+          Stage
+          .joins(:configuration)
+          .where(check_suite: @check_suite)
+          .max_by { |stage| stage.configuration.position }
+
+        return if last_stage.nil? or last_stage.jobs.last.nil?
+
+        build_summary(last_stage.jobs.last)
       end
 
       # This method will move all tests that no longer exist in BambooCI to the skipped state,
@@ -150,6 +156,8 @@ module Github
       def check_stages
         github_check = Github::Check.new(@check_suite)
         @logger.info ">>> @result: #{@result.inspect}"
+        return if @result.nil? or @result.empty? or @result['status-code'] == 404
+
         @result.dig('stages', 'stage').each do |stage|
           stage.dig('results', 'result').each do |result|
             ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: @check_suite.id)
