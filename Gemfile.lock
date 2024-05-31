@@ -6,8 +6,6 @@ GEM
     activerecord (7.0.7.2)
       activemodel (= 7.0.7.2)
       activesupport (= 7.0.7.2)
-    activerecord-postgresql-adapter (0.0.1)
-      pg
     activesupport (7.0.7.2)
       concurrent-ruby (~> 1.0, >= 1.0.2)
       i18n (>= 1.6, < 2)
@@ -153,7 +151,6 @@ PLATFORMS
   x86_64-linux
 
 DEPENDENCIES
-  activerecord-postgresql-adapter
   database_cleaner
   factory_bot
   faker
