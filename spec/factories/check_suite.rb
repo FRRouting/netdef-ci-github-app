@@ -39,5 +39,11 @@ FactoryBot.define do
         create_list(:ci_job, 5, check_suite: check_suite, stage: stage, status: 1)
       end
     end
+
+    trait :with_stages do
+      after(:create) do |check_suite|
+        create(:stage, check_suite: check_suite)
+      end
+    end
   end
 end

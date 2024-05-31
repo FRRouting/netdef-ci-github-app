@@ -12,11 +12,12 @@ SimpleCov.start do
   enable_coverage :branch
   primary_coverage :branch
   add_filter %r{^/spec/}
+  add_filter 'database_loader.rb'
   add_group 'Models', 'lib/models'
   add_group 'GitHub Functions', 'lib/github'
   add_group 'Bamboo CI Functions', 'lib/bamboo_ci'
   add_group 'Helpers', 'lib/helpers'
-  add_group 'Others', %w[app/ database_loader.rb]
+  add_group 'Others', %w[app/]
 
   minimum_coverage_by_file line: 90, branch: 90
 end

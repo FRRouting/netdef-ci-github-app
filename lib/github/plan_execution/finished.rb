@@ -156,7 +156,7 @@ module Github
       def check_stages
         github_check = Github::Check.new(@check_suite)
         @logger.info ">>> @result: #{@result.inspect}"
-        return if @result.nil? or @result.empty? or @result['status-code'] == 404
+        return if @result.nil? or @result.empty? or @result['status-code']&.between?(400, 500)
 
         @result.dig('stages', 'stage').each do |stage|
           stage.dig('results', 'result').each do |result|
