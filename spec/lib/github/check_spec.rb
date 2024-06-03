@@ -90,7 +90,7 @@ describe Github::Check do
     before do
       allow(fake_client).to receive(:create_check_run)
         .with(check_suite.pull_request.repository, name,
-              check_suite.commit_sha_ref, accept: 'application/vnd.github+json')
+              check_suite.commit_sha_ref, accept: 'application/vnd.github.antiope-preview+json')
         .and_return(pr_info)
     end
 
@@ -110,7 +110,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                accept: 'application/vnd.github+json'
+                accept: 'application/vnd.github.antiope-preview+json'
               })
         .and_return(pr_info)
     end
@@ -133,7 +133,7 @@ describe Github::Check do
               {
                 status: status,
                 output: output,
-                accept: 'application/vnd.github+json'
+                accept: 'application/vnd.github.antiope-preview+json'
               })
         .and_return(pr_info)
     end
@@ -199,7 +199,7 @@ describe Github::Check do
               {
                 status: status,
                 conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                accept: 'application/vnd.github.antiope-preview+json'
               })
         .and_return(true)
     end
