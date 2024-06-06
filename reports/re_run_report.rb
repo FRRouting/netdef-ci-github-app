@@ -96,6 +96,8 @@ module Reports
 
     def raw_output(result, file_descriptor: nil)
       result.each_pair do |pull_request, info|
+        next if info[:total] <= OFFENDER_LIMIT
+
         print("\nPull Request: ##{pull_request} - Reruns: #{info[:total]}", file_descriptor)
 
         info[:check_suites].each do |cs|
