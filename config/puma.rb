@@ -18,7 +18,9 @@ plugin :metrics
 
 threads 1, (ENV['RAILS_MAX_THREADS'] || 5).to_i
 
-metrics_url 'tcp://0.0.0.0:9090'
+metrics_port = ENV['RACK_ENV'] == 'production' ? 9393 : 9394
+
+metrics_url "tcp://0.0.0.0:#{metrics_port}"
 
 port GitHubApp::Configuration.instance.config['port'] || 4667
 
