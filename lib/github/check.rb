@@ -63,7 +63,7 @@ module Github
         @check_suite.pull_request.repository,
         name,
         @check_suite.commit_sha_ref,
-        accept: 'application/vnd.github+json'
+        accept: 'application/vnd.github.antiope-preview+json'
       )
     end
 
@@ -92,14 +92,20 @@ module Github
     end
 
     def get_check_run(check_ref)
-      @app.check_run(@check_suite.pull_request.repository, check_ref).to_h
+      @app.check_run(@check_suite.pull_request.repository,
+                     check_ref,
+                     accept: 'application/vnd.github.antiope-preview+json').to_h
     end
 
     def fetch_check_runs
       return [] if @check_suite.nil?
 
       @app
-        .check_runs_for_ref(@check_suite.pull_request.repository, @check_suite.pull_request.branch_name)
+        .check_runs_for_ref(
+          @check_suite.pull_request.repository,
+          @check_suite.pull_request.branch_name,
+          accept: 'application/vnd.github.antiope-preview+json'
+        )
         .to_h[:check_runs]
         .map do |check_run|
         check_run[:id]
@@ -129,7 +135,7 @@ module Github
     def basic_status(check_ref, status, output)
       opts = {
         status: status,
-        accept: 'application/vnd.github+json'
+        accept: 'application/vnd.github.antiope-preview+json'
       }
 
       opts[:output] = output unless output.empty?

@@ -45,7 +45,7 @@ module Github
 
       def enqueued_failure_tests
         @check_suite.ci_jobs.where.not(status: :success).each do |ci_job|
-          next unless ci_job.stage.configuration.can_retry?
+          next if must_skip_retry?(ci_job)
 
           logger(Logger::WARN, "Enqueue CiJob: #{ci_job.inspect}")
           ci_job.enqueue(@github)
@@ -56,6 +56,10 @@ module Github
       end
 
       private
+
+      def must_skip_retry?(ci_job)
+        ci_job.stage.nil? || !ci_job.stage.configuration.can_retry?
+      end
 
       def logger(severity, message)
         @loggers.each do |logger_object|
