@@ -1,5 +1,3 @@
-# frozen_string_literal: true
-
 #  SPDX-License-Identifier: BSD-2-Clause
 #
 #  puma.rb
@@ -8,14 +6,20 @@
 #  Copyright (c) 2023 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
+#  frozen_string_literal: true
 
 require_relative '../config/setup'
 require 'puma'
+require 'puma/metrics/app'
 
 workers 10
 
-threads_count = (ENV['RAILS_MAX_THREADS'] || 5).to_i
-threads 1, threads_count
+plugin :metrics
+
+threads 1, (ENV['RAILS_MAX_THREADS'] || 5).to_i
+
+metrics_url 'tcp://0.0.0.0:9090'
+
 port GitHubApp::Configuration.instance.config['port'] || 4667
 
 preload_app!
