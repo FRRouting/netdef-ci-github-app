@@ -27,7 +27,6 @@ gem 'otr-activerecord', '2.0.3'
 
 # PostgreSQL adapter
 gem 'pg', '1.2.3'
-gem 'puma-metrics', '1.2.5'
 
 gem 'netrc'
 
