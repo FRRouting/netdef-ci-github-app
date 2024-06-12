@@ -34,6 +34,7 @@ require_relative 'helpers/configuration'
 require_relative 'helpers/github_logger'
 require_relative 'helpers/request'
 require_relative 'helpers/sinatra_payload'
+require_relative 'helpers/telemetry'
 
 # Slack libs
 require_relative 'slack/slack'
