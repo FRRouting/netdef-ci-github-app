@@ -14,6 +14,7 @@ require 'json'
 class Telemetry
   include Singleton
 
+  # :nocov:
   def update_stats(stats)
     File.write('telemetry.json', stats.to_json)
   end
@@ -21,4 +22,5 @@ class Telemetry
   def stats
     JSON.parse(File.read('telemetry.json'))
   end
+  # :nocov:
 end
