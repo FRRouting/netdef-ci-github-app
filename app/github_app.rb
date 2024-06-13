@@ -38,6 +38,12 @@ class GithubApp < Sinatra::Base
     attr_writer :sinatra_logger_level
   end
 
+  get '/telemetry' do
+    content_type :json
+
+    Telemetry.instance.stats
+  end
+
   get '/ping' do
     halt 200, 'Pong'
   end
