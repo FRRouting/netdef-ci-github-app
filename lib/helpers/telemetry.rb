@@ -17,7 +17,7 @@ class Telemetry
   def update_stats(stats)
     File.write('telemetry.json', stats.to_json)
   end
-  
+
   def stats
     JSON.parse(File.read('telemetry.json'))
   end
