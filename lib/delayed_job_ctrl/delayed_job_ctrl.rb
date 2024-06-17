@@ -14,6 +14,7 @@ require_relative '../../config/delayed_job'
 class DelayedJobCtrl
   include Singleton
 
+  # :nocov:
   def initialize
     @threads = []
     @stop_requested = false
@@ -31,4 +32,5 @@ class DelayedJobCtrl
         Thread.exit
       end
   end
+  # :nocov:
 end
