@@ -26,6 +26,7 @@ require 'simplecov'
 SimpleCov.start
 
 require_relative '../app/github_app'
+require_relative '../lib/delayed_job_ctrl/delayed_job_ctrl'
 
 def app
   GithubApp
@@ -40,6 +41,15 @@ RSpec.configure do |config|
 
   config.before(:all) do
     DatabaseCleaner.clean
+    DelayedJobCtrl.instance.create_worker(0, 10)
+  end
+
+  config.after(:all) do
+    DelayedJobCtrl.instance.stop_workers
+  end
+
+  config.before(:each) do
+    Delayed::Worker.delay_jobs = false
   end
 
   config.after(:each) do

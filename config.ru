@@ -25,4 +25,6 @@ use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, m
 
 Rack::Handler::Puma.run Rack::URLMap.new('/' => GithubApp)
 
+DelayedJobCtrl.instance.stop_workers
+
 exit 0
