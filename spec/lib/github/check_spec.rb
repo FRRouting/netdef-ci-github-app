@@ -74,7 +74,9 @@ describe Github::Check do
     let(:pr_info) { { comment_id: comment_id } }
 
     before do
-      allow(fake_client).to receive(:create_issue_comment_reaction).with(repo, comment_id, '+1').and_return(pr_info)
+      allow(fake_client).to receive(:create_issue_comment_reaction)
+        .with(repo, comment_id, '+1', accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+        .and_return(pr_info)
     end
 
     it 'must returns pull request info' do
