@@ -34,6 +34,9 @@ gem 'puma', '5.5.2'
 
 gem 'rake', '13.0.6'
 
+# Delayed Job
+gem 'delayed_job_active_record'
+
 # Code lint
 gem 'rubocop', '1.56.1', group: %i[development test]
 gem 'rubocop-performance', group: %i[development test]
