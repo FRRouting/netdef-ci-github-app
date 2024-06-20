@@ -18,9 +18,9 @@ require 'rack/session/cookie'
 File.write('.session.key', SecureRandom.hex(32))
 
 pids = []
-pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work MIN_PRIORITY=0 MAX_PRIORITY=3")
-pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work MIN_PRIORITY=4 MAX_PRIORITY=6")
-pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work MIN_PRIORITY=7 MAX_PRIORITY=9")
+pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=0,1,2,3")
+pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=4,5,6")
+pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=7,8,9")
 
 use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, max_age: 86_400
 

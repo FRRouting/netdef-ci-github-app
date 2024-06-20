@@ -24,9 +24,9 @@ namespace :jobs do
 
   desc 'Start a delayed_job worker.'
   task :work do
+    puts "Starting delayed_job worker - Queues: #{ENV.fetch('QUEUES', 'default')}"
     Delayed::Worker.new(
-      min_priority: ENV.fetch('MIN_PRIORITY', 0),
-      max_priority: ENV.fetch('MAX_PRIORITY', 10),
+      queue: ENV.fetch('QUEUES', 'default'),
       quiet: false
     ).start
   end
