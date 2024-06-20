@@ -10,7 +10,6 @@
 
 require_relative 'app/github_app'
 require_relative 'config/delayed_job'
-require_relative 'lib/delayed_job_ctrl/delayed_job_ctrl'
 
 require 'puma'
 require 'rack/handler/puma'
@@ -18,13 +17,15 @@ require 'rack/session/cookie'
 
 File.write('.session.key', SecureRandom.hex(32))
 
-DelayedJobCtrl.instance.create_worker(0, 5)
-DelayedJobCtrl.instance.create_worker(6, 9)
+pids = []
+pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work MIN_PRIORITY=0 MAX_PRIORITY=3")
+pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work MIN_PRIORITY=4 MAX_PRIORITY=6")
+pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work MIN_PRIORITY=7 MAX_PRIORITY=9")
 
 use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, max_age: 86_400
 
 Rack::Handler::Puma.run Rack::URLMap.new('/' => GithubApp)
 
-DelayedJobCtrl.instance.stop_workers
+pids.each { |pid| Process.kill('TERM', pid.to_i) }
 
 exit 0

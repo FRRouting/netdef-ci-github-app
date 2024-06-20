@@ -26,7 +26,7 @@ require 'simplecov'
 SimpleCov.start
 
 require_relative '../app/github_app'
-require_relative '../lib/delayed_job_ctrl/delayed_job_ctrl'
+require_relative '../config/delayed_job'
 
 def app
   GithubApp
@@ -39,13 +39,22 @@ RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include WebMock::API
 
+  pid = nil
+
   config.before(:all) do
     DatabaseCleaner.clean
-    DelayedJobCtrl.instance.create_worker(0, 10)
+
+    pid = Thread.new do
+      Delayed::Worker.new(
+        min_priority: 0,
+        max_priority: 10,
+        quiet: true
+      ).start
+    end
   end
 
   config.after(:all) do
-    DelayedJobCtrl.instance.stop_workers
+    pid&.exit
   end
 
   config.before(:each) do

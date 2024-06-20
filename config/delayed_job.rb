@@ -20,6 +20,8 @@ module Rails
   end
 end
 
+DELAYED_JOB_TIMER = 5
+
 Rails.logger = GithubLogger.instance.create('delayed_job.log', Logger::INFO)
 ActiveRecord::Base.logger = GithubLogger.instance.create('delayed_job.log', Logger::INFO)
 

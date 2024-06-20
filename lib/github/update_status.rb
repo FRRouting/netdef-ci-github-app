@@ -93,7 +93,7 @@ module Github
 
       if can_add_new_job?
         return CiJobStatus
-               .delay(run_at: DelayedJobCtrl::DELAY.seconds.from_now, priority: queue)
+               .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, priority: queue)
                .update(@job.check_suite.id, @job.id)
       end
 
@@ -103,7 +103,7 @@ module Github
     def delete_and_create_delayed_job(queue)
       fetch_delayed_job.destroy_all
       CiJobStatus
-        .delay(run_at: DelayedJobCtrl::DELAY.seconds.from_now, priority: queue)
+        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, priority: queue)
         .update(@job.check_suite.id, @job.id)
     end
 
