@@ -26,6 +26,10 @@ use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, m
 
 Rack::Handler::Puma.run Rack::URLMap.new('/' => GithubApp)
 
-pids.each { |pid| Process.kill('TERM', pid.to_i) }
+pids.each do |pid|
+  Process.kill('TERM', pid.to_i)
+rescue Errno::ESRCH
+  puts "Process #{pid} already dead"
+end
 
 exit 0
