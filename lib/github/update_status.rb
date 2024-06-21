@@ -79,7 +79,7 @@ module Github
 
       return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
 
-      update_build_summary_or_finished
+      insert_new_delayed_job
 
       [200, 'Success']
     rescue StandardError => e
@@ -88,16 +88,31 @@ module Github
       [500, 'Internal Server Error']
     end
 
-    def update_build_summary_or_finished
-      summary = Github::Build::Summary.new(@job)
-      summary.build_summary
+    def insert_new_delayed_job
+      queue = @job.check_suite.pull_request.github_pr_id % 10
 
-      return unless @job.finished?
+      if can_add_new_job?
+        return CiJobStatus
+               .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
+               .update(@job.check_suite.id, @job.id)
+      end
 
-      logger(Logger::INFO, "Github::PlanExecution::Finished: '#{@job.check_suite.bamboo_ci_ref}'")
+      delete_and_create_delayed_job(queue)
+    end
 
-      finished = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @job.check_suite.bamboo_ci_ref })
-      finished.finished
+    def delete_and_create_delayed_job(queue)
+      fetch_delayed_job.destroy_all
+      CiJobStatus
+        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
+        .update(@job.check_suite.id, @job.id)
+    end
+
+    def can_add_new_job?
+      fetch_delayed_job.empty?
+    end
+
+    def fetch_delayed_job
+      Delayed::Job.where('handler LIKE ?', "%method_name: :update\nargs:\n- #{@job.check_suite.id}%")
     end
 
     def current_execution?
