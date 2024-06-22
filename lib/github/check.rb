@@ -102,14 +102,17 @@ module Github
     def fetch_check_runs
       return [] if @check_suite.nil?
 
-      @app
+      check_runs =
+        @app
         .check_runs_for_ref(
           @check_suite.pull_request.repository,
           @check_suite.pull_request.branch_name,
           accept: Octokit::Preview::PREVIEW_TYPES[:checks]
-        )
-        .to_h[:check_runs]
-        .map do |check_run|
+        ).to_h[:check_runs]
+
+      return [] if check_runs.nil?
+
+      check_runs.map do |check_run|
         check_run[:id]
       end
     rescue Octokit::UnprocessableEntity => e
