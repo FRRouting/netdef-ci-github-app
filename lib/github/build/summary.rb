@@ -34,7 +34,7 @@ module Github
       def build_summary
         current_stage = @job.stage
         current_stage = fetch_parent_stage if current_stage.nil?
-        check_and_update_github_ref(current_stage)
+        current_stage.refresh_reference(@github)
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
         msg = "Github::Build::Summary - #{@job.inspect}, #{current_stage.inspect}, bamboo info: #{bamboo_info}"
@@ -58,22 +58,6 @@ module Github
       def bamboo_info
         finish = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @check_suite.bamboo_ci_ref })
         finish.fetch_build_status
-      end
-
-      def check_and_update_github_ref(current_stage)
-        current_refs = @github.fetch_check_runs
-
-        logger(Logger::INFO,
-               'check_and_update_github_ref - current_stage: ' \
-               "#{current_stage.inspect} current_refs: #{current_refs.inspect}")
-
-        return if current_refs.include? current_stage.check_ref.to_i
-
-        logger(Logger::INFO,
-               'check_and_update_github_ref - current_stage: ' \
-               "#{current_stage.inspect} current_refs: #{current_refs.inspect} - Refreshing reference.")
-
-        current_stage.refresh_reference(@github)
       end
 
       def must_update_previous_stage(current_stage)

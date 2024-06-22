@@ -84,6 +84,23 @@ describe Github::Check do
     end
   end
 
+  context 'when call comment_reaction_thumb_down' do
+    let(:pr_id) { 1 }
+    let(:repo) { 'test' }
+    let(:comment_id) { 1 }
+    let(:pr_info) { { comment_id: comment_id } }
+
+    before do
+      allow(fake_client).to receive(:create_issue_comment_reaction)
+        .with(repo, comment_id, '-1', accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+        .and_return(pr_info)
+    end
+
+    it 'must returns pull request info' do
+      expect(check.comment_reaction_thumb_down(repo, comment_id)).to eq(pr_info)
+    end
+  end
+
   context 'when call create' do
     let(:pr_id) { 1 }
     let(:name) { 'test' }
