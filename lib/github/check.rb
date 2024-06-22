@@ -99,28 +99,6 @@ module Github
                      accept: Octokit::Preview::PREVIEW_TYPES[:checks]).to_h
     end
 
-    def fetch_check_runs
-      return [] if @check_suite.nil?
-
-      check_runs =
-        @app
-        .check_runs_for_ref(
-          @check_suite.pull_request.repository,
-          @check_suite.pull_request.branch_name,
-          accept: Octokit::Preview::PREVIEW_TYPES[:checks]
-        ).to_h[:check_runs]
-
-      return [] if check_runs.nil?
-
-      check_runs.map do |check_run|
-        check_run[:id]
-      end
-    rescue Octokit::UnprocessableEntity => e
-      @logger.error "fetch_check_runs: #{e.class} #{e.message}"
-
-      []
-    end
-
     def installation_id
       @authenticate_app.find_app_installations(accept: 'application/vnd.github.v3+json').first['id'].to_i
     end
