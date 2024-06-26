@@ -167,9 +167,8 @@ module Github
 
       def summary_basic_output(stage)
         jobs = stage.jobs.reload
-        in_progress = jobs.where(status: :in_progress)
 
-        header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
+        header = queued_message(jobs)
         header += in_progress_message(jobs)
         header += generate_success_failure_info(stage.name, jobs)
 
@@ -200,9 +199,23 @@ module Github
       end
 
       def in_progress_message(jobs)
-        jobs.where(status: %i[in_progress queued]).map do |job|
+        in_progress = jobs.where(status: :in_progress)
+
+        message = "\n\n:arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
+
+        message + jobs.where(status: %i[in_progress]).map do |job|
           "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
         end.join("\n")
+      end
+
+      def queued_message(jobs)
+        queued = jobs.where(status: :queued)
+
+        message = ":arrow_right: Jobs queued: #{queued.size}/#{jobs.size}\n\n"
+        message +
+          queued.map do |job|
+            "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          end.join("\n")
       end
 
       def success_message(jobs)
