@@ -169,9 +169,7 @@ module Github
       end
 
       def action?
-        return false if action.nil?
-
-        action.downcase.match? 'ci:rerun' and @payload['action'] == 'created'
+        action.to_s.downcase.match? 'ci:rerun' and @payload['action'] == 'created'
       end
     end
   end

@@ -38,6 +38,12 @@ class GithubApp < Sinatra::Base
     attr_writer :sinatra_logger_level
   end
 
+  get '/telemetry' do
+    content_type :json
+
+    Telemetry.instance.stats
+  end
+
   get '/ping' do
     halt 200, 'Pong'
   end
@@ -125,15 +131,23 @@ class GithubApp < Sinatra::Base
 
       halt 200, 'OK' unless %w[rerequested].include? payload['action'].downcase
 
-      re_run = Github::Retry.new(payload, logger_level: GithubApp.sinatra_logger_level)
+      re_run = Github::Retry::Command.new(payload, logger_level: GithubApp.sinatra_logger_level)
       halt re_run.start
     when 'installation'
       logger.debug '>>> Received a new installation policy'
       halt 202, 'Updated'
     when 'issue_comment'
-      logger.debug '>>> Received a new issue comment'
+      halt 404, 'Action not found' if payload.nil? or payload['comment'].nil?
 
-      halt Github::ReRun::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+      case payload.dig('comment', 'body').to_s.downcase
+      when /ci:retry/
+        halt Github::Retry::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+      when /ci:rerun/
+        halt Github::ReRun::Comment.new(payload, logger_level: GithubApp.sinatra_logger_level).start
+      else
+        logger.debug '>>> Just a comment'
+        halt 200, 'Just a comment'
+      end
     when 'check_suite'
       logger.debug '>>> Received a new check_suite command'
       halt 200, 'OK' unless payload['action'].downcase.match?('rerequested')

@@ -86,12 +86,31 @@ module Github
         logger(Logger::INFO, 'Stopping previous execution')
         logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
-        fetch_run_ci_by_pr.each do |check_suite|
-          check_suite.ci_jobs.not_skipped.each do |ci_job|
-            ci_job.cancelled(@github_check)
-          end
+        @last_check_suite = nil
 
-          BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+        fetch_run_ci_by_pr.each do |check_suite|
+          stop_and_update_previous_execution(check_suite)
+        end
+      end
+
+      def stop_and_update_previous_execution(check_suite)
+        if @last_check_suite.nil?
+          check_suite.update(stopped_in_stage: check_suite.stages.where(status: :in_progress).last)
+        else
+          check_suite.update(cancelled_previous_check_suite_id: @last_check_suite.id)
+          @last_check_suite.update(stopped_in_stage: check_suite.stages.where(status: :in_progress).last)
+        end
+
+        cancel_previous_jobs(check_suite)
+
+        @last_check_suite = check_suite
+
+        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+      end
+
+      def cancel_previous_jobs(check_suite)
+        check_suite.ci_jobs.not_skipped.each do |ci_job|
+          ci_job.cancelled(@github_check)
         end
       end
 
@@ -145,6 +164,8 @@ module Github
         SlackBot.instance.execution_started_notification(check_suite)
 
         check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
+
+        check_suite.update(cancelled_previous_check_suite: @last_check_suite)
 
         create_ci_jobs(bamboo_plan, check_suite)
 

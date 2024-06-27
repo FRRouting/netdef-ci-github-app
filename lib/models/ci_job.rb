@@ -30,6 +30,8 @@ class CiJob < ActiveRecord::Base
   scope :not_skipped, -> { where.not(status: 'skipped') }
   scope :failure, -> { where(status: %i[failure cancelled skipped]) }
 
+  default_scope -> { order(id: :asc) }, all_queries: true
+
   def finished?
     !%w[queued in_progress].include?(status)
   end

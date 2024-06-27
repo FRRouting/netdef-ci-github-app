@@ -16,5 +16,6 @@ ENV['RAILS_ENV'] = ARGV.shift || 'production'
 puts "Starting console: #{ENV.fetch('RAILS_ENV', nil)}"
 
 require_relative '../config/setup'
+require_relative '../config/delayed_job'
 
 IRB.start

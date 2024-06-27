@@ -16,6 +16,8 @@ class Stage < ActiveRecord::Base
   belongs_to :configuration, class_name: 'StageConfiguration', foreign_key: 'stage_configuration_id'
   belongs_to :check_suite
 
+  default_scope -> { order(id: :asc) }, all_queries: true
+
   def running?
     jobs.where(status: %i[queued in_progress]).any?
   end

@@ -200,7 +200,7 @@ describe 'GithubApp' do
         end
       end
 
-      context 'when receive HTTP_X_GITHUB_EVENT issue_comment' do
+      context 'when receive HTTP_X_GITHUB_EVENT issue_comment - rerun' do
         let(:headers) do
           {
             'HTTP_ACCEPT' => 'application/json',
@@ -209,16 +209,73 @@ describe 'GithubApp' do
           }
         end
 
-        let(:user) { create(:github_user) }
-        let(:payload) do
+        let(:payload) { { x: 1, 'action' => 'rerequested', 'comment' => { 'body' => 'ci:rerun' } } }
+
+        before do
+          allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+        end
+
+        it 'must returns error' do
+          post '/', payload.to_json, headers
+
+          expect(last_response.status).to eq 404
+        end
+      end
+
+      context 'when receive HTTP_X_GITHUB_EVENT issue_comment - retry' do
+        let(:headers) do
           {
-            x: 1,
-            'action' => 'rerequested',
-            'sender' => { 'login' => user.github_username },
-            'issue' => { 'number' => 1 },
-            'repository' => { 'full_name' => 'blah' }
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_SIGNATURE' => header,
+            'HTTP_X_GITHUB_EVENT' => 'issue_comment'
           }
         end
+
+        let(:payload) { { x: 1, 'action' => 'rerequested', 'comment' => { 'body' => 'ci:retry' } } }
+
+        before do
+          allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+        end
+
+        it 'must returns error' do
+          post '/', payload.to_json, headers
+
+          expect(last_response.status).to eq 404
+        end
+      end
+
+      context 'when receive HTTP_X_GITHUB_EVENT issue_comment - potato' do
+        let(:headers) do
+          {
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_SIGNATURE' => header,
+            'HTTP_X_GITHUB_EVENT' => 'issue_comment'
+          }
+        end
+
+        let(:payload) { { x: 1, 'action' => 'rerequested', 'comment' => { 'body' => 'just a potato' } } }
+
+        before do
+          allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)
+        end
+
+        it 'must returns success' do
+          post '/', payload.to_json, headers
+
+          expect(last_response.status).to eq 200
+        end
+      end
+
+      context 'when receive HTTP_X_GITHUB_EVENT issue_comment - comment null' do
+        let(:headers) do
+          {
+            'HTTP_ACCEPT' => 'application/json',
+            'HTTP_SIGNATURE' => header,
+            'HTTP_X_GITHUB_EVENT' => 'issue_comment'
+          }
+        end
+
+        let(:payload) { { x: 1, 'action' => 'rerequested', 'comment' => nil } }
 
         before do
           allow(GitHubApp::Configuration.instance).to receive(:debug?).and_return(false)

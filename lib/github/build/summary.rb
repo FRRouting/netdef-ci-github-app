@@ -12,6 +12,7 @@ require_relative '../../github/check'
 require_relative '../../bamboo_ci/download'
 require_relative '../../bamboo_ci/running_plan'
 require_relative '../../helpers/github_logger'
+require_relative '../../bamboo_ci/result'
 
 module Github
   module Build
@@ -27,15 +28,17 @@ module Github
           @loggers << GithubLogger.instance.create(filename, logger_level)
         end
 
-        @loggers << GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
+        @pr_log = GithubLogger.instance.create("pr#{@check_suite.pull_request.github_pr_id}.log", logger_level)
       end
 
       def build_summary
         current_stage = @job.stage
         current_stage = fetch_parent_stage if current_stage.nil?
-        check_and_update_github_ref(current_stage)
+        current_stage.refresh_reference(@github)
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
+        msg = "Github::Build::Summary - #{@job.inspect}, #{current_stage.inspect}, bamboo info: #{bamboo_info}"
+        @pr_log.info(msg)
 
         # Update current stage
         update_summary(current_stage)
@@ -52,26 +55,17 @@ module Github
 
       private
 
-      def check_and_update_github_ref(current_stage)
-        current_refs = @github.fetch_check_runs
-
-        logger(Logger::INFO,
-               'check_and_update_github_ref - current_stage: ' \
-               "#{current_stage.inspect} current_refs: #{current_refs.inspect}")
-
-        return if current_refs.include? current_stage.check_ref.to_i
-
-        logger(Logger::INFO,
-               'check_and_update_github_ref - current_stage: ' \
-               "#{current_stage.inspect} current_refs: #{current_refs.inspect} - Refreshing reference.")
-
-        current_stage.refresh_reference(@github)
+      def bamboo_info
+        finish = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @check_suite.bamboo_ci_ref })
+        finish.fetch_build_status
       end
 
       def must_update_previous_stage(current_stage)
         previous_stage = current_stage.previous_stage
 
         return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
+
+        logger(Logger::INFO, "must_update_previous_stage: #{previous_stage.inspect}")
 
         finished_stage_summary(previous_stage)
       end
@@ -173,9 +167,8 @@ module Github
 
       def summary_basic_output(stage)
         jobs = stage.jobs.reload
-        in_progress = jobs.where(status: :in_progress)
 
-        header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
+        header = queued_message(jobs)
         header += in_progress_message(jobs)
         header += generate_success_failure_info(stage.name, jobs)
 
@@ -206,9 +199,23 @@ module Github
       end
 
       def in_progress_message(jobs)
-        jobs.where(status: %i[in_progress queued]).map do |job|
+        in_progress = jobs.where(status: :in_progress)
+
+        message = "\n\n:arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
+
+        message + jobs.where(status: %i[in_progress]).map do |job|
           "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
         end.join("\n")
+      end
+
+      def queued_message(jobs)
+        queued = jobs.where(status: :queued)
+
+        message = ":arrow_right: Jobs queued: #{queued.size}/#{jobs.size}\n\n"
+        message +
+          queued.map do |job|
+            "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          end.join("\n")
       end
 
       def success_message(jobs)

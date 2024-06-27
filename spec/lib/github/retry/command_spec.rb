@@ -8,7 +8,7 @@
 #
 #  frozen_string_literal: true
 
-describe Github::Retry do
+describe Github::Retry::Command do
   let(:github_retry) { described_class.new(payload) }
   let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
