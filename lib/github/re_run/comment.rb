@@ -24,7 +24,14 @@ module Github
       def start
         return [422, 'Payload can not be blank'] if @payload.nil? or @payload.empty?
         return [404, 'Action not found'] unless action?
+        return notify_error_rerun(comment_id: comment_id) if !can_rerun? or reach_max_rerun_per_pull_request?
 
+        __run__
+      end
+
+      private
+
+      def __run__
         logger(Logger::DEBUG, ">>> Github::ReRun::Comment - sha256: #{sha256.inspect}, payload: #{@payload.inspect}")
 
         check_suite = sha256_or_comment?
@@ -43,8 +50,6 @@ module Github
 
         [201, 'Starting re-run (comment)']
       end
-
-      private
 
       def sha256_or_comment?
         fetch_old_check_suite

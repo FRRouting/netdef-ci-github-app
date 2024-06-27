@@ -84,9 +84,11 @@ module Github
     end
 
     def create_pull_request
+      @user = Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id')).user
+
       @pull_request =
         PullRequest.create(
-          author: @payload.dig('pull_request', 'user', 'login'),
+          author: @user.github_login,
           github_pr_id: github_pr,
           branch_name: @payload.dig('pull_request', 'head', 'ref'),
           repository: @payload.dig('repository', 'full_name'),
@@ -94,6 +96,7 @@ module Github
         )
 
       Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), pull_request: @pull_request)
+      @pull_request
     end
 
     def start_new_execution

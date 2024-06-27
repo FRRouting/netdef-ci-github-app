@@ -1,6 +1,6 @@
 #  SPDX-License-Identifier: BSD-2-Clause
 #
-#  github_user_info.rb
+#  feature.rb
 #  Part of NetDEF CI System
 #
 #  Copyright (c) 2024 by
@@ -10,10 +10,6 @@
 
 require 'otr-activerecord'
 
-class GithubUser < ActiveRecord::Base
-  has_many :pull_requests, dependent: :nullify
-  has_many :check_suites, dependent: :nullify
-  has_many :audit_retries, dependent: :nullify
-
+class Feature < ActiveRecord::Base
   belongs_to :group
 end

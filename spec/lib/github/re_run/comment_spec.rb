@@ -27,13 +27,63 @@ describe Github::ReRun::Comment do
     context 'when receives an empty payload' do
       let(:payload) { {} }
 
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+      end
+
       it 'must returns error' do
         expect(rerun.start).to eq([422, 'Payload can not be blank'])
       end
     end
 
     context 'when receives an invalid command' do
-      let(:payload) { { 'action' => 'delete', 'comment' => { 'body' => 'CI:rerun' } } }
+      let(:payload) do
+        {
+          'action' => 'delete',
+          'comment' => { 'body' => 'CI:rerun' },
+          'sender' => { 'login' => 'john' }
+        }
+      end
+
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: 'blah' } })
+      end
+
+      it 'must returns error' do
+        expect(rerun.start).to eq([404, 'Action not found'])
+      end
+    end
+
+    context 'when receives an empty payload - action' do
+      let(:payload) { { 'comment' => {}, 'sender' => { 'login' => 'john' } } }
+
+      before do
+        create(:group)
+
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: 'abc123' } })
+      end
 
       it 'must returns error' do
         expect(rerun.start).to eq([404, 'Action not found'])
@@ -47,6 +97,8 @@ describe Github::ReRun::Comment do
     let(:fake_translation) { create(:stage_configuration) }
 
     context 'when receives a valid command' do
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
+
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
       let(:ci_jobs) do
         [
@@ -59,7 +111,8 @@ describe Github::ReRun::Comment do
           'action' => 'created',
           'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1 },
           'repository' => { 'full_name' => check_suite.pull_request.repository },
-          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
@@ -77,6 +130,9 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:fetch_username).and_return({})
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: check_suite.commit_sha_ref } })
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -94,6 +150,8 @@ describe Github::ReRun::Comment do
     end
 
     context 'when receives a valid command but can save' do
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
+
       let(:pull_request) { create(:pull_request) }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
       let(:ci_jobs) do
@@ -107,7 +165,8 @@ describe Github::ReRun::Comment do
           'action' => 'created',
           'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1 },
           'repository' => { 'full_name' => check_suite.pull_request.repository },
-          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
       let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
@@ -126,6 +185,9 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:in_progress)
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:fetch_username).and_return({})
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: check_suite.commit_sha_ref } })
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -143,6 +205,7 @@ describe Github::ReRun::Comment do
     end
 
     context 'when has two opened PRs' do
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
       let(:first_pr) { create(:pull_request, github_pr_id: 12, id: 11, repository: 'test') }
       let(:second_pr) { create(:pull_request, github_pr_id: 13, id: 12, repository: 'test') }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: first_pr) }
@@ -160,14 +223,15 @@ describe Github::ReRun::Comment do
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => check_suite.pull_request.repository },
-          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
 
       let(:pull_request_info) do
         {
           head: {
-            ref: 'master'
+            ref: check_suite.commit_sha_ref
           },
           base: {
             ref: 'test',
@@ -194,7 +258,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
-        allow(fake_github_check).to receive(:fetch_username).and_return({})
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -223,6 +287,8 @@ describe Github::ReRun::Comment do
     end
 
     context 'when you receive an comment' do
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
+
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: check_suite.commit_sha_ref, re_run: true) }
 
@@ -240,7 +306,8 @@ describe Github::ReRun::Comment do
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => check_suite.pull_request.repository },
-          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
 
@@ -274,7 +341,7 @@ describe Github::ReRun::Comment do
         allow(fake_github_check).to receive(:cancelled)
         allow(fake_github_check).to receive(:queued)
         allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
-        allow(fake_github_check).to receive(:fetch_username).and_return({})
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -287,6 +354,135 @@ describe Github::ReRun::Comment do
       it 'must returns success' do
         expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suite_rerun).not_to be_nil
+      end
+    end
+
+    context 'when max_retries is reached' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
+      let(:previous_check_suites) do
+        create_list(:check_suite, 5,
+                    re_run: true,
+                    pull_request: check_suite.pull_request,
+                    work_branch: check_suite.work_branch)
+      end
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => {
+            'body' => 'CI:rerun 000000',
+            'id' => '10'
+          },
+          'repository' => { 'full_name' => 'unit_test' },
+          'issue' => { 'number' => '10' },
+          'sender' => { 'login' => check_suite.pull_request.author }
+        }
+      end
+      let(:pull_request_commits) do
+        [
+          { sha: check_suite.commit_sha_ref, date: Time.now }
+        ]
+      end
+      let(:group) { create(:group) }
+
+      before do
+        previous_check_suites
+        group
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(check_suite)
+        allow(fake_github_check).to receive(:add_comment)
+        allow(fake_github_check).to receive(:cancelled)
+        allow(fake_github_check).to receive(:in_progress)
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: check_suite.work_branch } })
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+        allow(fake_github_check).to receive(:comment_reaction_thumb_down)
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive(:start_plan).and_return(200)
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
+
+        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+      end
+
+      it 'must returns error' do
+        expect(rerun.start).to eq([402, 'No permission to run'])
+      end
+    end
+
+    context 'when max_retries is reached but does not receive comment_id' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:ci_jobs) do
+        [
+          { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
+          { name: 'Checkout', job_ref: 'CHK-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
+      let(:previous_check_suites) do
+        create_list(:check_suite, 5,
+                    re_run: true,
+                    pull_request: check_suite.pull_request,
+                    work_branch: check_suite.work_branch)
+      end
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => {
+            'body' => 'CI:rerun 000000'
+          },
+          'repository' => { 'full_name' => 'unit_test' },
+          'issue' => { 'number' => '10' },
+          'sender' => { 'login' => check_suite.pull_request.author }
+        }
+      end
+      let(:pull_request_commits) do
+        [
+          { sha: check_suite.commit_sha_ref, date: Time.now }
+        ]
+      end
+      let(:group) { create(:group) }
+
+      before do
+        previous_check_suites
+        group
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(check_suite)
+        allow(fake_github_check).to receive(:add_comment)
+        allow(fake_github_check).to receive(:cancelled)
+        allow(fake_github_check).to receive(:in_progress)
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:pull_request_info)
+          .and_return({ head: { ref: check_suite.work_branch } })
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+        allow(fake_github_check).to receive(:comment_reaction_thumb_down)
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive(:start_plan).and_return(200)
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
+
+        allow(BambooCi::StopPlan).to receive(:stop)
+        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+      end
+
+      it 'must returns error' do
+        expect(rerun.start).to eq([402, 'No permission to run'])
       end
     end
   end
@@ -308,7 +504,7 @@ describe Github::ReRun::Comment do
       allow(fake_github_check).to receive(:cancelled)
       allow(fake_github_check).to receive(:queued)
       allow(fake_github_check).to receive(:pull_request_info).and_return(pull_request_info)
-      allow(fake_github_check).to receive(:fetch_username).and_return({})
+      allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
 
       allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
       allow(fake_plan_run).to receive(:start_plan).and_return(200)
@@ -319,6 +515,8 @@ describe Github::ReRun::Comment do
     end
 
     context 'when you receive an comment and does not exist a PR' do
+      let!(:user) { create(:github_user) }
+
       let(:commit_sha) { Faker::Internet.uuid }
 
       let(:payload) do
@@ -329,7 +527,8 @@ describe Github::ReRun::Comment do
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => 'unit_test' },
-          'issue' => { 'number' => '10' }
+          'issue' => { 'number' => '10' },
+          'sender' => { 'login' => 'john' }
         }
       end
 
@@ -367,7 +566,10 @@ describe Github::ReRun::Comment do
     end
 
     context 'when can not save check_suite' do
+      let!(:user) { create(:github_user, github_username: check_suite.pull_request.author) }
+
       let(:commit_sha) { Faker::Internet.uuid }
+      let(:check_suite) { create(:check_suite) }
 
       let(:payload) do
         {
@@ -376,7 +578,8 @@ describe Github::ReRun::Comment do
             'body' => 'CI:rerun 000000'
           },
           'repository' => { 'full_name' => 'unit_test' },
-          'issue' => { 'number' => '10' }
+          'issue' => { 'number' => '10' },
+          'sender' => { 'login' => check_suite.pull_request.author }
         }
       end
 
@@ -408,6 +611,7 @@ describe Github::ReRun::Comment do
 
       before do
         create(:plan, github_repo_name: 'unit_test')
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
       end
 
       it 'must returns success' do

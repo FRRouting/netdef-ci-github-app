@@ -30,6 +30,7 @@ describe Github::BuildPlan do
         'number' => pr_number,
         'pull_request' => {
           'user' => {
+            'id' => 123,
             'login' => author
           },
 
@@ -63,7 +64,7 @@ describe Github::BuildPlan do
       allow(fake_github_check).to receive(:create).and_return(fake_check_run)
       allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
       allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
-      allow(fake_github_check).to receive(:fetch_username).and_return({})
+      allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1, login: author, name: author })
 
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
@@ -216,6 +217,16 @@ describe Github::BuildPlan do
       let(:action) { 'fake' }
       let(:author) { 'Jack The Ripper' }
 
+      before do
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+      end
+
       it 'must returns an error' do
         expect(build_plan.create).to eq([405, "Not dealing with action \"#{payload['action']}\" for Pull Request"])
       end
@@ -253,6 +264,10 @@ describe Github::BuildPlan do
 
         allow(CheckSuite).to receive(:create).and_return(check_suite)
         allow(check_suite).to receive(:persisted?).and_return(false)
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
       end
 
       it 'must returns an error' do
@@ -278,6 +293,10 @@ describe Github::BuildPlan do
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(400)
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
       end
 
       it 'must returns an error' do
@@ -305,6 +324,12 @@ describe Github::BuildPlan do
         allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return([])
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+        allow(fake_github_check).to receive(:fetch_username).and_return({ id: 1 })
+
+        create(:group)
       end
 
       it 'must returns an error' do

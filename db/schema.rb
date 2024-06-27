@@ -95,6 +95,24 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
     t.datetime "updated_at", null: false
   end
 
+  create_table "companies", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "email", null: false
+    t.string "contact", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+  end
+
+  create_table "features", force: :cascade do |t|
+    t.boolean "rerun", default: true, null: false
+    t.integer "max_rerun_per_pull_request", default: 3, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "group_id"
+    t.index ["group_id"], name: "index_features_on_group_id"
+  end
+
+
   create_table "github_users", force: :cascade do |t|
     t.string "github_login"
     t.string "github_username"
@@ -106,7 +124,17 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
     t.string "organization_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "group_id"
     t.index ["github_id"], name: "index_github_users_on_github_id", unique: true
+    t.index ["group_id"], name: "index_github_users_on_group_id"
+  end
+
+  create_table "groups", force: :cascade do |t|
+    t.string "name", null: false
+    t.boolean "public", default: true, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["public"], name: "index_groups_on_public", unique: true
   end
 
   create_table "plans", force: :cascade do |t|
@@ -139,6 +167,16 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
     t.datetime "updated_at", null: false
     t.bigint "github_user_id"
     t.index ["github_user_id"], name: "index_pull_requests_on_github_user_id"
+  end
+
+  create_table "retry_stages", force: :cascade do |t|
+    t.text "failure_jobs", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "check_suite_id"
+    t.bigint "stage_id"
+    t.index ["check_suite_id"], name: "index_retry_stages_on_check_suite_id"
+    t.index ["stage_id"], name: "index_retry_stages_on_stage_id"
   end
 
   create_table "stage_configurations", force: :cascade do |t|
@@ -183,9 +221,13 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
   add_foreign_key "check_suites", "stages", column: "stopped_in_stage_id"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
+  add_foreign_key "features", "groups"
+  add_foreign_key "github_users", "groups"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
   add_foreign_key "pull_requests", "github_users"
+  add_foreign_key "retry_stages", "check_suites"
+  add_foreign_key "retry_stages", "stages"
   add_foreign_key "stages", "check_suites"
   add_foreign_key "stages", "stage_configurations"
   add_foreign_key "topotest_failures", "ci_jobs"
