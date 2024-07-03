@@ -60,6 +60,10 @@ module Github
                                          accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
     end
 
+    def check_runs_for_ref(repo, sha)
+      @app.check_runs_for_ref(repo, sha)
+    end
+
     def create(name)
       @app.create_check_run(
         @check_suite.pull_request.repository,
