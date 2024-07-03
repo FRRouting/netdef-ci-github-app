@@ -60,8 +60,8 @@ module Github
                                          accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
     end
 
-    def check_runs_for_ref(repo, sha)
-      @app.check_runs_for_ref(repo, sha)
+    def check_runs_for_ref(repo, sha, status: 'queued')
+      @app.check_runs_for_ref(repo, sha, status: status, accept: Octokit::Preview::PREVIEW_TYPES[:checks])
     end
 
     def create(name)
