@@ -73,8 +73,6 @@ module Github
       end
 
       def must_cancel_next_stages(current_stage)
-        logger(Logger::INFO, "must_cancel_next_stages: #{current_stage.inspect}")
-
         return unless current_stage.failure? or current_stage.skipped? or current_stage.cancelled?
         return unless current_stage.configuration.mandatory?
 
