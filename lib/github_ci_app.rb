@@ -28,7 +28,7 @@ require_relative 'github/retry/comment'
 require_relative 'github/update_status'
 require_relative 'github/plan_execution/finished'
 require_relative 'github/user_info'
-require_relative 'github/build/skip'
+require_relative 'github/build/skip_old_tests'
 
 # Helpers libs
 require_relative 'helpers/configuration'
