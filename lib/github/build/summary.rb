@@ -40,6 +40,8 @@ module Github
         msg = "Github::Build::Summary - #{@job.inspect}, #{current_stage.inspect}, bamboo info: #{bamboo_info}"
         @pr_log.info(msg)
 
+        return if current_stage.cancelled?
+
         # Update current stage
         update_summary(current_stage)
         # Check if current stage finished
@@ -71,7 +73,7 @@ module Github
       end
 
       def must_cancel_next_stages(current_stage)
-        return if @job.success? or @job.in_progress? or @job.queued?
+        return unless current_stage.failure? or current_stage.skipped? or current_stage.cancelled?
         return unless current_stage.configuration.mandatory?
 
         Stage
@@ -96,7 +98,7 @@ module Github
           .where(configuration: { position: current_stage.configuration.position + 1 })
           .first
 
-        return if next_stage.nil?
+        return if next_stage.nil? or next_stage.cancelled?
 
         update_summary(next_stage)
       end
@@ -110,24 +112,19 @@ module Github
             "The previous stage failed and the remaining tests will be canceled.\nDetails at [#{url}](#{url})."
         }
 
-        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage.inspect}\n#{output}")
+        logger(Logger::INFO, "cancelling_next_stage - pending_stage: #{pending_stage.inspect}")
 
         pending_stage.cancelled(@github, output: output)
         pending_stage.jobs.each { |job| job.cancelled(@github) }
       end
 
       def finished_summary(stage)
-        logger(Logger::INFO, "Finished stage: #{stage.inspect}, CiJob status: #{@job.status}")
-        logger(Logger::INFO, "Finished stage: #{stage.inspect}, running? #{stage.reload.running?}")
-
         return if @job.in_progress? or stage.running?
 
         finished_stage_summary(stage)
       end
 
       def finished_stage_summary(stage)
-        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect}. Reason Job: #{@job.inspect}")
-
         url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
@@ -135,30 +132,26 @@ module Github
         }
 
         finished_stage_update(stage, output)
-
-        logger(Logger::INFO, "finished_stage_summary: #{stage.inspect} #{output.inspect}")
       end
 
       def finished_stage_update(stage, output)
         if stage.jobs.failure.empty?
-          logger(Logger::WARN, "Stage: #{stage.name} finished - failure")
-          stage.success(@github, output: output, agent: @agent)
-        else
           logger(Logger::WARN, "Stage: #{stage.name} finished - success")
-          stage.failure(@github, output: output, agent: @agent)
+          stage.success(@github, output: output, agent: @agent)
+
+          return
         end
+
+        logger(Logger::WARN, "Stage: #{stage.name} finished - failure")
+        stage.failure(@github, output: output, agent: @agent)
       end
 
       def update_summary(stage)
-        logger(Logger::INFO, "Updating summary status #{stage.inspect} -> @job.status: #{@job.status}")
-
         url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
         }
-
-        logger(Logger::INFO, "update_summary: #{stage.inspect} #{output.inspect}")
 
         logger(Logger::WARN, "Updating stage: #{stage.name} to in_progress")
         stage.in_progress(@github, output: output)
@@ -167,9 +160,8 @@ module Github
 
       def summary_basic_output(stage)
         jobs = stage.jobs.reload
-        in_progress = jobs.where(status: :in_progress)
 
-        header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
+        header = queued_message(jobs)
         header += in_progress_message(jobs)
         header += generate_success_failure_info(stage.name, jobs)
 
@@ -200,9 +192,23 @@ module Github
       end
 
       def in_progress_message(jobs)
-        jobs.where(status: %i[in_progress queued]).map do |job|
+        in_progress = jobs.where(status: :in_progress)
+
+        message = "\n\n:arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
+
+        message + jobs.where(status: %i[in_progress]).map do |job|
           "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
         end.join("\n")
+      end
+
+      def queued_message(jobs)
+        queued = jobs.where(status: :queued)
+
+        message = ":arrow_right: Jobs queued: #{queued.size}/#{jobs.size}\n\n"
+        message +
+          queued.map do |job|
+            "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          end.join("\n")
       end
 
       def success_message(jobs)

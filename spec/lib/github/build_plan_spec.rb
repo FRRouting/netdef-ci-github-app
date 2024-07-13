@@ -64,6 +64,8 @@ describe Github::BuildPlan do
       allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
       allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
       allow(fake_github_check).to receive(:fetch_username).and_return({})
+      allow(fake_github_check).to receive(:fetch_username).and_return({})
+      allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
 
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
