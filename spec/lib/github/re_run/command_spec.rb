@@ -70,6 +70,7 @@ describe Github::ReRun::Command do
         allow(fake_github_check).to receive(:comment_reaction_thumb_up)
         allow(fake_github_check).to receive(:skipped)
         allow(fake_github_check).to receive(:fetch_username).and_return({})
+        allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
 
         allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
         allow(fake_plan_run).to receive(:start_plan).and_return(200)
