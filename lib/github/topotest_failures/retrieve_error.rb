@@ -29,7 +29,7 @@ module Github
           @failures << {
             'suite' => test_result['className'],
             'case' => test_result['methodName'],
-            'message' => message,
+            'message' => test_result.dig('errors', 'error').map { |error| error['message'] }.join("\n"),
             'execution_time' => test_result['durationInSeconds']
           }
         end
