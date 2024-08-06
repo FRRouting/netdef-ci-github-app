@@ -49,6 +49,8 @@ describe Github::UpdateStatus do
       allow(fake_github_check).to receive(:queued).and_return(ci_job.check_suite)
 
       allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
+
+      allow(BambooCi::Result).to receive(:fetch).and_return({})
     end
 
     context 'when Ci Job Checkout Code update from queued -> failure' do
@@ -276,8 +278,33 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
           update_status.update
         end
 
-        it 'must update the output' do
-          expect(ci_job).to have_received(:failure).with(fake_github_check, output: expected_output)
+        it 'must create TopoTestFailure' do
+          expect(TopotestFailure.all.size).to eq(1)
+          expect(TopotestFailure.last.to_h).to eq(expected_topotest_failure)
+        end
+      end
+
+      context 'when updated a test that failed and it has no error output - AddressSanitizer' do
+        let(:payload) do
+          {
+            'status' => status,
+            'bamboo_ref' => ci_job.job_ref,
+            'output' => {
+              'title' => 'Failed test',
+              'summary' => 'Details at https://netdef.org/browse/FRR-PULLREQ3-ASAN9D12AMD64-123'
+            },
+            'failures' => []
+          }
+        end
+
+        before do
+          allow(CiJob).to receive(:find_by).and_return(ci_job)
+          allow(ci_job).to receive(:failure)
+          allow(BambooCi::Result).to receive(:fetch).and_return(fake_output)
+
+          ci_job.update(name: 'AddressSanitizer Debian 12 amd64')
+
+          update_status.update
         end
 
         it 'must create TopoTestFailure' do
@@ -321,10 +348,6 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
           allow(BambooCi::Result).to receive(:fetch).and_return({})
 
           update_status.update
-        end
-
-        it 'must maintain the same output' do
-          expect(ci_job).to have_received(:failure).with(fake_github_check, output: expected_output)
         end
 
         it 'must not create a TopoTestFailure' do

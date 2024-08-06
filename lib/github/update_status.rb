@@ -20,21 +20,12 @@ module Github
     def initialize(payload)
       @status = payload['status']
 
-      @output =
-        if payload.dig('output', 'title').nil? and payload.dig('output', 'summary').nil?
-          {}
-        else
-          { title: payload.dig('output', 'title'), summary: payload.dig('output', 'summary') }
-        end
-
       @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
       @failures = payload['failures']
 
       logger_initializer
-      logger(Logger::WARN, "UpdateStatus: #{@reference} #{@status} (Output in info log)")
-      logger(Logger::INFO, "UpdateStatus: #{@reference} #{@status} #{@output}")
     end
 
     def update
@@ -68,9 +59,9 @@ module Github
     def update_status
       case @status
       when 'in_progress'
-        @job.in_progress(@github_check, output: @output)
+        @job.in_progress(@github_check)
       when 'success'
-        @job.success(@github_check, output: @output)
+        @job.success(@github_check)
         slack_notify_success
       else
         failure
@@ -128,46 +119,26 @@ module Github
     # The unable2find string must match the phrase defined in the ci-files repository file
     # github_checks/hook_api.py method __topotest_title_summary
     def failure
-      unable2find = "There was some test that failed, but I couldn't find the log."
-      fetch_and_update_failures(unable2find) if !@output.empty? and @output[:summary].match?(unable2find)
+      @job.failure(@github_check)
 
-      @job.failure(@github_check, output: @output)
-      failures_stats if @job.name.downcase.match? 'topotest' and @failures.is_a? Array
+      retrieve_stats
     end
 
-    def fetch_and_update_failures(to_be_replaced)
-      count = 0
-      begin
-        output = BambooCi::Result.fetch(@job.job_ref)
-        return if output.nil? or output.empty?
+    def retrieve_stats
+      return failures_stats if @failures.is_a? Array and !@failures.empty?
 
-        @output[:summary] = @output[:summary].sub(to_be_replaced, fetch_failures(output))[0..65_535]
-      rescue NoMethodError => e
-        logger Logger::ERROR, "#{e.class} #{e.message}"
-        count += 1
-        sleep 5
-        retry if count <= 10
-      end
+      retrieve_errors
     end
 
-    def fetch_failures(output)
-      buffer = ''
-      output.dig('testResults', 'failedTests', 'testResult')&.each do |test_result|
-        message = ''
-        test_result.dig('errors', 'error').each do |error|
-          message += error['message']
-          buffer += message
-        end
+    def retrieve_errors
+      @retrieve_error = Github::TopotestFailures::RetrieveError.new(@job)
+      @retrieve_error.retrieve
 
-        @failures << {
-          'suite' => test_result['className'],
-          'case' => test_result['methodName'],
-          'message' => message,
-          'execution_time' => test_result['durationInSeconds']
-        }
-      end
+      return if @retrieve_error.failures.empty?
 
-      buffer
+      @failures = @retrieve_error.failures
+
+      failures_stats
     end
 
     def slack_notify_success
