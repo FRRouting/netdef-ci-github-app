@@ -17,7 +17,6 @@
 
 require_relative '../config/setup'
 
-
 CiJob
   .where("ci_jobs.name LIKE '%AddressSanitizer%'")
   .where(status: :failure)
@@ -38,4 +37,3 @@ CiJob
     end
   end
 end
-
