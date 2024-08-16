@@ -83,10 +83,15 @@ GEM
     parser (3.2.2.3)
       ast (~> 2.4.1)
       racc
-    pg (1.2.3)
+    pg (1.5.6)
+    prometheus-client (4.2.2)
+    prometheus-client (4.2.2)
     public_suffix (5.0.3)
     puma (5.5.2)
       nio4r (~> 2.0)
+    puma-metrics (1.2.5)
+      prometheus-client (>= 0.10)
+      puma (>= 5.0)
     racc (1.7.1)
     rack (2.1.4)
     rack-protection (2.0.8.1)
@@ -164,8 +169,9 @@ DEPENDENCIES
   netrc
   octokit (<= 4.17.0)
   otr-activerecord (= 2.0.3)
-  pg (= 1.2.3)
+  pg (= 1.5.6)
   puma (= 5.5.2)
+  puma-metrics (= 1.2.5)
   rack (= 2.1.4)
   rack-test
   rake (= 13.0.6)
@@ -177,7 +183,7 @@ DEPENDENCIES
   webmock
 
 RUBY VERSION
-   ruby 3.0.2p107
+   ruby 3.2.2p107
 
 BUNDLED WITH
    2.4.7

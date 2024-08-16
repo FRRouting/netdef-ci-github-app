@@ -10,7 +10,7 @@
 
 source 'https://rubygems.org'
 
-ruby '3.0.2'
+ruby '3.2.2'
 
 # Token
 gem 'jwt', '2.2.2'
@@ -26,11 +26,12 @@ gem 'rack', '2.1.4'
 gem 'otr-activerecord', '2.0.3'
 
 # PostgreSQL adapter
-gem 'pg', '1.2.3'
+gem 'pg', '1.5.6'
 
 gem 'netrc'
 
 gem 'puma', '5.5.2'
+gem 'puma-metrics', '1.2.5'
 
 gem 'rake', '13.0.6'
 
