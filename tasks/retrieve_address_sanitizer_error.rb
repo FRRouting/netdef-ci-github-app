@@ -18,13 +18,20 @@
 require_relative '../config/setup'
 
 CiJob
+  .left_outer_joins(:topotest_failures)
+  .joins(:stage)
+  .where(topotest_failures: { id: nil })
   .where("ci_jobs.name LIKE '%AddressSanitizer%'")
   .where(status: :failure)
+  .where(stage: { status: :failure })
+  .where('ci_jobs.created_at > ?', 6.month.ago)
   .each do |job|
   next if job.topotest_failures.any?
 
   CiJob.transaction do
     failures = Github::TopotestFailures::RetrieveError.new(job).retrieve
+
+    puts "Found #{failures.size} failures for job #{job.job_ref}"
 
     next if failures.empty?
 
