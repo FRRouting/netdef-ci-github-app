@@ -23,7 +23,7 @@ module Github
       @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
-      @failures = payload['failures']
+      @failures = payload['failures'] || []
 
       logger_initializer
     end
