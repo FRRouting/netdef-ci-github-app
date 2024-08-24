@@ -19,12 +19,6 @@ class CiJobFetchTopotestFailures
 
     @failures = @retrieve_error.failures
 
-    failures_stats
-  end
-
-  private
-
-  def failures_stats
     @failures.each do |failure|
       TopotestFailure.create(ci_job: @job,
                              test_suite: failure['suite'],
