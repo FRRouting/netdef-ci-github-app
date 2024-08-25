@@ -121,24 +121,11 @@ module Github
     def failure
       @job.failure(@github_check)
 
-      retrieve_stats
-    end
-
-    def retrieve_stats
       return failures_stats if @failures.is_a? Array and !@failures.empty?
 
-      retrieve_errors
-    end
-
-    def retrieve_errors
-      @retrieve_error = Github::TopotestFailures::RetrieveError.new(@job)
-      @retrieve_error.retrieve
-
-      return if @retrieve_error.failures.empty?
-
-      @failures = @retrieve_error.failures
-
-      failures_stats
+      CiJobFetchTopotestFailures
+        .delay(run_at: 60.seconds.from_now, queue: 'fetch_topotest_failures')
+        .update(@job.id)
     end
 
     def slack_notify_success
