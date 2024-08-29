@@ -124,8 +124,8 @@ module Github
       return failures_stats if @failures.is_a? Array and !@failures.empty?
 
       CiJobFetchTopotestFailures
-        .delay(run_at: 60.seconds.from_now, queue: 'fetch_topotest_failures')
-        .update(@job.id)
+        .delay(run_at: 5.minutes.from_now, queue: 'fetch_topotest_failures')
+        .update(@job.id, 1)
     end
 
     def slack_notify_success
