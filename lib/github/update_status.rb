@@ -23,7 +23,7 @@ module Github
       @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
-      @failures = payload['failures']
+      @failures = payload['failures'] || []
 
       logger_initializer
     end
@@ -121,24 +121,11 @@ module Github
     def failure
       @job.failure(@github_check)
 
-      retrieve_stats
-    end
-
-    def retrieve_stats
       return failures_stats if @failures.is_a? Array and !@failures.empty?
 
-      retrieve_errors
-    end
-
-    def retrieve_errors
-      @retrieve_error = Github::TopotestFailures::RetrieveError.new(@job)
-      @retrieve_error.retrieve
-
-      return if @retrieve_error.failures.empty?
-
-      @failures = @retrieve_error.failures
-
-      failures_stats
+      CiJobFetchTopotestFailures
+        .delay(run_at: 5.minutes.from_now, queue: 'fetch_topotest_failures')
+        .update(@job.id, 1)
     end
 
     def slack_notify_success

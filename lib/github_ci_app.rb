@@ -38,7 +38,9 @@ require_relative 'helpers/request'
 require_relative 'helpers/sinatra_payload'
 require_relative 'helpers/telemetry'
 
+# Workers
 require_relative '../workers/ci_job_status'
+require_relative '../workers/ci_job_fetch_topotest_failures'
 
 # Slack libs
 require_relative 'slack/slack'
