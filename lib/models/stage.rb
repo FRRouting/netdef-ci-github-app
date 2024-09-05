@@ -55,8 +55,6 @@ class Stage < ActiveRecord::Base
   end
 
   def cancelled(github, output: {}, agent: 'Github')
-    return if cancelled?
-
     create_github_check(github)
     github.cancelled(check_ref, output)
     update(status: :cancelled)
@@ -65,8 +63,6 @@ class Stage < ActiveRecord::Base
   end
 
   def failure(github, output: {}, agent: 'Github')
-    return if failure?
-
     create_github_check(github)
     github.failure(check_ref, output)
     update(status: :failure)
@@ -75,8 +71,6 @@ class Stage < ActiveRecord::Base
   end
 
   def success(github, output: {}, agent: 'Github')
-    return if success?
-
     create_github_check(github)
     github.success(check_ref, output)
     update(status: :success)

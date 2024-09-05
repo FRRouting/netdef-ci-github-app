@@ -81,8 +81,6 @@ module Github
           .where(check_suite: @check_suite)
           .where(configuration: { position: [(current_stage.configuration.position + 1)..] })
           .each do |stage|
-          next if stage.cancelled?
-
           cancelling_next_stage(stage)
         end
       end
