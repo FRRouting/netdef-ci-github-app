@@ -10,7 +10,7 @@
 
 source 'https://rubygems.org'
 
-ruby '3.2.2'
+ruby '3.2.5'
 
 # Token
 gem 'jwt'
@@ -49,3 +49,9 @@ group :test do
   gem 'simplecov', require: false
   gem 'webmock', require: 'webmock/rspec'
 end
+
+gem "multipart-post", "~> 2.4"
+
+gem "faraday-retry", "~> 2.2"
+
+gem "faraday-multipart", "~> 1.0"
