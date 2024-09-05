@@ -28,6 +28,8 @@ require_relative 'github/retry/comment'
 require_relative 'github/update_status'
 require_relative 'github/plan_execution/finished'
 require_relative 'github/user_info'
+require_relative 'github/build/skip_old_tests'
+require_relative 'github/topotest_failures/retrieve_error'
 
 # Helpers libs
 require_relative 'helpers/configuration'
@@ -36,7 +38,9 @@ require_relative 'helpers/request'
 require_relative 'helpers/sinatra_payload'
 require_relative 'helpers/telemetry'
 
+# Workers
 require_relative '../workers/ci_job_status'
+require_relative '../workers/ci_job_fetch_topotest_failures'
 
 # Slack libs
 require_relative 'slack/slack'

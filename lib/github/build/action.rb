@@ -29,6 +29,8 @@ module Github
       def create_summary(rerun: false)
         logger(Logger::INFO, "SUMMARY #{@stages.inspect}")
 
+        Github::Build::SkipOldTests.new(@check_suite).skip_old_tests
+
         @stages.each do |stage_config|
           create_check_run_stage(stage_config)
         end

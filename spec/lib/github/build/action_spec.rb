@@ -44,9 +44,70 @@ describe Github::Build::Action do
     allow(fake_github_check).to receive(:success).and_return(ci_job.check_suite)
     allow(fake_github_check).to receive(:cancelled).and_return(ci_job.check_suite)
     allow(fake_github_check).to receive(:queued).and_return(ci_job.check_suite)
+    allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
     allow(BambooCi::Result).to receive(:fetch).and_return({})
 
     stage
+  end
+
+  context 'when previous check suite has old tests' do
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+    let(:old_test) { create(:ci_job, stage: stage, check_suite: check_suite) }
+    let(:skip_info) do
+      {
+        check_runs: [
+          {
+            app: {
+              name: 'NetDEF CI Hook'
+            },
+            name: old_test.name,
+            id: 1
+          }
+        ]
+      }
+    end
+
+    before do
+      old_test
+      allow(Stage).to receive(:create).and_return(stage)
+      allow(stage).to receive(:persisted?).and_return(false)
+      allow(fake_github_check).to receive(:check_runs_for_ref).and_return(skip_info)
+    end
+
+    it 'must create a stage' do
+      action.create_summary(rerun: false)
+      expect(check_suite.reload.stages.size).to eq(1)
+    end
+  end
+
+  context 'when previous check suite has old tests - but wrong app' do
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+    let(:old_test) { create(:ci_job, stage: stage, check_suite: check_suite) }
+    let(:skip_info) do
+      {
+        check_runs: [
+          {
+            app: {
+              name: 'NetDEF CI'
+            },
+            name: old_test.name,
+            id: 1
+          }
+        ]
+      }
+    end
+
+    before do
+      old_test
+      allow(Stage).to receive(:create).and_return(stage)
+      allow(stage).to receive(:persisted?).and_return(false)
+      allow(fake_github_check).to receive(:check_runs_for_ref).and_return(skip_info)
+    end
+
+    it 'must create a stage' do
+      action.create_summary(rerun: false)
+      expect(check_suite.reload.stages.size).to eq(1)
+    end
   end
 
   context 'when could not create stage' do
