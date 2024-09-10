@@ -50,8 +50,8 @@ group :test do
   gem 'webmock', require: 'webmock/rspec'
 end
 
-gem "multipart-post", "~> 2.4"
+gem 'multipart-post', '~> 2.4'
 
-gem "faraday-retry", "~> 2.2"
+gem 'faraday-retry', '~> 2.2'
 
-gem "faraday-multipart", "~> 1.0"
+gem 'faraday-multipart', '~> 1.0'
