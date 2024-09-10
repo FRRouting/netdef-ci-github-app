@@ -75,7 +75,7 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:create_issue_comment_reaction)
-        .with(repo, comment_id, '+1', accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+        .with(repo, comment_id, '+1')
         .and_return(pr_info)
     end
 
@@ -92,7 +92,7 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:create_issue_comment_reaction)
-        .with(repo, comment_id, '-1', accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+        .with(repo, comment_id, '-1')
         .and_return(pr_info)
     end
 
@@ -109,7 +109,7 @@ describe Github::Check do
     before do
       allow(fake_client).to receive(:create_check_run)
         .with(check_suite.pull_request.repository, name,
-              check_suite.commit_sha_ref, accept: 'application/vnd.github.antiope-preview+json')
+              check_suite.commit_sha_ref)
         .and_return(pr_info)
     end
 
@@ -128,8 +128,7 @@ describe Github::Check do
         .with(check_suite.pull_request.repository,
               id,
               {
-                status: status,
-                accept: 'application/vnd.github.antiope-preview+json'
+                status: status
               })
         .and_return(pr_info)
     end
@@ -151,8 +150,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                output: output,
-                accept: 'application/vnd.github.antiope-preview+json'
+                output: output
               })
         .and_return(pr_info)
     end
@@ -173,8 +171,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                conclusion: conclusion
               })
         .and_return({})
     end
@@ -195,8 +192,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                conclusion: conclusion
               })
         .and_return({})
     end
@@ -217,8 +213,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github.antiope-preview+json'
+                conclusion: conclusion
               })
         .and_return(true)
     end
@@ -241,8 +236,7 @@ describe Github::Check do
               {
                 status: status,
                 conclusion: conclusion,
-                output: output,
-                accept: 'application/vnd.github+json'
+                output: output
               })
         .and_return({})
     end
@@ -263,8 +257,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                conclusion: conclusion
               })
         .and_return({})
     end
