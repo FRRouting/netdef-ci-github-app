@@ -51,6 +51,7 @@ class GithubApp < Sinatra::Base
   post '/update/status' do
     logger = GithubLogger.instance.create('github_app.log', GithubApp.sinatra_logger_level)
 
+    request.body.rewind
     @payload_raw = request.body.read
     @payload = JSON.parse(@payload_raw)
 
@@ -73,6 +74,7 @@ class GithubApp < Sinatra::Base
   post '/slack' do
     halt 401 unless slack_authentication
 
+    request.body.rewind
     payload = JSON.parse(request.body.read)
 
     logger.debug "Received Slack command: #{payload.inspect}"
@@ -90,6 +92,7 @@ class GithubApp < Sinatra::Base
   post '/slack/settings' do
     halt 401 unless slack_authentication
 
+    request.body.rewind
     payload = JSON.parse(request.body.read)
 
     logger.debug "Received Slack command: #{payload.inspect}"

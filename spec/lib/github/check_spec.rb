@@ -104,7 +104,7 @@ describe Github::Check do
   context 'when call create' do
     let(:pr_id) { 1 }
     let(:name) { 'test' }
-    let(:pr_info) { { name: name } }
+    let(:pr_info) { { name: name, conclusion: 'success' } }
 
     before do
       allow(fake_client).to receive(:create_check_run)
@@ -142,7 +142,7 @@ describe Github::Check do
   context 'when call in_progress' do
     let(:id) { 1 }
     let(:status) { 'in_progress' }
-    let(:pr_info) { { status: status } }
+    let(:pr_info) { { status: status, conclusion: status } }
     let(:output) { { title: 'Title', summary: 'Summary' } }
 
     before do
@@ -244,7 +244,7 @@ describe Github::Check do
                 output: output,
                 accept: 'application/vnd.github+json'
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
@@ -266,7 +266,7 @@ describe Github::Check do
                 conclusion: conclusion,
                 accept: 'application/vnd.github+json'
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
