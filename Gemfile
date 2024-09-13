@@ -20,7 +20,9 @@ gem 'octokit', '~> 9.1'
 # Web Framework
 gem 'sinatra'
 
-gem 'rack'
+gem 'rack', '3.1.7'
+
+gem 'rackup'
 
 # ActiveRecord
 gem 'otr-activerecord', '~> 2.3'

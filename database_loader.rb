@@ -11,19 +11,6 @@
 require 'active_record'
 require 'otr-activerecord'
 
-module OTR
-  module ActiveRecord
-    class << self
-      alias original_configure_from_file! configure_from_file!
-
-      def configure_from_file!(file)
-        config = YAML.safe_load_file(file, permitted_classes: [Symbol], aliases: true)
-        ::ActiveRecord::Base.configurations = config
-      end
-    end
-  end
-end
-
 OTR::ActiveRecord.db_dir = 'db'
 OTR::ActiveRecord.migrations_paths = ['db/migrate']
 OTR::ActiveRecord.configure_from_file! 'config/database.yml'
