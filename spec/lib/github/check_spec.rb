@@ -350,4 +350,30 @@ describe Github::Check do
       end
     end
   end
+
+  describe 'retry send_update ' do
+    let(:id) { 1 }
+    let(:status) { 'completed' }
+    let(:conclusion) { 'success' }
+
+    context 'when send_update returns error' do
+      before do
+        allow(fake_client).to receive(:update_check_run).and_raise(Octokit::NotFound)
+      end
+
+      it 'must returns raise' do
+        expect(check.skipped(id)).to eq({})
+      end
+    end
+
+    context 'when send_update returns error and success' do
+      before do
+        allow(fake_client).to receive(:update_check_run).and_return({}, { conclusion: conclusion })
+      end
+
+      it 'must returns a valid data' do
+        expect(check.skipped(id)).to eq({})
+      end
+    end
+  end
 end

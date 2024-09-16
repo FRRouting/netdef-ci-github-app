@@ -55,24 +55,27 @@ class Stage < ActiveRecord::Base
   end
 
   def cancelled(github, output: {}, agent: 'Github')
-    create_github_check(github)
-    github.cancelled(check_ref, output)
+    refresh_reference(github)
+    return if github.cancelled(check_ref, output).empty?
+
     update(status: :cancelled)
     AuditStatus.create(auditable: self, status: :cancelled, agent: agent, created_at: Time.now)
     notification
   end
 
   def failure(github, output: {}, agent: 'Github')
-    create_github_check(github)
-    github.failure(check_ref, output)
+    refresh_reference(github)
+    return if github.failure(check_ref, output).empty?
+
     update(status: :failure)
     AuditStatus.create(auditable: self, status: :failure, agent: agent, created_at: Time.now)
     notification
   end
 
   def success(github, output: {}, agent: 'Github')
-    create_github_check(github)
-    github.success(check_ref, output)
+    refresh_reference(github)
+    return if github.success(check_ref, output).empty?
+
     update(status: :success)
     AuditStatus.create(auditable: self, status: :success, agent: agent, created_at: Time.now)
     notification
@@ -81,6 +84,7 @@ class Stage < ActiveRecord::Base
   def refresh_reference(github, agent: 'Github')
     check_run = github.create(github_stage_full_name(name))
     update(check_ref: check_run.id)
+    reload
     AuditStatus.create(auditable: self, status: :refresh, agent: agent, created_at: Time.now)
   end
 

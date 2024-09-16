@@ -150,14 +150,16 @@ module Github
         opts[:output] = output unless output.empty?
 
         send_update(check_ref, opts, conclusion)
-      rescue Octokit::NotFound
+      rescue Octokit::NotFound, RuntimeError
         retry_count += 1
 
         sleep retry_count * 5
 
-        retry if retry_count > 5
+        retry if retry_count <= 3
 
         @logger.error "#{check_ref} not found at GitHub"
+
+        {}
       end
     end
 

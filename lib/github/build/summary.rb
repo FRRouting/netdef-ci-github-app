@@ -34,7 +34,6 @@ module Github
       def build_summary
         current_stage = @job.stage
         current_stage = fetch_parent_stage if current_stage.nil?
-        current_stage.refresh_reference(@github)
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
         msg = "Github::Build::Summary - #{@job.inspect}, #{current_stage.inspect}, bamboo info: #{bamboo_info}"
