@@ -113,3 +113,98 @@ Rubocop can be executed with the following command: `rubocop -A`.
 The '-A' parameter will automatically fix some code mistakes.
 
 Rspec be executed with the following command: `rspec ./spec --pattern '**/*_spec.rb'`
+
+# Installing RVM (Ruby Version Manager)
+
+This guide will walk you through the steps to install RVM (Ruby Version Manager) on your system.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+- `curl`
+- `gpg`
+
+You can install these using your package manager. For example, on Debian-based systems, you can use:
+
+```shell
+sudo apt update
+sudo apt install -y curl gpg
+```
+
+## Installation Steps
+
+1. Install RVM
+   To install RVM, run the following command:
+
+```shell
+\curl -sSL https://get.rvm.io | bash -s stable
+```
+
+2. Load RVM Scripts
+   After the installation, you need to load the RVM scripts. Add the following line to your shell profile (~/.bashrc, ~/.zshrc, etc.):
+
+```shell
+source ~/.rvm/scripts/rvm
+```
+Then, reload your shell profile:
+```shell
+source ~/.bashrc  # or source ~/.zshrc
+```
+
+3. Verify the Installation
+   To verify that RVM is installed correctly, run:
+
+```shell
+rvm --version
+```
+
+You should see the RVM version information.  
+
+## Installing Ruby
+Once RVM is installed, you can use it to install Ruby versions.
+1. Install a Ruby Version
+   To install a specific version of Ruby, use the following command:
+
+```shell
+rvm autolibs disable
+rvm install 3.3.1
+```
+
+2. Use a Ruby Version
+   To use a specific version of Ruby, run:
+
+```shell
+rvm use 3.3.1 --default
+```
+This sets the specified Ruby version as the default for your shell.
+
+3. Verify the Ruby Installation
+   To verify that Ruby is installed correctly, run:
+
+```shell 
+ruby --version
+```   
+You should see the version of Ruby that you installed.
+
+## Managing Multiple Ruby Versions
+RVM allows you to manage multiple Ruby versions. You can switch between them as needed.  
+List Installed Ruby Versions
+To list all installed Ruby versions, run:
+
+```shell
+rvm list
+```
+
+Switch Ruby Versions
+To switch to a different Ruby version, use:
+
+```shell 
+rvm use <version>
+```
+
+Uninstalling RVM
+If you need to uninstall RVM, you can do so with the following command:
+
+```shell
+rvm implode
+```

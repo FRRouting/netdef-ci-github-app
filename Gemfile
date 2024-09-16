@@ -10,29 +10,31 @@
 
 source 'https://rubygems.org'
 
-ruby '3.0.2'
+ruby '3.3.1'
 
 # Token
-gem 'jwt', '2.2.2'
+gem 'jwt'
 
-gem 'octokit', '<= 4.17.0'
+gem 'octokit', '~> 9.1'
 
 # Web Framework
-gem 'sinatra', '2.0.8.1'
+gem 'sinatra'
 
-gem 'rack', '2.1.4'
+gem 'rack', '3.1.7'
+
+gem 'rackup'
 
 # ActiveRecord
-gem 'otr-activerecord', '2.0.3'
+gem 'otr-activerecord', '~> 2.3'
 
 # PostgreSQL adapter
-gem 'pg', '1.2.3'
+gem 'pg', '~> 1.5', '>= 1.5.3'
 
 gem 'netrc'
 
-gem 'puma', '5.5.2'
+gem 'puma'
 
-gem 'rake', '13.0.6'
+gem 'rake'
 
 # Delayed Job
 gem 'delayed_job_active_record'
@@ -49,3 +51,9 @@ group :test do
   gem 'simplecov', require: false
   gem 'webmock', require: 'webmock/rspec'
 end
+
+gem 'multipart-post', '~> 2.4'
+
+gem 'faraday-retry', '~> 2.2'
+
+gem 'faraday-multipart', '~> 1.0'

@@ -51,25 +51,22 @@ module Github
     end
 
     def comment_reaction_thumb_up(repo, comment_id)
-      @app.create_issue_comment_reaction(repo, comment_id, '+1',
-                                         accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+      @app.create_issue_comment_reaction(repo, comment_id, '+1')
     end
 
     def comment_reaction_thumb_down(repo, comment_id)
-      @app.create_issue_comment_reaction(repo, comment_id, '-1',
-                                         accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+      @app.create_issue_comment_reaction(repo, comment_id, '-1')
     end
 
     def check_runs_for_ref(repo, sha, status: 'queued')
-      @app.check_runs_for_ref(repo, sha, status: status, accept: Octokit::Preview::PREVIEW_TYPES[:checks])
+      @app.check_runs_for_ref(repo, sha, status: status)
     end
 
     def create(name)
       @app.create_check_run(
         @check_suite.pull_request.repository,
         name,
-        @check_suite.commit_sha_ref,
-        accept: Octokit::Preview::PREVIEW_TYPES[:checks]
+        @check_suite.commit_sha_ref
       )
     end
 
@@ -98,13 +95,11 @@ module Github
     end
 
     def get_check_run(check_ref)
-      @app.check_run(@check_suite.pull_request.repository,
-                     check_ref,
-                     accept: Octokit::Preview::PREVIEW_TYPES[:checks]).to_h
+      @app.check_run(@check_suite.pull_request.repository, check_ref).to_h
     end
 
     def installation_id
-      @authenticate_app.find_app_installations(accept: 'application/vnd.github.v3+json').first['id'].to_i
+      @authenticate_app.find_app_installations.first['id'].to_i
     end
 
     def signature
@@ -121,8 +116,7 @@ module Github
 
     def basic_status(check_ref, status, output)
       opts = {
-        status: status,
-        accept: Octokit::Preview::PREVIEW_TYPES[:checks]
+        status: status
       }
 
       opts[:output] = output unless output.empty?
@@ -146,8 +140,7 @@ module Github
 
       opts = {
         status: status,
-        conclusion: conclusion,
-        accept: 'application/vnd.github+json'
+        conclusion: conclusion
       }
 
       opts[:output] = output unless output.empty?
@@ -193,7 +186,7 @@ module Github
 
       token =
         @authenticate_app
-        .create_app_installation_access_token(installation_id, accept: 'application/vnd.github.v3+json')[:token]
+        .create_app_installation_access_token(installation_id)[:token]
 
       @app = Octokit::Client.new(bearer_token: token)
     end
