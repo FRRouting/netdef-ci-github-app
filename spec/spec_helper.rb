@@ -41,9 +41,12 @@ RSpec.configure do |config|
 
   pid = nil
 
-  config.before(:all) do
-    DatabaseCleaner.clean
+  config.before(:suite) do
+    DatabaseCleaner.strategy = :transaction
+    DatabaseCleaner.clean_with(:truncation)
+  end
 
+  config.before(:all) do
     pid = Thread.new do
       Delayed::Worker.new(
         min_priority: 0,
@@ -59,6 +62,12 @@ RSpec.configure do |config|
 
   config.before(:each) do
     Delayed::Worker.delay_jobs = false
+  end
+
+  config.around(:each) do |example|
+    DatabaseCleaner.cleaning do
+      example.run
+    end
   end
 
   config.after(:each) do

@@ -49,11 +49,11 @@ class GithubApp < Sinatra::Base
   end
 
   post '/update/status' do
+    content_type :json
+
     logger = GithubLogger.instance.create('github_app.log', GithubApp.sinatra_logger_level)
 
-    request.body.rewind
-    @payload_raw = request.body.read
-    @payload = JSON.parse(@payload_raw)
+    @payload = JSON.parse(fetch_message)
 
     logger.debug "Received event UpdateStatus: #{@payload}"
 
@@ -74,8 +74,7 @@ class GithubApp < Sinatra::Base
   post '/slack' do
     halt 401 unless slack_authentication
 
-    request.body.rewind
-    payload = JSON.parse(request.body.read)
+    payload = JSON.parse(fetch_message)
 
     logger.debug "Received Slack command: #{payload.inspect}"
     puts "Received Slack command: #{payload.inspect}"
@@ -92,8 +91,7 @@ class GithubApp < Sinatra::Base
   post '/slack/settings' do
     halt 401 unless slack_authentication
 
-    request.body.rewind
-    payload = JSON.parse(request.body.read)
+    payload = fetch_message
 
     logger.debug "Received Slack command: #{payload.inspect}"
 
@@ -107,12 +105,10 @@ class GithubApp < Sinatra::Base
 
     logger = GithubLogger.instance.create('github_app.log', GithubApp.sinatra_logger_level)
 
-    request.body.rewind
-    body = request.body.read
+    body = fetch_message
     log_header(logger, body)
 
-    @payload_raw = body
-    payload = JSON.parse(@payload_raw)
+    payload = JSON.parse(body)
 
     authenticate_request
 
@@ -183,6 +179,11 @@ class GithubApp < Sinatra::Base
 
     def basic_encode(account, password)
       "Basic #{["#{account}:#{password}"].pack('m0')}"
+    end
+
+    def fetch_message
+      request.body.rewind
+      @payload_raw = request.body.read
     end
   end
 
