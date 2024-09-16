@@ -173,11 +173,11 @@ describe Github::Check do
                 status: status,
                 conclusion: conclusion
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
-      expect(check.cancelled(id)).to eq({})
+      expect(check.cancelled(id)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -194,11 +194,11 @@ describe Github::Check do
                 status: status,
                 conclusion: conclusion
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
-      expect(check.success(id)).to eq({})
+      expect(check.success(id)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -242,7 +242,7 @@ describe Github::Check do
     end
 
     it 'must returns success' do
-      expect(check.failure(id, output)).to eq({})
+      expect(check.failure(id, output)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -263,7 +263,7 @@ describe Github::Check do
     end
 
     it 'must returns success' do
-      expect(check.skipped(id)).to eq({})
+      expect(check.skipped(id)).to eq({ conclusion: conclusion })
     end
   end
 

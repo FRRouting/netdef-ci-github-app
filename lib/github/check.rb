@@ -203,7 +203,7 @@ module Github
 
       raise 'GitHub failed to update status' if resp[:conclusion] != conclusion
 
-      @logger.info("completed: #{check_ref}, status: #{status}, conclusion: #{conclusion} -> resp: #{resp}")
+      @logger.info("completed: #{check_ref}, conclusion: #{conclusion} -> resp: #{resp}")
 
       resp
     end
