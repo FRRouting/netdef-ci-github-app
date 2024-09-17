@@ -20,7 +20,7 @@ module Rails
   end
 end
 
-DELAYED_JOB_TIMER = 5
+DELAYED_JOB_TIMER = 30
 
 Rails.logger = GithubLogger.instance.create('delayed_job.log', Logger::INFO)
 ActiveRecord::Base.logger = GithubLogger.instance.create('delayed_job.log', Logger::INFO)
@@ -33,6 +33,8 @@ Delayed::Worker.destroy_failed_jobs = true
 Delayed::Worker.sleep_delay = 5
 Delayed::Worker.max_attempts = 5
 Delayed::Worker.max_run_time = 5.minutes
+
+Delayed::Job.delete_all
 
 config = YAML.load_file('config/database.yml')[ENV.fetch('RACK_ENV', 'development')]
 ActiveRecord::Base.establish_connection(config)

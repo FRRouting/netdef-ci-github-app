@@ -95,7 +95,7 @@ module Github
           .where(configuration: { position: current_stage.configuration.position + 1 })
           .first
 
-        return if next_stage.nil? or next_stage.cancelled?
+        return if next_stage.nil? or next_stage.finished?
 
         update_summary(next_stage)
       end
