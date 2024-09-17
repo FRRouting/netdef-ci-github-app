@@ -11,7 +11,7 @@
 SimpleCov.start do
   enable_coverage :branch
   primary_coverage :branch
-  add_filter %r{^/spec/}
+  add_filter %r{^/(spec|config)/}
   add_filter 'database_loader.rb'
   add_group 'Models', 'lib/models'
   add_group 'GitHub Functions', 'lib/github'
