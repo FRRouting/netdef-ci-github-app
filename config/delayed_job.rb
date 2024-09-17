@@ -34,7 +34,7 @@ Delayed::Worker.sleep_delay = 5
 Delayed::Worker.max_attempts = 5
 Delayed::Worker.max_run_time = 5.minutes
 
-Delayed::Job.delete_all if ENV.fetch('RAILS_ENV', nil) == 'test'
+Delayed::Job.delete_all unless ENV.fetch('RAILS_ENV', 'test') == 'test'
 
 # Load the database configuration
 
