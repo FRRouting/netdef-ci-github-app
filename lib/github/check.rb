@@ -138,25 +138,29 @@ module Github
     def completed(check_ref, status, conclusion, output)
       return if check_ref.nil?
 
-      opts = {
-        status: status,
-        conclusion: conclusion
-      }
+      retry_count = 0
 
-      opts[:output] = output unless output.empty?
+      begin
+        opts = {
+          status: status,
+          conclusion: conclusion
 
-      resp =
-        @app.update_check_run(
-          @check_suite.pull_request.repository,
-          check_ref,
-          opts
-        ).to_h
+        }
 
-      @logger.info("completed: #{check_ref}, status: #{status}, conclusion: #{conclusion} -> resp: #{resp}")
+        opts[:output] = output unless output.empty?
 
-      resp
-    rescue Octokit::NotFound
-      @logger.error "#{check_ref} not found at GitHub"
+        send_update(check_ref, opts, conclusion)
+      rescue Octokit::NotFound, RuntimeError
+        retry_count += 1
+
+        sleep retry_count * 5
+
+        retry if retry_count <= 3
+
+        @logger.error "#{check_ref} not found at GitHub"
+
+        {}
+      end
     end
 
     def authenticate_app
@@ -189,6 +193,21 @@ module Github
         .create_app_installation_access_token(installation_id)[:token]
 
       @app = Octokit::Client.new(bearer_token: token)
+    end
+
+    def send_update(check_ref, opts, conclusion)
+      resp =
+        @app.update_check_run(
+          @check_suite.pull_request.repository,
+          check_ref,
+          opts
+        ).to_h
+
+      raise 'GitHub failed to update status' if resp[:conclusion] != conclusion
+
+      @logger.info("completed: #{check_ref}, conclusion: #{conclusion} -> resp: #{resp}")
+
+      resp
     end
   end
 end

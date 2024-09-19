@@ -82,24 +82,15 @@ module Github
     def insert_new_delayed_job
       queue = @job.check_suite.pull_request.github_pr_id % 10
 
-      if can_add_new_job?
-        return CiJobStatus
-               .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
-               .update(@job.check_suite.id, @job.id)
-      end
-
       delete_and_create_delayed_job(queue)
     end
 
     def delete_and_create_delayed_job(queue)
-      fetch_delayed_job.destroy_all
+      fetch_delayed_job&.destroy_all
+
       CiJobStatus
         .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
         .update(@job.check_suite.id, @job.id)
-    end
-
-    def can_add_new_job?
-      fetch_delayed_job.empty?
     end
 
     def fetch_delayed_job

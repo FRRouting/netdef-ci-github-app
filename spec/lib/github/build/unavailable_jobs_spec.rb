@@ -19,7 +19,7 @@ describe Github::Build::UnavailableJobs do
     allow(Octokit::Client).to receive(:new).and_return(fake_client)
     allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
     allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
-    allow(fake_client).to receive(:update_check_run)
+    allow(fake_client).to receive(:update_check_run).and_return({ conclusion: 'skipped' })
     allow(File).to receive(:read).and_return('')
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
   end

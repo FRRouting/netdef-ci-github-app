@@ -61,6 +61,7 @@ RSpec.configure do |config|
   end
 
   config.before(:each) do
+    allow_any_instance_of(Object).to receive(:sleep)
     Delayed::Worker.delay_jobs = false
   end
 

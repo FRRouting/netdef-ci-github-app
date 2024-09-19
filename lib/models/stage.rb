@@ -55,42 +55,38 @@ class Stage < ActiveRecord::Base
   end
 
   def cancelled(github, output: {}, agent: 'Github')
-    return if cancelled?
+    check_run = refresh_reference(github)
+    github.cancelled(check_run.id, output)
 
-    create_github_check(github)
-    github.cancelled(check_ref, output)
-    update(status: :cancelled)
+    update(status: :cancelled, check_ref: check_run.id)
     AuditStatus.create(auditable: self, status: :cancelled, agent: agent, created_at: Time.now)
     notification
   end
 
   def failure(github, output: {}, agent: 'Github')
-    return if failure?
+    check_run = refresh_reference(github)
+    github.failure(check_run.id, output)
 
-    create_github_check(github)
-    github.failure(check_ref, output)
-    update(status: :failure)
+    update(status: :failure, check_ref: check_run.id)
     AuditStatus.create(auditable: self, status: :failure, agent: agent, created_at: Time.now)
     notification
   end
 
   def success(github, output: {}, agent: 'Github')
-    return if success?
+    check_run = refresh_reference(github)
+    github.success(check_run.id, output)
 
-    create_github_check(github)
-    github.success(check_ref, output)
-    update(status: :success)
+    reload
+    update(status: :success, check_ref: check_run.id)
     AuditStatus.create(auditable: self, status: :success, agent: agent, created_at: Time.now)
     notification
   end
 
-  def refresh_reference(github, agent: 'Github')
-    check_run = github.create(github_stage_full_name(name))
-    update(check_ref: check_run.id)
-    AuditStatus.create(auditable: self, status: :refresh, agent: agent, created_at: Time.now)
-  end
-
   private
+
+  def refresh_reference(github)
+    github.create(github_stage_full_name(name))
+  end
 
   def in_progress_notification
     SlackBot.instance.stage_in_progress_notification(self)
