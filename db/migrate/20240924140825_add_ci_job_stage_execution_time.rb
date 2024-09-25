@@ -8,7 +8,6 @@
 #  Copyright (c) 2024 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
-#  frozen_string_literal: true
 
 class AddCiJobStageExecutionTime < ActiveRecord::Migration[6.0]
   def change
