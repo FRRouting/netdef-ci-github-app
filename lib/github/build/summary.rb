@@ -135,12 +135,14 @@ module Github
         if stage.jobs.failure.empty?
           logger(Logger::WARN, "Stage: #{stage.name} finished - success")
           stage.success(@github, output: output, agent: @agent)
+          stage.update_execution_time
 
           return
         end
 
         logger(Logger::WARN, "Stage: #{stage.name} finished - failure")
         stage.failure(@github, output: output, agent: @agent)
+        stage.update_execution_time
       end
 
       def update_summary(stage)
