@@ -18,6 +18,15 @@ class Stage < ActiveRecord::Base
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
+  def update_execution_time
+    started = audit_statuses.find_by(status: :in_progress)
+    finished = audit_statuses.find_by(status: %i[success failure])
+
+    return if started.nil? || finished.nil?
+
+    update(execution_time: finished.created_at - started.created_at)
+  end
+
   def running?
     jobs.where(status: %i[queued in_progress]).any?
   end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2024_06_17_121935) do
+ActiveRecord::Schema[7.2].define(version: 2024_09_24_140825) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -77,6 +77,7 @@ ActiveRecord::Schema[7.2].define(version: 2024_06_17_121935) do
     t.integer "retry", default: 0
     t.integer "parent_stage_id"
     t.bigint "stage_id"
+    t.integer "execution_time"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
   end
@@ -160,6 +161,7 @@ ActiveRecord::Schema[7.2].define(version: 2024_06_17_121935) do
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
     t.bigint "stage_configuration_id"
+    t.integer "execution_time"
     t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
     t.index ["stage_configuration_id"], name: "index_stages_on_stage_configuration_id"
   end

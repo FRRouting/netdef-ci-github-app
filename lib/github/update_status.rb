@@ -62,9 +62,11 @@ module Github
         @job.in_progress(@github_check)
       when 'success'
         @job.success(@github_check)
+        @job.update_execution_time
         slack_notify_success
       else
         failure
+        @job.update_execution_time
         slack_notify_failure
       end
 
