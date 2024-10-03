@@ -60,6 +60,7 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check)
+        create_timeout_worker
       when 'success'
         @job.success(@github_check)
         @job.update_execution_time
@@ -81,6 +82,16 @@ module Github
       [500, 'Internal Server Error']
     end
 
+    def create_timeout_worker
+      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%")&.delete_all
+
+      logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
+
+      TimeoutExecution
+        .delay(run_at: 2.hours.from_now.utc, queue: 'timeout_execution')
+        .timeout(@check_suite.id)
+    end
+
     def insert_new_delayed_job
       queue = @job.check_suite.pull_request.github_pr_id % 10
 
@@ -91,7 +102,7 @@ module Github
       fetch_delayed_job&.destroy_all
 
       CiJobStatus
-        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
+        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now.utc, queue: queue)
         .update(@job.check_suite.id, @job.id)
     end
 
@@ -117,7 +128,7 @@ module Github
       return failures_stats if @failures.is_a? Array and !@failures.empty?
 
       CiJobFetchTopotestFailures
-        .delay(run_at: 5.minutes.from_now, queue: 'fetch_topotest_failures')
+        .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
         .update(@job.id, 1)
     end
 

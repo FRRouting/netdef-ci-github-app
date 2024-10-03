@@ -48,4 +48,8 @@ class CheckSuite < ActiveRecord::Base
   def execution_started?
     ci_jobs.where(status: :in_progress).size < 2
   end
+
+  def last_job_updated_at_timer
+    ci_jobs.max_by(&:updated_at)&.updated_at.to_i
+  end
 end
