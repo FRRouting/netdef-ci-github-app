@@ -18,9 +18,8 @@ class TimeoutExecution
 
       @logger.info("Timeout execution for check_suite_id: #{check_suite_id} -> finished? #{check_suite.finished?}")
 
-      return if check_suite.finished?
-
-      return if check_suite.last_job_updated_at_timer > 2.hour.ago.utc
+      return false if check_suite.finished?
+      return rescheduling([], check_suite_id) if check_suite.last_job_updated_at_timer > 2.hour.ago.utc
 
       @logger.info("Calling Github::PlanExecution::Finished.new(#{check_suite.bamboo_ci_ref}).finished")
 
@@ -33,7 +32,7 @@ class TimeoutExecution
     end
 
     def rescheduling(resp, check_suite_id)
-      return if resp == [200, 'Finished']
+      return true if resp == [200, 'Finished']
 
       @logger.info("Rescheduling check_suite_id: #{check_suite_id}")
 
@@ -42,6 +41,8 @@ class TimeoutExecution
       TimeoutExecution
         .delay(run_at: 2.hours.from_now.utc, queue: 'timeout_execution')
         .timeout(check_suite_id)
+
+      false
     end
   end
 end
