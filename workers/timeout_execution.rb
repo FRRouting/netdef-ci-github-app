@@ -24,9 +24,24 @@ class TimeoutExecution
 
       @logger.info("Calling Github::PlanExecution::Finished.new(#{check_suite.bamboo_ci_ref}).finished")
 
-      Github::PlanExecution::Finished.new({ 'bamboo_ref' => check_suite.bamboo_ci_ref, hanged: true }).finished
+      resp =
+        Github::PlanExecution::Finished
+        .new({ 'bamboo_ref' => check_suite.bamboo_ci_ref, hanged: true })
+        .finished
 
-      true
+      return true if resp == [200, 'Finished']
+
+      rescheduling(check_suite_id)
+    end
+
+    def rescheduling(check_suite_id)
+      @logger.info("Rescheduling check_suite_id: #{check_suite_id}")
+
+      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{check_suite_id}%")&.delete_all
+
+      TimeoutExecution
+        .delay(run_at: 2.hours.from_now.utc, queue: 'timeout_execution')
+        .timeout(check_suite_id)
     end
   end
 end
