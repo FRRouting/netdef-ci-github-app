@@ -74,7 +74,6 @@ describe TimeoutExecution do
     end
   end
 
-
   # context 'when timeout is called and rescheduled' do
   #   let(:check_suite) { create(:check_suite) }
   #
