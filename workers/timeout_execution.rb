@@ -37,7 +37,7 @@ class TimeoutExecution
 
       @logger.info("Rescheduling check_suite_id: #{check_suite_id}")
 
-      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{check_suite_id}%")&.delete_all
+      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{check_suite_id}%").delete_all
 
       TimeoutExecution
         .delay(run_at: 2.hours.from_now.utc, queue: 'timeout_execution')
