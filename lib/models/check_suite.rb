@@ -50,6 +50,6 @@ class CheckSuite < ActiveRecord::Base
   end
 
   def last_job_updated_at_timer
-    ci_jobs.max_by(&:updated_at)&.updated_at.to_i
+    ci_jobs.max_by(&:updated_at)&.updated_at
   end
 end
