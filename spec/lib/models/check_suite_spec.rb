@@ -22,13 +22,21 @@ describe CheckSuite do
     end
   end
 
-  context '#last_job_updated_at_timer?' do
-    let(:ci_job) { create(:ci_job, updated_at: nil) }
+  context '#last_job_updated_at_timer? -> success' do
+    let(:ci_job) { create(:ci_job) }
     let(:check_suite) { create(:check_suite, ci_jobs: [ci_job]) }
-    let(:check_suite_running) { create(:check_suite, :with_in_progress) }
 
     it 'returns false' do
-      expect(check_suite_running.last_job_updated_at_timer).not_to be_nil
+      expect(check_suite.last_job_updated_at_timer).not_to be_nil
+    end
+  end
+
+  context '#last_job_updated_at_timer? -> error' do
+    let(:ci_job) { create(:ci_job, updated_at: nil) }
+    let(:check_suite) { create(:check_suite, ci_jobs: []) }
+
+    it 'returns false' do
+      expect(check_suite.last_job_updated_at_timer).to be_nil
     end
   end
 end
