@@ -39,6 +39,8 @@ RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include WebMock::API
 
+  config.add_formatter('json', 'tmp/rspec_results.json')
+
   pid = nil
 
   config.before(:suite) do

@@ -23,10 +23,10 @@ class TimeoutExecution
 
       @logger.info("Calling Github::PlanExecution::Finished.new(#{check_suite.bamboo_ci_ref}).finished")
 
-      rescheduling(finished, check_suite_id)
+      rescheduling(finished(check_suite), check_suite_id)
     end
 
-    def finished
+    def finished(check_suite)
       Github::PlanExecution::Finished
         .new({ 'bamboo_ref' => check_suite.bamboo_ci_ref, hanged: true })
         .finished
