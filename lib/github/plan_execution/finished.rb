@@ -20,6 +20,7 @@ module Github
       def initialize(payload)
         @check_suite = CheckSuite.find_by(bamboo_ci_ref: payload['bamboo_ref'])
         @logger = GithubLogger.instance.create('github_plan_execution_finished.log', Logger::INFO)
+        @hanged = payload['hanged'] || false
       end
 
       def finished
