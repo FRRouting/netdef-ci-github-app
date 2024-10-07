@@ -60,11 +60,14 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check)
+        create_timeout_worker
       when 'success'
         @job.success(@github_check)
+        @job.update_execution_time
         slack_notify_success
       else
         failure
+        @job.update_execution_time
         slack_notify_failure
       end
 
@@ -79,27 +82,28 @@ module Github
       [500, 'Internal Server Error']
     end
 
+    def create_timeout_worker
+      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%")&.delete_all
+
+      logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
+
+      TimeoutExecution
+        .delay(run_at: 2.hours.from_now.utc, queue: 'timeout_execution')
+        .timeout(@check_suite.id)
+    end
+
     def insert_new_delayed_job
       queue = @job.check_suite.pull_request.github_pr_id % 10
-
-      if can_add_new_job?
-        return CiJobStatus
-               .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
-               .update(@job.check_suite.id, @job.id)
-      end
 
       delete_and_create_delayed_job(queue)
     end
 
     def delete_and_create_delayed_job(queue)
-      fetch_delayed_job.destroy_all
-      CiJobStatus
-        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now, queue: queue)
-        .update(@job.check_suite.id, @job.id)
-    end
+      fetch_delayed_job&.destroy_all
 
-    def can_add_new_job?
-      fetch_delayed_job.empty?
+      CiJobStatus
+        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now.utc, queue: queue)
+        .update(@job.check_suite.id, @job.id)
     end
 
     def fetch_delayed_job
@@ -124,7 +128,7 @@ module Github
       return failures_stats if @failures.is_a? Array and !@failures.empty?
 
       CiJobFetchTopotestFailures
-        .delay(run_at: 5.minutes.from_now, queue: 'fetch_topotest_failures')
+        .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
         .update(@job.id, 1)
     end
 

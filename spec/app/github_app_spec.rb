@@ -388,7 +388,8 @@ describe 'GithubApp' do
     context 'when fetch settings' do
       let(:headers) do
         {
-          'HTTP_AUTHORIZATION' => auth
+          'HTTP_AUTHORIZATION' => auth,
+          'HTTP_ACCEPT' => 'application/json'
         }
       end
 

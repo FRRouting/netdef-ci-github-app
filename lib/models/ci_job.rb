@@ -36,6 +36,15 @@ class CiJob < ActiveRecord::Base
     !%w[queued in_progress].include?(status)
   end
 
+  def update_execution_time
+    started = audit_statuses.find_by(status: :in_progress)
+    finished = audit_statuses.find_by(status: %i[success failure])
+
+    return if started.nil? || finished.nil?
+
+    update(execution_time: finished.created_at - started.created_at)
+  end
+
   def create_check_run(agent: 'Github')
     AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
     update(status: :queued)

@@ -8,12 +8,14 @@
 #
 #  frozen_string_literal: true
 
-require_relative 'app/github_app'
-require_relative 'config/delayed_job'
-
-require 'puma'
+require 'rack'
+require 'rackup'
 require 'rack/handler/puma'
 require 'rack/session/cookie'
+require 'securerandom'
+
+require_relative 'app/github_app'
+require_relative 'config/delayed_job'
 
 File.write('.session.key', SecureRandom.hex(32))
 
@@ -24,7 +26,7 @@ pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work Q
 
 use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, max_age: 86_400
 
-Rack::Handler::Puma.run Rack::URLMap.new('/' => GithubApp)
+Rackup::Handler::Puma.run Rack::URLMap.new('/' => GithubApp)
 
 pids.each do |pid|
   Process.kill('TERM', pid.to_i)

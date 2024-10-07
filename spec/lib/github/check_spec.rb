@@ -75,7 +75,7 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:create_issue_comment_reaction)
-        .with(repo, comment_id, '+1', accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+        .with(repo, comment_id, '+1')
         .and_return(pr_info)
     end
 
@@ -92,7 +92,7 @@ describe Github::Check do
 
     before do
       allow(fake_client).to receive(:create_issue_comment_reaction)
-        .with(repo, comment_id, '-1', accept: Octokit::Preview::PREVIEW_TYPES[:reactions])
+        .with(repo, comment_id, '-1')
         .and_return(pr_info)
     end
 
@@ -104,12 +104,12 @@ describe Github::Check do
   context 'when call create' do
     let(:pr_id) { 1 }
     let(:name) { 'test' }
-    let(:pr_info) { { name: name } }
+    let(:pr_info) { { name: name, conclusion: 'success' } }
 
     before do
       allow(fake_client).to receive(:create_check_run)
         .with(check_suite.pull_request.repository, name,
-              check_suite.commit_sha_ref, accept: 'application/vnd.github.antiope-preview+json')
+              check_suite.commit_sha_ref)
         .and_return(pr_info)
     end
 
@@ -128,8 +128,7 @@ describe Github::Check do
         .with(check_suite.pull_request.repository,
               id,
               {
-                status: status,
-                accept: 'application/vnd.github.antiope-preview+json'
+                status: status
               })
         .and_return(pr_info)
     end
@@ -142,7 +141,7 @@ describe Github::Check do
   context 'when call in_progress' do
     let(:id) { 1 }
     let(:status) { 'in_progress' }
-    let(:pr_info) { { status: status } }
+    let(:pr_info) { { status: status, conclusion: status } }
     let(:output) { { title: 'Title', summary: 'Summary' } }
 
     before do
@@ -151,8 +150,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                output: output,
-                accept: 'application/vnd.github.antiope-preview+json'
+                output: output
               })
         .and_return(pr_info)
     end
@@ -173,14 +171,13 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                conclusion: conclusion
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
-      expect(check.cancelled(id)).to eq({})
+      expect(check.cancelled(id)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -195,14 +192,13 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                conclusion: conclusion
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
-      expect(check.success(id)).to eq({})
+      expect(check.success(id)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -217,8 +213,7 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github.antiope-preview+json'
+                conclusion: conclusion
               })
         .and_return(true)
     end
@@ -241,14 +236,13 @@ describe Github::Check do
               {
                 status: status,
                 conclusion: conclusion,
-                output: output,
-                accept: 'application/vnd.github+json'
+                output: output
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
-      expect(check.failure(id, output)).to eq({})
+      expect(check.failure(id, output)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -263,14 +257,13 @@ describe Github::Check do
               id,
               {
                 status: status,
-                conclusion: conclusion,
-                accept: 'application/vnd.github+json'
+                conclusion: conclusion
               })
-        .and_return({})
+        .and_return({ conclusion: conclusion })
     end
 
     it 'must returns success' do
-      expect(check.skipped(id)).to eq({})
+      expect(check.skipped(id)).to eq({ conclusion: conclusion })
     end
   end
 
@@ -354,6 +347,32 @@ describe Github::Check do
 
       it 'must returns raise' do
         expect { check.installation_id }.to raise_error(StandardError, 'Github Authentication Failed')
+      end
+    end
+  end
+
+  describe 'retry send_update ' do
+    let(:id) { 1 }
+    let(:status) { 'completed' }
+    let(:conclusion) { 'success' }
+
+    context 'when send_update returns error' do
+      before do
+        allow(fake_client).to receive(:update_check_run).and_raise(Octokit::NotFound)
+      end
+
+      it 'must returns raise' do
+        expect(check.skipped(id)).to eq({})
+      end
+    end
+
+    context 'when send_update returns error and success' do
+      before do
+        allow(fake_client).to receive(:update_check_run).and_return({}, { conclusion: conclusion })
+      end
+
+      it 'must returns a valid data' do
+        expect(check.skipped(id)).to eq({})
       end
     end
   end
