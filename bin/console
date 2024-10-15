@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 #  SPDX-License-Identifier: BSD-2-Clause
 #
-#  organization_console.rb
+#  console
 #  Part of NetDEF CI System
 #
 #  Copyright (c) 2023 by
@@ -10,9 +10,14 @@
 # frozen_string_literal: true
 
 require 'irb'
-require_relative '../config/setup'
 
-# Defina métodos para buscar e criar empresas
+ENV['RAILS_ENV'] = ARGV.shift || 'production'
+
+puts "Starting console: #{ENV.fetch('RAILS_ENV', nil)}"
+
+require_relative '../config/setup'
+require_relative '../config/delayed_job'
+
 def find_organization(name)
   organization = Organization.find_by(name: name)
   if organization
@@ -97,7 +102,25 @@ def remove_user_from_organization(github_login)
   end
 end
 
-def help
+def add_github_user_slack_user(github_login, slack_user)
+  user = GithubUser.find_by(github_login: github_login)
+
+  if user.nil?
+    puts 'Github user not found'
+    return
+  end
+
+  user.update(slack_username: slack_user)
+  SlackUsername2Id.fetch_id(github_login, slack_user)
+
+  if user.persisted?
+    puts "Slack user linked to github user: #{user.inspect}"
+  else
+    puts "Failed to link slack user to github user: #{user.errors.full_messages.join(', ')}"
+  end
+end
+
+def help?
   puts <<~HELP
     Available commands:
     - find_organization(name)
@@ -106,6 +129,7 @@ def help
     - find_github_user(login)
     - add_user_in_organization(login, organization_name)
     - remove_user_from_organization(login)
+    - add_github_user_slack_user(github_login, slack_user)
 
     create_organization / edit_organization attributes:
     - contact_email: string
@@ -122,5 +146,4 @@ def help
   HELP
 end
 
-# Inicie o console IRB
 IRB.start
