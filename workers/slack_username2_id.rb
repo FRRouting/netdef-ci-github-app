@@ -1,5 +1,4 @@
-# frozen_string_literal: true
-
+#
 #  SPDX-License-Identifier: BSD-2-Clause
 #
 #  slack_username2_id.rb
@@ -8,7 +7,7 @@
 #  Copyright (c) 2024 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
-#  frozen_string_literal: true
+# frozen_string_literal: true
 
 class SlackUsername2Id
   class << self
