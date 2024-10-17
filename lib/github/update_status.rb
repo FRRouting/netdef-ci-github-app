@@ -64,11 +64,9 @@ module Github
       when 'success'
         @job.success(@github_check)
         @job.update_execution_time
-        slack_notify_success
       else
         failure
         @job.update_execution_time
-        slack_notify_failure
       end
 
       return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
