@@ -16,6 +16,7 @@ describe Github::UpdateStatus do
   before do
     allow(Github::PlanExecution::Finished).to receive(:new).and_return(fake_finish_plan)
     allow(fake_finish_plan).to receive(:fetch_build_status)
+    allow(TimeoutExecution).to receive_message_chain(:delay, :timeout).and_return(true)
   end
 
   describe 'Validates different Ci Job status' do

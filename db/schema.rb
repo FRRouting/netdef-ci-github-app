@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
+ActiveRecord::Schema[7.2].define(version: 2024_10_14_134659) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -77,6 +77,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
     t.integer "retry", default: 0
     t.integer "parent_stage_id"
     t.bigint "stage_id"
+    t.integer "execution_time"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
   end
@@ -106,7 +107,20 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
     t.string "organization_url"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.bigint "organization_id"
+    t.string "slack_username"
+    t.string "slack_id"
     t.index ["github_id"], name: "index_github_users_on_github_id", unique: true
+    t.index ["organization_id"], name: "index_github_users_on_organization_id"
+  end
+
+  create_table "organizations", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "contact_email"
+    t.string "contact_name"
+    t.string "url"
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
   end
 
   create_table "plans", force: :cascade do |t|
@@ -160,6 +174,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
     t.datetime "updated_at", null: false
     t.bigint "check_suite_id"
     t.bigint "stage_configuration_id"
+    t.integer "execution_time"
     t.index ["check_suite_id"], name: "index_stages_on_check_suite_id"
     t.index ["stage_configuration_id"], name: "index_stages_on_stage_configuration_id"
   end
@@ -183,6 +198,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_06_17_121935) do
   add_foreign_key "check_suites", "stages", column: "stopped_in_stage_id"
   add_foreign_key "ci_jobs", "check_suites"
   add_foreign_key "ci_jobs", "stages"
+  add_foreign_key "github_users", "organizations"
   add_foreign_key "plans", "check_suites"
   add_foreign_key "pull_request_subscriptions", "pull_requests"
   add_foreign_key "pull_requests", "github_users"

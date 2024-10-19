@@ -80,4 +80,23 @@ describe CiJob do
       end
     end
   end
+
+  describe '#execution_time' do
+    let(:stage) { create(:ci_job, check_ref: nil) }
+
+    context 'when CiJob started and finished' do
+      it 'must update status' do
+        stage.in_progress(github)
+        stage.success(github)
+        stage.update_execution_time
+      end
+    end
+
+    context 'when CiJob started and not finished' do
+      it 'must update status' do
+        stage.in_progress(github)
+        stage.update_execution_time
+      end
+    end
+  end
 end

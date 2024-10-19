@@ -40,7 +40,9 @@ require_relative 'helpers/telemetry'
 
 # Workers
 require_relative '../workers/ci_job_status'
+require_relative '../workers/timeout_execution'
 require_relative '../workers/ci_job_fetch_topotest_failures'
+require_relative '../workers/slack_username2_id'
 
 # Slack libs
 require_relative 'slack/slack'

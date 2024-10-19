@@ -10,6 +10,7 @@ AllCops:
   Exclude:
     - 'githubapi/**/*'
     - 'db/schema.rb'
+    - 'bin/console'
 Metrics/MethodLength:
   Max: 20
 

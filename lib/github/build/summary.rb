@@ -34,7 +34,6 @@ module Github
       def build_summary
         current_stage = @job.stage
         current_stage = fetch_parent_stage if current_stage.nil?
-        current_stage.refresh_reference(@github)
 
         logger(Logger::INFO, "build_summary: #{current_stage.inspect}")
         msg = "Github::Build::Summary - #{@job.inspect}, #{current_stage.inspect}, bamboo info: #{bamboo_info}"
@@ -81,8 +80,6 @@ module Github
           .where(check_suite: @check_suite)
           .where(configuration: { position: [(current_stage.configuration.position + 1)..] })
           .each do |stage|
-          next if stage.cancelled?
-
           cancelling_next_stage(stage)
         end
       end
@@ -98,7 +95,7 @@ module Github
           .where(configuration: { position: current_stage.configuration.position + 1 })
           .first
 
-        return if next_stage.nil? or next_stage.cancelled?
+        return if next_stage.nil? or next_stage.finished?
 
         update_summary(next_stage)
       end
@@ -138,12 +135,14 @@ module Github
         if stage.jobs.failure.empty?
           logger(Logger::WARN, "Stage: #{stage.name} finished - success")
           stage.success(@github, output: output, agent: @agent)
+          stage.update_execution_time
 
           return
         end
 
         logger(Logger::WARN, "Stage: #{stage.name} finished - failure")
         stage.failure(@github, output: output, agent: @agent)
+        stage.update_execution_time
       end
 
       def update_summary(stage)

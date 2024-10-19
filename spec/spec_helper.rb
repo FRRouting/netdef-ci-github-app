@@ -39,11 +39,16 @@ RSpec.configure do |config|
   config.include FactoryBot::Syntax::Methods
   config.include WebMock::API
 
+  config.add_formatter('json', 'tmp/rspec_results.json')
+
   pid = nil
 
-  config.before(:all) do
-    DatabaseCleaner.clean
+  config.before(:suite) do
+    DatabaseCleaner.strategy = :transaction
+    DatabaseCleaner.clean_with(:truncation)
+  end
 
+  config.before(:all) do
     pid = Thread.new do
       Delayed::Worker.new(
         min_priority: 0,
@@ -58,7 +63,14 @@ RSpec.configure do |config|
   end
 
   config.before(:each) do
+    allow_any_instance_of(Object).to receive(:sleep)
     Delayed::Worker.delay_jobs = false
+  end
+
+  config.around(:each) do |example|
+    DatabaseCleaner.cleaning do
+      example.run
+    end
   end
 
   config.after(:each) do
