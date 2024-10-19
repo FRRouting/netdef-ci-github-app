@@ -28,7 +28,7 @@ module GitHubApp
       http.request(req).body
     end
 
-    def get_request(uri, machine: 'ci1.netdef.org')
+    def get_request(uri, machine: 'ci1.netdef.org', json: true)
       user, passwd = fetch_user_pass(machine)
       http = create_http(uri)
 
@@ -40,7 +40,7 @@ module GitHubApp
       # Add JSON request header
       req.add_field 'Accept', 'application/json'
 
-      JSON.parse(http.request(req).body)
+      json ? JSON.parse(http.request(req).body) : http.request(req).body
     rescue StandardError => e
       logger(Logger::ERROR, "HTTP GET Request failed (#{e.message}) for #{uri.host}")
     end

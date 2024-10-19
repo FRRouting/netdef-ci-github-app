@@ -1,0 +1,149 @@
+#!/usr/bin/env ruby
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  console
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2023 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+# frozen_string_literal: true
+
+require 'irb'
+
+ENV['RAILS_ENV'] = ARGV.shift || 'production'
+
+puts "Starting console: #{ENV.fetch('RAILS_ENV', nil)}"
+
+require_relative '../config/setup'
+require_relative '../config/delayed_job'
+
+def find_organization(name)
+  organization = Organization.find_by(name: name)
+  if organization
+    puts "> #{organization.inspect}"
+  else
+    puts 'Organization not found'
+  end
+end
+
+def create_organization(name, attributes = {})
+  organization = Organization.create(name: name, **attributes)
+  if organization.persisted?
+    puts "Organization created: #{organization.inspect}"
+  else
+    puts "Failed to create organization: #{organization.errors.full_messages.join(', ')}"
+  end
+end
+
+def edit_organization(name, attributes = {})
+  organization = Organization.find_by(name: name)
+
+  if organization.nil?
+    puts 'Organization not found'
+    return
+  end
+
+  organization.update(**attributes)
+
+  if organization.persisted?
+    puts "Organization updated: #{organization.inspect}"
+  else
+    puts "Failed to create organization: #{organization.errors.full_messages.join(', ')}"
+  end
+end
+
+def find_github_user(login)
+  user = GithubUser.find_by(github_login: login)
+  if user
+    puts "> #{user.inspect}"
+  else
+    puts 'Github user not found'
+  end
+end
+
+def add_user_in_organization(github_login, organization_name)
+  user = GithubUser.find_by(github_login: github_login)
+  organization = Organization.find_by(name: organization_name)
+
+  if user.nil?
+    puts 'Github user not found'
+    return
+  end
+
+  if organization.nil?
+    puts 'Organization not found'
+    return
+  end
+
+  user.update(organization: organization)
+
+  if user.persisted?
+    puts "Github user linked to organization: #{user.inspect}"
+  else
+    puts "Failed to link github user to organization: #{user.errors.full_messages.join(', ')}"
+  end
+end
+
+def remove_user_from_organization(github_login)
+  user = GithubUser.find_by(github_login: github_login)
+
+  if user.nil?
+    puts 'Github user not found'
+    return
+  end
+
+  user.update(organization: nil)
+
+  if user.persisted?
+    puts "Github user removed from organization: #{user.inspect}"
+  else
+    puts "Failed to remove github user from organization: #{user.errors.full_messages.join(', ')}"
+  end
+end
+
+def add_github_user_slack_user(github_login, slack_user)
+  user = GithubUser.find_by(github_login: github_login)
+
+  if user.nil?
+    puts 'Github user not found'
+    return
+  end
+
+  user.update(slack_username: slack_user)
+  SlackUsername2Id.fetch_id(github_login, slack_user)
+
+  if user.persisted?
+    puts "Slack user linked to github user: #{user.inspect}"
+  else
+    puts "Failed to link slack user to github user: #{user.errors.full_messages.join(', ')}"
+  end
+end
+
+def help?
+  puts <<~HELP
+    Available commands:
+    - find_organization(name)
+    - create_organization(name, attributes = {})
+    - edit_organization(name, attributes = {})
+    - find_github_user(login)
+    - add_user_in_organization(login, organization_name)
+    - remove_user_from_organization(login)
+    - add_github_user_slack_user(github_login, slack_user)
+
+    create_organization / edit_organization attributes:
+    - contact_email: string
+    - contact_name: string
+    - url: string
+
+    Example:
+    - find_organization('NetDEF')
+    - create_organization('NetDEF', contact_name: 'Rodrigo Nardi')
+    - edit_organization('NetDEF', contact_name: 'Martin Winter')
+    - find_github_user('rodrigonardi')
+    - add_user_in_organization('rodrigonardi', 'NetDEF')
+    - remove_user_from_organization('rodrigonardi')
+  HELP
+end
+
+IRB.start

@@ -64,11 +64,9 @@ module Github
       when 'success'
         @job.success(@github_check)
         @job.update_execution_time
-        slack_notify_success
       else
         failure
         @job.update_execution_time
-        slack_notify_failure
       end
 
       return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
@@ -83,7 +81,7 @@ module Github
     end
 
     def create_timeout_worker
-      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%")&.delete_all
+      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%").delete_all
 
       logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
 
@@ -99,7 +97,7 @@ module Github
     end
 
     def delete_and_create_delayed_job(queue)
-      fetch_delayed_job&.destroy_all
+      fetch_delayed_job.destroy_all
 
       CiJobStatus
         .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now.utc, queue: queue)
@@ -130,18 +128,6 @@ module Github
       CiJobFetchTopotestFailures
         .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
         .update(@job.id, 1)
-    end
-
-    def slack_notify_success
-      return unless current_execution?
-
-      SlackBot.instance.notify_success(@job)
-    end
-
-    def slack_notify_failure
-      return unless current_execution?
-
-      SlackBot.instance.notify_errors(@job)
     end
 
     def logger(severity, message)

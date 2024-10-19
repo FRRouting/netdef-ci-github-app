@@ -19,6 +19,11 @@ class SlackBot
     @logger_manager << GithubLogger.instance.create('github_retry.log', Logger::INFO)
   end
 
+  def find_user_id_by_name(username)
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/translate/#{username}"
+    get_request(URI(url), json: false)
+  end
+
   def invalid_rerun_group(job)
     return unless current_execution?(job.check_suite)
 
