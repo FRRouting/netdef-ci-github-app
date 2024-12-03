@@ -14,6 +14,7 @@ SimpleCov.start do
   add_filter %r{^/(spec|config)/}
   add_filter 'database_loader.rb'
   add_filter 'workers/slack_username2_id.rb'
+  add_filter 'workers/github_notify_watch_dog.rb'
   add_group 'Models', 'lib/models'
   add_group 'GitHub Functions', 'lib/github'
   add_group 'Bamboo CI Functions', 'lib/bamboo_ci'
