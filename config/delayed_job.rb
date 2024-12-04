@@ -41,7 +41,3 @@ Delayed::Job.delete_all unless ENV.fetch('RAILS_ENV', 'test') == 'test'
 
 config = YAML.load_file('config/database.yml')[ENV.fetch('RACK_ENV', 'development')]
 ActiveRecord::Base.establish_connection(config)
-
-GithubNotifyWatchDog
-  .delay(run_at: 1.hour.from_now.utc, queue: 'github_notify_watch_dog')
-  .run
