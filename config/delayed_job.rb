@@ -10,6 +10,7 @@
 
 require_relative '../lib/helpers/github_logger'
 require_relative '../database_loader'
+require_relative '../workers/github_notify_watch_dog'
 
 require 'delayed_job'
 require 'active_support'
