@@ -80,16 +80,6 @@ module Github
       [500, 'Internal Server Error']
     end
 
-    def create_timeout_worker
-      Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%").delete_all
-
-      logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
-
-      TimeoutExecution
-        .delay(run_at: 2.hours.from_now.utc, queue: 'timeout_execution')
-        .timeout(@check_suite.id)
-    end
-
     def insert_new_delayed_job
       queue = @job.check_suite.pull_request.github_pr_id % 10
 
