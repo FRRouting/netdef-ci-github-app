@@ -37,6 +37,7 @@ module Github
 
         logger(Logger::INFO, "@jobs - #{@jobs.inspect}")
         create_jobs(rerun)
+        create_timeout_worker
       end
 
       private
@@ -58,6 +59,16 @@ module Github
 
           stage_with_start_in_progress(ci_job)
         end
+      end
+
+      def create_timeout_worker
+        Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%").delete_all
+
+        logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
+
+        TimeoutExecution
+          .delay(run_at: 30.minute.from_now.utc, queue: 'timeout_execution')
+          .timeout(@check_suite.id)
       end
 
       def stage_with_start_in_progress(ci_job)
