@@ -97,16 +97,6 @@ module Github
       Delayed::Job.where('handler LIKE ?', "%method_name: :update\nargs:\n- #{@job.check_suite.id}%")
     end
 
-    def current_execution?
-      pull_request = @check_suite.pull_request
-      last_check_suite = pull_request.check_suites.reload.all.order(:created_at).last
-
-      logger Logger::INFO, "last_check_suite: #{last_check_suite.inspect}"
-      logger Logger::INFO, "@check_suite: #{@check_suite.inspect}"
-
-      @check_suite.id == last_check_suite.id
-    end
-
     # The unable2find string must match the phrase defined in the ci-files repository file
     # github_checks/hook_api.py method __topotest_title_summary
     def failure
