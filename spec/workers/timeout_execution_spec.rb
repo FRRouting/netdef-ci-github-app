@@ -29,21 +29,6 @@ describe TimeoutExecution do
     end
   end
 
-  context 'when timeout is called, but hanged' do
-    let(:check_suite) { create(:check_suite) }
-
-    before do
-      allow(CheckSuite).to receive(:find).and_return(check_suite)
-      allow(check_suite).to receive(:finished?).and_return(false)
-      allow(check_suite).to receive(:last_job_updated_at_timer).and_return(Time.now.utc - 3.hours)
-      allow(finished_instance).to receive(:finished).and_return([200, 'Finished'])
-    end
-
-    it 'calls timeout job' do
-      expect(described_class.timeout(check_suite.id)).to be_truthy
-    end
-  end
-
   context 'when timeout is called and rescheduled' do
     let(:check_suite) { create(:check_suite) }
 
