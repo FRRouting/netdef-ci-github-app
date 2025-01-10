@@ -60,7 +60,6 @@ module Github
       case @status
       when 'in_progress'
         @job.in_progress(@github_check)
-        create_timeout_worker
       when 'success'
         @job.success(@github_check)
         @job.update_execution_time
