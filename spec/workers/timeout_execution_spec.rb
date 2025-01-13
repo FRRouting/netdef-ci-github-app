@@ -49,12 +49,27 @@ describe TimeoutExecution do
 
     before do
       allow(CheckSuite).to receive(:find).and_return(check_suite)
-      allow(check_suite).to receive(:finished?).and_return(false)
+      allow(check_suite).to receive(:finished?).and_return(false, true)
       allow(check_suite).to receive(:last_job_updated_at_timer).and_return(Time.now.utc - 3.hours)
     end
 
     it 'calls timeout job' do
-      expect(TimeoutExecution).to receive(:timeout)
+      expect(described_class.timeout(check_suite.id)).to be_falsey
+    end
+  end
+
+  context 'when timeout is called, last update in 2 hour ago' do
+    let(:check_suite) { create(:check_suite) }
+
+    before do
+      allow(CheckSuite).to receive(:find).and_return(check_suite)
+      allow(check_suite).to receive(:finished?).and_return(false, false)
+      allow(check_suite).to receive(:last_job_updated_at_timer).and_return(Time.now.utc - 3.hours,
+                                                                           Time.now.utc + 2.hour)
+      allow(finished_instance).to receive(:finished).and_return([200, 'Finished'])
+    end
+
+    it 'calls timeout job' do
       expect(described_class.timeout(check_suite.id)).to be_falsey
     end
   end
