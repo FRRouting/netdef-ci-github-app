@@ -7,7 +7,8 @@
 #  It creates summaries, jobs, and timeout workers for the CheckSuite.
 #
 #  Methods:
-#  - initialize(check_suite, github, jobs, logger_level: Logger::INFO): Initializes the Action class with the given parameters.
+#  - initialize(check_suite, github, jobs, logger_level: Logger::INFO): Initializes the Action class with the
+#    given parameters.
 #  - create_summary(rerun: false): Creates a summary for the CheckSuite, including jobs and timeout workers.
 #
 #  Example usage:
