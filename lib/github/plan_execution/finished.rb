@@ -34,7 +34,8 @@ module Github
       #
       # @param [Hash] payload The payload containing information about the CheckSuite.
       def initialize(payload)
-        @check_suite = CheckSuite.find_by(bamboo_ci_ref: payload['bamboo_ref'])
+        @check_suite = CheckSuite.find_by(bamboo_ci_ref: payload['bamboo_ref']) if payload['bamboo_ref']
+        @check_suite = CheckSuite.find(payload['check_suite_id']) if payload['check_suite_id']
         @logger = GithubLogger.instance.create('github_plan_execution_finished.log', Logger::INFO)
         @hanged = payload['hanged'] || false
       end
@@ -52,7 +53,7 @@ module Github
         fetch_ci_execution
         build_status = fetch_build_status
 
-        @logger.info ">>> build_status: #{build_status.inspect}"
+        @logger.info ">>> build_status: #{build_status.inspect}. Hanged? #{@hanged}"
 
         return [200, 'Still running'] if in_progress?(build_status) and !@hanged
 

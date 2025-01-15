@@ -3,6 +3,16 @@
 #  action.rb
 #  Part of NetDEF CI System
 #
+#  This class handles the build action for a given CheckSuite.
+#  It creates summaries, jobs, and timeout workers for the CheckSuite.
+#
+#  Methods:
+#  - initialize(check_suite, github, jobs, logger_level: Logger::INFO): Initializes the Action class with the given parameters.
+#  - create_summary(rerun: false): Creates a summary for the CheckSuite, including jobs and timeout workers.
+#
+#  Example usage:
+#    Github::Build::Action.new(check_suite, github, jobs).create_summary
+#
 #  Copyright (c) 2023 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 #
@@ -11,6 +21,13 @@
 module Github
   module Build
     class Action
+      ##
+      # Initializes the Action class with the given parameters.
+      #
+      # @param [CheckSuite] check_suite The CheckSuite to handle.
+      # @param [Github] github The Github instance to use.
+      # @param [Array] jobs The jobs to create for the CheckSuite.
+      # @param [Integer] logger_level The logging level to use (default: Logger::INFO).
       def initialize(check_suite, github, jobs, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
@@ -26,6 +43,10 @@ module Github
         logger(Logger::WARN, ">>>> Building action to CheckSuite: #{@check_suite.inspect}")
       end
 
+      ##
+      # Creates a summary for the CheckSuite, including jobs and timeout workers.
+      #
+      # @param [Boolean] rerun Indicates if the jobs should be rerun (default: false).
       def create_summary(rerun: false)
         logger(Logger::INFO, "SUMMARY #{@stages.inspect}")
 
@@ -42,6 +63,10 @@ module Github
 
       private
 
+      ##
+      # Creates jobs for the CheckSuite.
+      #
+      # @param [Boolean] rerun Indicates if the jobs should be rerun.
       def create_jobs(rerun)
         @jobs.each do |job|
           ci_job = create_ci_job(job)
@@ -61,9 +86,9 @@ module Github
         end
       end
 
+      ##
+      # Creates a timeout worker for the CheckSuite.
       def create_timeout_worker
-        Delayed::Job.where('handler LIKE ?', "%TimeoutExecution%args%-%#{@check_suite.id}%").delete_all
-
         logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
 
         TimeoutExecution
@@ -71,6 +96,10 @@ module Github
           .timeout(@check_suite.id)
       end
 
+      ##
+      # Starts the stage in progress if configured to do so.
+      #
+      # @param [CiJob] ci_job The CI job to start in progress.
       def stage_with_start_in_progress(ci_job)
         return unless !ci_job.stage.nil? and ci_job.stage.configuration.start_in_progress?
 
@@ -78,6 +107,11 @@ module Github
         ci_job.stage.in_progress(@github, output: {})
       end
 
+      ##
+      # Creates a CI job for the given job parameters.
+      #
+      # @param [Hash] job The job parameters.
+      # @return [CiJob, nil] The created CI job or nil if the stage configuration is not found.
       def create_ci_job(job)
         stage_config = StageConfiguration.find_by(bamboo_stage_name: job[:stage])
 
@@ -90,6 +124,10 @@ module Github
         CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref], stage: stage)
       end
 
+      ##
+      # Creates a check run stage for the given stage configuration.
+      #
+      # @param [StageConfiguration] stage_config The stage configuration.
       def create_check_run_stage(stage_config)
         stage = Stage.find_by(name: stage_config.github_check_run_name, check_suite_id: @check_suite.id)
 
@@ -103,6 +141,11 @@ module Github
         stage.enqueue(@github, output: initial_output(stage))
       end
 
+      ##
+      # Creates a new stage for the given stage configuration.
+      #
+      # @param [StageConfiguration] stage_config The stage configuration.
+      # @return [Stage] The created stage.
       def create_stage(stage_config)
         name = stage_config.github_check_run_name
 
@@ -121,6 +164,11 @@ module Github
         stage
       end
 
+      ##
+      # Generates the initial output for a CI job.
+      #
+      # @param [CiJob] ci_job The CI job.
+      # @return [Hash] The initial output.
       def initial_output(ci_job)
         output = { title: '', summary: '' }
         url = "https://ci1.netdef.org/browse/#{ci_job.check_suite.bamboo_ci_ref}"
@@ -131,6 +179,11 @@ module Github
         output
       end
 
+      ##
+      # Logs a message with the given severity.
+      #
+      # @param [Integer] severity The severity level.
+      # @param [String] message The message to log.
       def logger(severity, message)
         @loggers.each do |logger_object|
           logger_object.add(severity, message)

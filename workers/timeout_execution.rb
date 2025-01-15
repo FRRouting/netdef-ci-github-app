@@ -42,6 +42,7 @@ class TimeoutExecution
       return false if check_suite.finished?
       return watchdog(check_suite) if check_suite.last_job_updated_at_timer < 2.hour.ago.utc
 
+      @logger.info("Rescheduling check_suite_id: #{check_suite_id}")
       rescheduling(check_suite_id)
     end
 
@@ -52,7 +53,7 @@ class TimeoutExecution
     # @param [CheckSuite] check_suite The CheckSuite to handle.
     def watchdog(check_suite)
       Github::PlanExecution::Finished
-        .new({ 'bamboo_ref' => check_suite.bamboo_ci_ref, hanged: true })
+        .new({ 'check_suite_id' => check_suite.id, 'hanged' => true })
         .finished
 
       true
@@ -65,8 +66,6 @@ class TimeoutExecution
     #
     # @param [Integer] check_suite_id The ID of the CheckSuite to reschedule.
     def rescheduling(check_suite_id)
-      @logger.info("Rescheduling check_suite_id: #{check_suite_id}")
-
       TimeoutExecution
         .delay(run_at: 30.minute.from_now.utc, queue: 'timeout_execution')
         .timeout(check_suite_id)
