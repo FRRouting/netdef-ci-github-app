@@ -58,7 +58,6 @@ module Github
 
     private
 
-
     ##
     # Handles the case when the CI job is not found.
     #
