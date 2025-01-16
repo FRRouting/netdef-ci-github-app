@@ -47,6 +47,8 @@ describe Github::Build::Action do
     allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
     allow(BambooCi::Result).to receive(:fetch).and_return({})
 
+    allow(TimeoutExecution).to receive_message_chain(:delay, :timeout).and_return(true)
+
     stage
   end
 
