@@ -208,3 +208,77 @@ If you need to uninstall RVM, you can do so with the following command:
 ```shell
 rvm implode
 ```
+
+# Console
+
+The bin/console script allows you to interact with the application in an interactive Ruby (IRB) session. 
+This can be useful for debugging, running commands, and interacting with the application's models and database.
+
+## Available Commands
+
+- find_organization(name)  
+  - Description: Finds an organization by its name.
+  - Parameters:
+    - name: The name of the organization to find.
+
+- create_organization(name, attributes = {})  
+  - Description: Creates a new organization with the given attributes.
+  - Parameters:
+    - name: The name of the organization to create.
+    - attributes: A hash of attributes for the organization.
+    - contact_email: The contact email of the organization (string).
+    - contact_name: The contact name of the organization (string).
+    - url: The URL of the organization (string).
+    
+- edit_organization(name, attributes = {})  
+  - Description: Edits an existing organization with the given attributes.
+  - Parameters:
+    - name: The name of the organization to edit.
+    - attributes: A hash of attributes to update for the organization.
+    - contact_email: The contact email of the organization (string).
+    - contact_name: The contact name of the organization (string).
+    - url: The URL of the organization (string).
+
+- find_github_user(login)  
+  - Description: Finds a GitHub user by their login.
+  - Parameters:
+    - login: The GitHub login of the user to find.
+
+- add_user_in_organization(login, organization_name)  
+  - Description: Adds a GitHub user to an organization.
+  - Parameters:
+    - login: The GitHub login of the user to add.
+    - organization_name: The name of the organization to add the user to.
+
+- remove_user_from_organization(login)  
+  - Description: Removes a GitHub user from their organization.
+  - Parameters:
+    - login: The GitHub login of the user to remove.
+
+- add_github_user_slack_user(github_login, slack_user)  
+  - Description: Links a GitHub user to a Slack user.
+  - Parameters:
+    - github_login: The GitHub login of the user to link.
+    - slack_user: The Slack username to link to the GitHub user.
+
+Examples
+- Find an organization by name:  
+   - find_organization('NetDEF')
+   - 
+- Create a new organization:  
+  - create_organization('NetDEF', contact_name: 'Rodrigo Nardi')
+
+- Edit an existing organization:  
+  - edit_organization('NetDEF', contact_name: 'Martin Winter')
+
+- Find a GitHub user by login:  
+  - find_github_user('rodrigonardi')
+
+- Add a user to an organization:  
+  - add_user_in_organization('rodrigonardi', 'NetDEF')
+
+- Remove a user from an organization:  
+  - remove_user_from_organization('rodrigonardi')
+
+- Link a GitHub user to a Slack user:
+  - add_github_user_slack_user('rodrigonardi', 'slack_user')

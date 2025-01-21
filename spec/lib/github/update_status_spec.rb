@@ -484,6 +484,26 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         end
       end
 
+      context 'when Ci Job TopoTest Part 0 update from in_progress -> success, but check suite is old' do
+        let(:pull_request) { create(:pull_request) }
+        let(:check_suite) { create(:check_suite, pull_request: pull_request) }
+        let(:check_suite_current) { create(:check_suite, pull_request: pull_request) }
+        let(:stage1) { create(:stage, check_suite: check_suite) }
+
+        let(:ci_job) { create(:ci_job, status: 'in_progress', stage: stage1, check_suite: check_suite) }
+        let(:status) { 'success' }
+
+        before do
+          check_suite
+          check_suite_current
+          ci_job
+        end
+
+        it 'must returns success' do
+          expect(update_status.update).to eq([200, 'Success'])
+        end
+      end
+
       context 'when Ci Job TopoTest Part 0 update from in_progress -> failure' do
         let(:check_suite) { create(:check_suite) }
         let(:stage1) { create(:stage, check_suite: check_suite) }

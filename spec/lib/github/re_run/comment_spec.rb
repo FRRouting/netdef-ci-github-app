@@ -21,6 +21,8 @@ describe Github::ReRun::Comment do
 
     allow(Github::Build::UnavailableJobs).to receive(:new).and_return(fake_unavailable)
     allow(fake_unavailable).to receive(:update).and_return([])
+
+    allow(TimeoutExecution).to receive_message_chain(:delay, :timeout).and_return(true)
   end
 
   describe 'Invalid payload' do
