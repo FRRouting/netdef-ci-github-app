@@ -18,6 +18,7 @@ describe Github::BuildPlan do
   before do
     allow(File).to receive(:read).and_return('')
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
+    allow(TimeoutExecution).to receive_message_chain(:delay, :timeout).and_return(true)
   end
 
   describe 'Valid commands' do
