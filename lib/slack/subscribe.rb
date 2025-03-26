@@ -57,15 +57,28 @@ module Slack
       @subscription = nil
     end
 
+    # Checks if the GitHub user specified in the payload is invalid.
+    #
+    # This method iterates through the unique repository names and fetches the last pull request
+    # for each repository. It then uses the `Github::Check` class to fetch the username associated
+    # with the target specified in the payload. If the username is found, the method returns false,
+    # indicating that the GitHub user is valid. If no username is found for any repository, the method
+    # returns true, indicating that the GitHub user is invalid.
+    #
+    # @return [Boolean] true if the GitHub user is invalid, false otherwise.
     def invalid_github_user?
       return false if @payload['rule'].match? 'notify'
 
-      github = Github::Check.new(nil)
-      user = github.fetch_username(@payload['target'])
+      PullRequest.unique_repository_names.each do |repo|
+        pr = PullRequest.where(repository: repo).last
+        github = Github::Check.new(pr.check_suites.last)
 
-      return true unless user
+        user = github.fetch_username(@payload['target'])
 
-      false
+        return false if user
+      end
+
+      true
     end
   end
 end

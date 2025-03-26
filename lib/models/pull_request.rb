@@ -33,4 +33,8 @@ class PullRequest < ActiveRecord::Base
   def current_execution
     check_suites.order(id: :asc).last
   end
+
+  def self.unique_repository_names
+    distinct.pluck(:repository_name)
+  end
 end
