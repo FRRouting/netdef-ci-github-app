@@ -35,6 +35,6 @@ class PullRequest < ActiveRecord::Base
   end
 
   def self.unique_repository_names
-    distinct.pluck(:repository_name)
+    distinct.pluck(:repository)
   end
 end
