@@ -10,6 +10,7 @@
 
 describe Slack::Subscribe do
   let(:subscribe) { described_class.new }
+  let!(:pull_request) { create(:pull_request, :with_check_suite, id: 1) }
 
   context 'when subscribe with valid parameters' do
     let(:payload) do

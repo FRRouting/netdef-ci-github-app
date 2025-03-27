@@ -11,6 +11,7 @@
 describe Github::Parsers::PullRequestCommit do
   let(:parser) { described_class.new(repo, pr_id) }
   let(:fake_client) { Octokit::Client.new }
+  let!(:pull_request) { create(:pull_request, :with_check_suite, id: 1) }
 
   before do
     allow(Octokit::Client).to receive(:new).and_return(fake_client)

@@ -14,6 +14,7 @@ describe Github::ReRun::Comment do
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
   let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
+  let!(:pull_request) { create(:pull_request, :with_check_suite, id: 1) }
 
   before do
     allow(File).to receive(:read).and_return('')

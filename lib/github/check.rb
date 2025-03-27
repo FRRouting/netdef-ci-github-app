@@ -282,7 +282,7 @@ module Github
           entry.key? :repo and entry[:repo] == @check_suite.pull_request.repository
         end
 
-      create_app(app)
+      create_app(app) unless app.nil?
     end
 
     def github_default_app
