@@ -209,6 +209,33 @@ If you need to uninstall RVM, you can do so with the following command:
 rvm implode
 ```
 
+# Multiple Repositories
+
+## GitHub Repositories
+
+The GitHub Hook Server is designed to work with multiple repositories.
+To add a new repository, you need to create a new entry in the `config.yml` file.
+The `config.yml` file is located in the root directory of the project.
+
+### Example Configuration
+
+```yaml
+github_apps:
+  # dev
+  - login: 1234567
+    cert: github_private_key.pem
+    repo: 'opensourcerouting/frr-ci-test'
+
+  - login: 9876543
+    cert: github_private_key.pem
+    repo: 'RodrigoMNardi/frr' 
+```
+
+### Configuration Parameters
+- `login`: The GitHub login for the application.
+- `cert`: The path to the private key file for the GitHub application.
+- `repo`: The GitHub repository to monitor.
+
 # Console
 
 The bin/console script allows you to interact with the application in an interactive Ruby (IRB) session. 
