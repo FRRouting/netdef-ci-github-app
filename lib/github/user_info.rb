@@ -12,12 +12,13 @@ module Github
   class UserInfo
     def initialize(github_id, pull_request: nil, check_suite: nil, audit_retry: nil)
       @github_id = github_id
-      @github = Github::Check.new nil
-      @info = @github.fetch_username(github_id)
 
       @pull_request = pull_request
       @check_suite = check_suite
       @audit_retry = audit_retry
+
+      @github = Github::Check.new(@check_suite)
+      @info = @github.fetch_username(github_id)
 
       @logger = GithubLogger.instance.create('github_user_info.log', Logger::INFO)
 

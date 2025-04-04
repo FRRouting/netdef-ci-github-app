@@ -54,7 +54,7 @@ module Github
 
       def comment_flow
         commit = fetch_last_commit_or_sha256
-        github_check = Github::Check.new(nil)
+        github_check = fetch_github_check
         pull_request_info = github_check.pull_request_info(pr_id, repo)
         pull_request = fetch_or_create_pr(pull_request_info)
 
@@ -66,6 +66,20 @@ module Github
         @github_check = Github::Check.new(check_suite)
 
         check_suite
+      end
+
+      # Fetches the GitHub check associated with the pull request.
+      #
+      # This method finds the pull request by its GitHub PR ID and then retrieves
+      # the last check suite associated with that pull request. It then initializes
+      # a new `Github::Check` object with the last check suite.
+      #
+      # @return [Github::Check] the GitHub check associated with the pull request.
+      #
+      # @raise [ActiveRecord::RecordNotFound] if the pull request is not found.
+      def fetch_github_check
+        pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        Github::Check.new(pull_request.check_suites.last)
       end
 
       def create_check_suite_by_commit(commit, pull_request, pull_request_info)

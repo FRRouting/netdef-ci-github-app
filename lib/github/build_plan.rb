@@ -97,6 +97,10 @@ module Github
     end
 
     def start_new_execution
+      create_pull_request if @pull_request.nil?
+
+      @check_suite.pull_request = @pull_request
+
       Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), check_suite: @check_suite)
 
       @bamboo_plan_run = BambooCi::PlanRun.new(@check_suite, logger_level: @logger.level)

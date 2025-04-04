@@ -14,6 +14,7 @@ describe Github::ReRun::Comment do
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
   let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
+  let!(:pull_request) { create(:pull_request, :with_check_suite, id: 1) }
 
   before do
     allow(File).to receive(:read).and_return('')
@@ -336,7 +337,7 @@ describe Github::ReRun::Comment do
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => 'unit_test' },
-          'issue' => { 'number' => '10' }
+          'issue' => { 'number' => pull_request.github_pr_id }
         }
       end
 
@@ -364,7 +365,7 @@ describe Github::ReRun::Comment do
         ]
       end
 
-      let(:fake_check_suite) { create(:check_suite) }
+      let(:fake_check_suite) { create(:check_suite, pull_request: pull_request) }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: commit_sha, re_run: true) }
 
       it 'must returns success' do
@@ -383,7 +384,7 @@ describe Github::ReRun::Comment do
             'body' => 'CI:rerun 000000'
           },
           'repository' => { 'full_name' => 'unit_test' },
-          'issue' => { 'number' => '10' }
+          'issue' => { 'number' => pull_request.github_pr_id }
         }
       end
 
@@ -411,7 +412,7 @@ describe Github::ReRun::Comment do
         ]
       end
 
-      let(:fake_check_suite) { create(:check_suite) }
+      let(:fake_check_suite) { create(:check_suite, pull_request: pull_request) }
 
       before do
         create(:plan, github_repo_name: 'unit_test')
