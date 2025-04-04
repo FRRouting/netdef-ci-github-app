@@ -221,7 +221,6 @@ The `config.yml` file is located in the root directory of the project.
 
 ```yaml
 github_apps:
-  # dev
   - login: 1234567
     cert: github_private_key.pem
     repo: 'opensourcerouting/frr-ci-test'
