@@ -123,12 +123,15 @@ This guide will walk you through the steps to install RVM (Ruby Version Manager)
 Before you begin, ensure you have the following installed on your system:
 - `curl`
 - `gpg`
+- `openssl`
+- `libssl-dev`
+- `libpq-dev`
 
 You can install these using your package manager. For example, on Debian-based systems, you can use:
 
 ```shell
 sudo apt update
-sudo apt install -y curl gpg
+sudo apt install -y curl gpg libssl-dev libpq-dev
 ```
 
 ## Installation Steps
@@ -207,6 +210,48 @@ If you need to uninstall RVM, you can do so with the following command:
 
 ```shell
 rvm implode
+```
+
+# Installing RbEnv (Ruby Environment Version)
+
+This guide will walk you through the steps to install RbEnv (Ruby Environment Version) on your system.
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed on your system:
+- `curl`
+- `gpg`
+- `openssl`
+- `rbenv`
+- `libpq-dev`
+
+```shell
+apt install rbenv
+```
+
+## Installation Steps
+
+Move to project directory and run the following command:
+
+```shell
+rbenv init
+````
+
+This will create a `.rbenv` directory in your home directory.
+Then, add the following lines to your shell profile (~/.bashrc, ~/.zshrc, etc.):
+```
+eval "$(rbenv init -)"
+```
+
+```shell
+rbenv install 3.1.2
+rbenv local 3.1.2
+```
+
+After that, run the following command:
+
+```shell
+bundle install
 ```
 
 # Multiple Repositories
