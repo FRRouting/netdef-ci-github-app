@@ -38,7 +38,9 @@ module Github
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
       @failures = payload['failures'] || []
-      @summary = payload['output']['summary'] || ''
+
+      @summary = ''
+      @summary = payload['output']['summary'] if payload.key? 'output'
 
       logger_initializer
     end
@@ -149,6 +151,7 @@ module Github
       return if @job.nil?
 
       @job.failure(@github_check)
+      return failures_stats if @failures.is_a? Array and !@failures.empty?
 
       CiJobFetchTopotestFailures
         .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')

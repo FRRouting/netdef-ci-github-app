@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2024_10_14_134659) do
+ActiveRecord::Schema[7.2].define(version: 2025_04_16_153222) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -78,6 +78,7 @@ ActiveRecord::Schema[7.2].define(version: 2024_10_14_134659) do
     t.integer "parent_stage_id"
     t.bigint "stage_id"
     t.integer "execution_time"
+    t.string "summary"
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
   end

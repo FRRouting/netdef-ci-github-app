@@ -63,11 +63,11 @@ jobs:
         with:
           fetch-depth: 0
          
-      - name: Set up Ruby 3.3.1
+      - name: Set up Ruby 3.1.2
         id: ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.3.1
+          ruby-version: 3.1.2
           bundler-cache: true
 
       - name: Install required package
