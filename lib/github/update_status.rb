@@ -38,6 +38,7 @@ module Github
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
       @failures = payload['failures'] || []
+      @summary = payload['output']['summary'] || ""
 
       logger_initializer
     end
@@ -94,6 +95,8 @@ module Github
       else
         failure
         @job.update_execution_time
+        @job.summary = @summary
+        @job.save
       end
 
       return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
@@ -143,9 +146,9 @@ module Github
     # The unable2find string must match the phrase defined in the ci-files repository file
     # github_checks/hook_api.py method __topotest_title_summary
     def failure
-      @job.failure(@github_check)
+      return if @job.nil?
 
-      return failures_stats if @failures.is_a? Array and !@failures.empty?
+      @job.failure(@github_check)
 
       CiJobFetchTopotestFailures
         .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
