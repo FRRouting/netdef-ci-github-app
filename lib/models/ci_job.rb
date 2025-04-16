@@ -33,7 +33,7 @@ class CiJob < ActiveRecord::Base
   default_scope -> { order(id: :asc) }, all_queries: true
 
   def checkout_code?
-    self.name.match(/checkout/i)
+    name.match(/checkout/i)
   end
 
   def finished?

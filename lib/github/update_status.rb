@@ -38,7 +38,7 @@ module Github
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
       @check_suite = @job&.check_suite
       @failures = payload['failures'] || []
-      @summary = payload['output']['summary'] || ""
+      @summary = payload['output']['summary'] || ''
 
       logger_initializer
     end
