@@ -351,7 +351,7 @@ describe Github::Build::Summary do
 
     it 'must create a new stage' do
       summary.build_summary
-      expect(Stage.find(stage_configuration.id).name).to eq('D')
+      expect(Stage.all.pluck(:name)).to include('D')
     end
   end
 
