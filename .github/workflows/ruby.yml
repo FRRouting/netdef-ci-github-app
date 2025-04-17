@@ -95,17 +95,18 @@ jobs:
           cp config_template.yml config.yml
           bundle exec rspec -f j -o tmp/rspec_results.json -f p
 
+      - name: Save coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: tmp/rspec_results.json
+          if-no-files-found: warn
+
       - name: RSpec Report
         uses: SonicGarden/rspec-report-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: 'Unit tests'
           json-path: tmp/rspec_results.json
-        if: always()          
-
-      - name: Save coverage report
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: tmp/rspec_results.json
-          if-no-files-found: warn
+        if: always()
