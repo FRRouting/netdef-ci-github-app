@@ -167,7 +167,7 @@ describe Github::Build::Action do
     end
 
     it 'must not change' do
-      expect(check_suite_new.reload.stages.first.status).to eq('queued')
+      expect(check_suite_new.reload.stages.order(id: :asc).first.status).to eq('queued')
     end
   end
 

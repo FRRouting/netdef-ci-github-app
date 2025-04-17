@@ -39,6 +39,9 @@ module Github
       @check_suite = @job&.check_suite
       @failures = payload['failures'] || []
 
+      @summary = ''
+      @summary = payload['output']['summary'] if payload.key? 'output'
+
       logger_initializer
     end
 
@@ -94,6 +97,8 @@ module Github
       else
         failure
         @job.update_execution_time
+        @job.summary = @summary
+        @job.save
       end
 
       return [200, 'Success'] unless @job.check_suite.pull_request.current_execution? @job.check_suite
@@ -143,8 +148,9 @@ module Github
     # The unable2find string must match the phrase defined in the ci-files repository file
     # github_checks/hook_api.py method __topotest_title_summary
     def failure
-      @job.failure(@github_check)
+      return if @job.nil?
 
+      @job.failure(@github_check)
       return failures_stats if @failures.is_a? Array and !@failures.empty?
 
       CiJobFetchTopotestFailures

@@ -30,7 +30,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.3.1
+          ruby-version: 3.1.2
 
       - name: rubocop
         uses: reviewdog/action-rubocop@v2.6.0
@@ -63,11 +63,11 @@ jobs:
         with:
           fetch-depth: 0
          
-      - name: Set up Ruby 3.3.1
+      - name: Set up Ruby 3.1.2
         id: ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.3.1
+          ruby-version: 3.1.2
           bundler-cache: true
 
       - name: Install required package
@@ -93,7 +93,17 @@ jobs:
       - name: Run specs
         run: |
           cp config_template.yml config.yml
-          bundle exec rspec -f j -o tmp/rspec_results.json -f p
+          bundle exec rspec \
+            -f j -o tmp/rspec_results.json \
+            -f h -o tmp/rspec_results.html
+
+      - name: Save coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: /home/runner/work/netdef-ci-github-app/netdef-ci-github-app/coverage
+          if-no-files-found: warn
 
       - name: RSpec Report
         uses: SonicGarden/rspec-report-action@v2
@@ -101,4 +111,4 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: 'Unit tests'
           json-path: tmp/rspec_results.json
-        if: always()          
+        if: always()

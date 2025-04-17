@@ -279,7 +279,7 @@ module Github
     def github_app_by_repo
       app =
         @config['github_apps'].find do |entry|
-          entry.key? 'repo' and entry['repo'] == @check_suite.pull_request.repository
+          entry.key? 'repo' and entry['repo'] == @check_suite&.pull_request&.repository
         end
 
       @logger.info("github_app_by_repo: #{app.inspect}")
