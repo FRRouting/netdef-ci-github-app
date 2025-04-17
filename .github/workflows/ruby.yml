@@ -104,7 +104,8 @@ jobs:
         if: always()          
 
       - name: Save coverage report
-        uses: actions/upload-artifact@3.1.2
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: tmp/rspec_results.json
+          if-no-files-found: warn
