@@ -104,7 +104,7 @@ jobs:
           if-no-files-found: warn
 
       - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v6.0.0
+        uses: SonicGarden/rspec-report-action@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: 'Unit tests'
