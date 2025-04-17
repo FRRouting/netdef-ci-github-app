@@ -223,7 +223,9 @@ module Github
       end
 
       def generate_message(name, job)
-        failures = name.downcase.match?('build') ? build_message(job) : tests_message(job)
+        failures = tests_message(job)
+        failures = build_message(job) if name.downcase.match?('build')
+        failures = checkout_message(job) if name.downcase.match?('source')
 
         "- #{job.name} -> https://ci1.netdef.org/browse/#{job.job_ref}\n#{failures}"
       end
@@ -234,6 +236,14 @@ module Github
         return '' if failure.nil?
 
         "\t :no_entry_sign: #{failure.test_suite} #{failure.test_case}\n ```\n#{failure.message}\n```\n"
+      end
+
+      def checkout_message(job)
+        failures = job.summary
+
+        return '' if failures.nil?
+
+        "```\n#{failures}\n```\n"
       end
 
       def build_message(job)

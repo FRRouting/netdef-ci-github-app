@@ -32,6 +32,10 @@ class CiJob < ActiveRecord::Base
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
+  def checkout_code?
+    name.match(/checkout/i)
+  end
+
   def finished?
     !%w[queued in_progress].include?(status)
   end

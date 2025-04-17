@@ -10,6 +10,7 @@ auth_signature:
 github_apps:
   - login:
     cert:
+    repo:
 
 redis:
   host:

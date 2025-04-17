@@ -14,6 +14,7 @@ FactoryBot.define do
     status { 0 }
     job_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
     check_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
+    summary { Faker::Lorem.sentence }
 
     check_suite
     stage { create(:stage, status: status, check_suite: check_suite) }
