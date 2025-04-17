@@ -104,7 +104,7 @@ jobs:
         if: always()          
 
       - name: Save coverage report
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@3.1.2
         with:
           name: coverage-report
           path: tmp/rspec_results.json
