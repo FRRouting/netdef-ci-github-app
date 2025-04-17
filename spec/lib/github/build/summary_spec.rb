@@ -312,4 +312,116 @@ describe Github::Build::Summary do
       expect(ci_job.reload.stage).not_to be_nil
     end
   end
+
+  context 'when the current stage is cancelled' do
+    let(:stage) { create(:stage, :cancelled, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+
+    before do
+      ci_job
+    end
+
+    it 'does not update the stage' do
+      expect { summary.build_summary }.not_to(change { stage.reload.status })
+    end
+  end
+
+  context 'when stage does not exists' do
+    let(:ci_job) { create(:ci_job, stage: nil, check_suite: check_suite) }
+    let(:stage_configuration) { create(:stage_configuration, bamboo_stage_name: 'D', position: 1) }
+
+    let(:current_stage) do
+      create(:stage, name: 'B', check_suite: check_suite, configuration: create(:stage_configuration, position: 1))
+    end
+
+    let(:job_info) do
+      [
+        {
+          name: ci_job.name,
+          stage: 'D'
+        }
+      ]
+    end
+
+    before do
+      allow(BambooCi::RunningPlan).to receive(:fetch).and_return(job_info)
+      ci_job
+      stage_configuration
+    end
+
+    it 'must create a new stage' do
+      summary.build_summary
+      expect(Stage.find(stage_configuration.id).name).to eq('D')
+    end
+  end
+
+  context 'when the current stage is not mandatory and fails' do
+    let(:stage1) { create(:stage, :build, check_suite: check_suite) }
+    let(:stage2) { create(:stage, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage1, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, stage: stage2, check_suite: check_suite) }
+
+    before do
+      stage1.configuration.update(mandatory: false, position: 1)
+      stage2.configuration.update(position: 2)
+
+      ci_job
+      ci_job2
+      summary.build_summary
+    end
+
+    it 'does not cancel the next stage' do
+      expect(stage1.reload.status).to eq('failure')
+      expect(stage2.reload.status).to eq('queued')
+    end
+  end
+
+  context 'when the current stage is mandatory and succeeds' do
+    let(:stage1) { create(:stage, :build, check_suite: check_suite) }
+    let(:stage2) { create(:stage, check_suite: check_suite) }
+    let(:ci_job) { create(:ci_job, :success, stage: stage1, check_suite: check_suite) }
+    let(:ci_job2) { create(:ci_job, stage: stage2, check_suite: check_suite) }
+
+    before do
+      stage1.configuration.update(mandatory: true, position: 1)
+      stage2.configuration.update(position: 2)
+
+      ci_job
+      ci_job2
+      summary.build_summary
+    end
+
+    it 'marks the next stage as in_progress' do
+      expect(stage1.reload.status).to eq('success')
+      expect(stage2.reload.status).to eq('in_progress')
+    end
+  end
+
+  context 'when has a checkout message' do
+    let(:stage) { create(:stage, :build, check_suite: check_suite) }
+    let(:ci_job) do
+      create(:ci_job, :success, stage: stage, check_suite: check_suite, name: 'Sourcecode', summary: 'HI')
+    end
+    let(:message) do
+      "Sourcecode -> https://ci1.netdef.org/browse/#{ci_job.job_ref}\n```\nHI\n```"
+    end
+
+    it 'must update stage' do
+      expect(summary.send(:generate_message, 'source', ci_job)).to include(message)
+    end
+  end
+
+  context 'when has not a checkout message' do
+    let(:stage) { create(:stage, :build, check_suite: check_suite) }
+    let(:ci_job) do
+      create(:ci_job, :success, stage: stage, check_suite: check_suite, name: 'Sourcecode')
+    end
+    let(:message) do
+      "Sourcecode -> https://ci1.netdef.org/browse/#{ci_job.job_ref}\n```\nHI\n```"
+    end
+
+    it 'must update stage' do
+      expect(summary.send(:generate_message, 'source', ci_job)).not_to include(message)
+    end
+  end
 end

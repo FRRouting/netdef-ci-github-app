@@ -227,8 +227,6 @@ module Github
         failures = build_message(job) if name.downcase.match?('build')
         failures = checkout_message(job) if name.downcase.match?('source')
 
-        puts
-
         "- #{job.name} -> https://ci1.netdef.org/browse/#{job.job_ref}\n#{failures}"
       end
 
