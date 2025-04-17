@@ -102,7 +102,7 @@ jobs:
         if: always()
         with:
           name: coverage-report
-          path: tmp/rspec_results.html
+          path: /home/runner/work/netdef-ci-github-app/netdef-ci-github-app/coverage
           if-no-files-found: warn
 
       - name: RSpec Report
