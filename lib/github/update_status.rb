@@ -155,7 +155,7 @@ module Github
 
       CiJobFetchTopotestFailures
         .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
-        .update(@job.id, 1)\
+        .update(@job.id, 1) \
     end
 
     ##
