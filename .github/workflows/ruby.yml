@@ -93,14 +93,16 @@ jobs:
       - name: Run specs
         run: |
           cp config_template.yml config.yml
-          bundle exec rspec -f j -o tmp/rspec_results.json -f p
+          bundle exec rspec \
+            -f j -o tmp/rspec_results.json \
+            -f h -o tmp/rspec_results.html
 
       - name: Save coverage report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: coverage-report
-          path: tmp/rspec_results.json
+          path: tmp/rspec_results.html
           if-no-files-found: warn
 
       - name: RSpec Report
