@@ -243,7 +243,7 @@ module Github
 
         return '' if failures.nil?
 
-        "```\n#{failures}\n```\n"
+        "```\n#{failures.gsub('<br>', "\n")}\n```\n"
       end
 
       def build_message(job)
