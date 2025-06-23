@@ -180,7 +180,7 @@ module Github
       # @param [CiJob] ci_job The CI job to create the message for.
       # @return [Hash] The output message.
       def create_output_message(ci_job)
-        url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.job_ref}"
 
         {
           title: ci_job.name,

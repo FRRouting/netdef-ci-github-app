@@ -27,6 +27,12 @@ module GitHubApp
       config.key? 'debug' and config['debug']
     end
 
+    def ci_url
+      return @config['ci']['url'] if @config.key?('ci') && @config['ci'].key?('url')
+
+      'https://ci1.netdef.org'
+    end
+
     private
 
     def configuration

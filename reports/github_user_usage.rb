@@ -28,7 +28,7 @@ if user.check_suites.empty?
 else
   puts "Check Suites for user: #{user.github_login}"
   user.check_suites.each do |cs|
-    puts "Check Suite: https://ci1.netdef.org/browse/#{cs.bamboo_ci_ref}"
+    puts "Check Suite: https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{cs.bamboo_ci_ref}"
   end
 end
 
