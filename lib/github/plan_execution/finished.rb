@@ -34,8 +34,12 @@ module Github
       #
       # @param [Hash] payload The payload containing information about the CheckSuite.
       def initialize(payload)
-        @check_suite = CheckSuite.find_by(bamboo_ci_ref: payload['bamboo_ref']) if payload['bamboo_ref']
-        @check_suite = CheckSuite.find(payload['check_suite_id']) if payload['check_suite_id']
+        @check_suite = CheckSuite.where(
+          bamboo_ci_ref: payload['bamboo_ref']
+        ).or(
+          CheckSuite.where(id: payload['check_suite_id'])
+        ).last
+
         @logger = GithubLogger.instance.create('github_plan_execution_finished.log', Logger::INFO)
         @hanged = payload['hanged'] || false
       end

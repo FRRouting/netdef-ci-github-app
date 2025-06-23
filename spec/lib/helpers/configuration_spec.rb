@@ -24,6 +24,12 @@ describe GitHubApp::Configuration do
     end
   end
 
+  after do
+    if described_class.instance_variable_defined?(:@singleton__instance__)
+      described_class.__send__(:remove_instance_variable, :@singleton__instance__)
+    end
+  end
+
   describe '.instance' do
     it 'returns a singleton instance' do
       expect(described_class.instance).to be_a(described_class)
