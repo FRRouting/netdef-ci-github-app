@@ -101,7 +101,7 @@ module Github
       end
 
       def cancelling_next_stage(pending_stage)
-        url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
           title:
             "#{pending_stage.name} summary",
@@ -122,7 +122,7 @@ module Github
       end
 
       def finished_stage_summary(stage)
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
@@ -146,7 +146,7 @@ module Github
       end
 
       def update_summary(stage)
-        url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
@@ -196,7 +196,7 @@ module Github
         message = "\n\n:arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
 
         message + jobs.where(status: %i[in_progress]).map do |job|
-          "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
         end.join("\n")
       end
 
@@ -206,13 +206,13 @@ module Github
         message = ":arrow_right: Jobs queued: #{queued.size}/#{jobs.size}\n\n"
         message +
           queued.map do |job|
-            "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+            "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
           end.join("\n")
       end
 
       def success_message(jobs)
         jobs.where(status: :success).map do |job|
-          "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
         end.join("\n")
       end
 
@@ -227,7 +227,7 @@ module Github
         failures = build_message(job) if name.downcase.match?('build')
         failures = checkout_message(job) if name.downcase.match?('source')
 
-        "- #{job.name} -> https://ci1.netdef.org/browse/#{job.job_ref}\n#{failures}"
+        "- #{job.name} -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n#{failures}"
       end
 
       def tests_message(job)
