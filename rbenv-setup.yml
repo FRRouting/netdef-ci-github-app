@@ -1,0 +1,115 @@
+---
+- name: Install RbEnv and Ruby build dependencies
+  hosts: all
+  become: yes
+
+  vars:
+    rbenv_packages:
+      - git
+      - curl
+      - build-essential
+      - libssl-dev
+      - zlib1g-dev
+      - libpq-dev
+      - rbenv
+      - libffi-dev
+      - libyaml-dev
+      - autoconf
+      - bison
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required packages for rbenv and Ruby
+      apt:
+        name: "{{ rbenv_packages }}"
+        state: present
+        install_recommends: yes
+
+    - name: Ensure rbenv is initialized in .bashrc
+      lineinfile:
+        path: ~/.bashrc
+        line: 'eval "$(rbenv init -)"'
+        state: present
+        insertafter: EOF
+      become: no
+
+    - name: Install rbenv using git
+      git:
+        repo: 'https://github.com/rbenv/rbenv.git'
+        dest: ~/.rbenv
+        update: no
+      become: no
+
+    - name: Add rbenv to PATH
+      lineinfile:
+        path: ~/.bashrc
+        line: 'export PATH="$HOME/.rbenv/bin:$PATH"'
+        state: present
+        insertafter: EOF
+      become: no
+
+    - name: Install ruby-build as rbenv plugin
+      git:
+        repo: 'https://github.com/rbenv/ruby-build.git'
+        dest: ~/.rbenv/plugins/ruby-build
+        update: no
+      become: no
+
+    - name: Ensure rbenv is initialized in .bashrc
+      lineinfile:
+        path: ~/.bashrc
+        line: 'eval "$(rbenv init -)"'
+        state: present
+        insertafter: EOF
+      become: no
+
+    - name: Reload shell to use rbenv
+      shell: |
+        export PATH="$HOME/.rbenv/bin:$PATH"
+        eval "$(rbenv init -)"
+      args:
+        executable: /bin/bash
+      become: no
+
+    - name: Install Ruby 3.1.2
+      shell: |
+        export PATH="$HOME/.rbenv/bin:$PATH"
+        eval "$(rbenv init -)"
+        rbenv install -s 3.1.2
+      args:
+        creates: ~/.rbenv/versions/3.1.2
+        executable: /bin/bash
+      become: no
+
+    - name: Set Ruby 3.1.2 as local version
+      shell: |
+        export PATH="$HOME/.rbenv/bin:$PATH"
+        eval "$(rbenv init -)"
+        rbenv local 3.1.2
+      args:
+        chdir: "{{ ansible_env.PWD }}"
+        executable: /bin/bash
+      become: no
+
+    - name: Install bundler gem
+      shell: |
+        export PATH="$HOME/.rbenv/bin:$PATH"
+        eval "$(rbenv init -)"
+        gem install bundler
+        rbenv rehash
+      args:
+        executable: /bin/bash
+      become: no
+
+    - name: Run bundle install
+      shell: |
+        export PATH="$HOME/.rbenv/bin:$PATH"
+        eval "$(rbenv init -)"
+        bundle install
+      args:
+        chdir: "{{ ansible_env.PWD }}"
+        executable: /bin/bash
+      become: no

@@ -403,7 +403,7 @@ describe Github::Build::Summary do
       create(:ci_job, :success, stage: stage, check_suite: check_suite, name: 'Sourcecode', summary: 'HI')
     end
     let(:message) do
-      "Sourcecode -> https://ci1.netdef.org/browse/#{ci_job.job_ref}\n```\nHI\n```"
+      "Sourcecode -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.job_ref}\n```\nHI\n```"
     end
 
     it 'must update stage' do
