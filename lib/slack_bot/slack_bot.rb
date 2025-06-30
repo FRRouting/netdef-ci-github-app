@@ -136,6 +136,17 @@ class SlackBot
     end
   end
 
+  def notify_watch_dog(slack_user_id, message)
+    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+
+    post_request(URI(url),
+                 machine: 'slack_bot.netdef.org',
+                 body: {
+                   message: message,
+                   slack_user_id: slack_user_id
+                 }.to_json)
+  end
+
   private
 
   def current_execution?(check_suite)
