@@ -23,7 +23,7 @@ Stage
   .where(jobs: { created_at: [begin_date..end_date], status: %i[failure skipped] })
   .where(check_suites: { author: author })
   .each do |stage|
-  message = "Check Suite ID: https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+  message = "Check Suite ID: https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
   check_suites << message unless check_suites.include? message
 end
 

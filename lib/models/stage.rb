@@ -117,14 +117,19 @@ class Stage < ActiveRecord::Base
   end
 
   def output_in_progress
+    url = GitHubApp::Configuration.instance.ci_url
     in_progress = jobs.where(status: :in_progress)
 
     header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
-    in_progress_jobs = jobs.where(status: :in_progress).map do |job|
-      "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
-    end.join("\n")
+    in_progress_jobs = mount_in_progress_jobs(jobs)
 
-    url = "https://ci1.netdef.org/browse/#{check_suite.bamboo_ci_ref}"
+    url = "https://#{url}/browse/#{check_suite.bamboo_ci_ref}"
     { title: "#{name} summary", summary: "#{header}#{in_progress_jobs}\nDetails at [#{url}](#{url})" }
+  end
+
+  def mount_in_progress_jobs(jobs)
+    jobs.where(status: :in_progress).map do |job|
+      "- **#{job.name}** -> https://#{url}/browse/#{job.job_ref}\n"
+    end.join("\n")
   end
 end

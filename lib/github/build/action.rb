@@ -77,7 +77,7 @@ module Github
           if rerun
             next unless ci_job.stage.configuration.can_retry?
 
-            url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+            url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.job_ref}"
             ci_job.enqueue(@github, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
           else
             ci_job.create_check_run
@@ -156,7 +156,7 @@ module Github
                        status: 'queued',
                        name: name)
 
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 
         stage.enqueue(@github, output: output)
@@ -172,7 +172,7 @@ module Github
       # @return [Hash] The initial output.
       def initial_output(ci_job)
         output = { title: '', summary: '' }
-        url = "https://ci1.netdef.org/browse/#{ci_job.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.check_suite.bamboo_ci_ref}"
 
         output[:title] = "#{ci_job.name} summary"
         output[:summary] = "Details at [#{url}](#{url})"
