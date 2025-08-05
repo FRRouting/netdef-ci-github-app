@@ -54,6 +54,9 @@ module Github
 
       def comment_flow
         commit = fetch_last_commit_or_sha256
+
+        return if commit.nil?
+
         github_check = fetch_github_check
         pull_request_info = github_check.pull_request_info(pr_id, repo)
         pull_request = fetch_or_create_pr(pull_request_info)
@@ -138,7 +141,16 @@ module Github
       end
 
       def fetch_last_commit
-        Github::Parsers::PullRequestCommit.new(repo, pr_id).last_commit_in_pr
+        pull_request_commit = Github::Parsers::PullRequestCommit.new(repo, pr_id)
+
+        if pull_request_commit.invalid?
+          github_check = Github::Check.new(nil)
+          github_check.comment_reaction_thumb_down(repo, comment_id)
+
+          return nil
+        end
+
+        pull_request_commit.last_commit_in_pr
       end
 
       def github_reaction_feedback(comment_id)

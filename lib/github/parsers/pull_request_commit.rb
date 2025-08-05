@@ -20,9 +20,13 @@ module Github
         @repo = repo
         @pr_id = pr_id
 
-        pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        @pull_request = PullRequest.find_by(github_pr_id: pr_id)
 
-        @github_check = Github::Check.new(pull_request.check_suites.last)
+        created_github_check unless invalid?
+      end
+
+      def invalid?
+        @pull_request.nil?
       end
 
       # Finds a commit by its SHA.
@@ -65,6 +69,12 @@ module Github
         end
 
         last_commit
+      end
+
+      private
+
+      def created_github_check
+        @github_check = Github::Check.new(@pull_request.check_suites.last)
       end
     end
   end
