@@ -57,7 +57,7 @@ class SingleSync < Base
   end
 
   def update_ci_job_status(github_check, ci_job, state)
-    url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+    url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.job_ref}"
     output = {
       title: ci_job.name,
       summary: "Details at [#{url}](#{url})\nUnfortunately we were unable to access the execution results."
