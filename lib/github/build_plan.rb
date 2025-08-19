@@ -55,12 +55,15 @@ module Github
         return [422, 'Failed to save Check Suite']
       end
 
+      @logger.info "Check Suite created: #{@check_suite.inspect}"
       # Stop a previous execution - Avoiding CI spam
       stop_previous_execution
 
+      @logger.info "Starting a new execution for Pull Request: #{@pull_request.inspect}"
       # Starting a new CI run
       status = start_new_execution
 
+      @logger.info "New execution started with status: #{status}"
       return [status, 'Failed to create CI Plan'] if status != 200
 
       # Creating CiJobs at database
@@ -74,9 +77,11 @@ module Github
 
       return create_pull_request if @pull_request.nil?
 
-      @logger.info "Updating plan: #{fetch_plan}"
+      @logger.info "Updating plan: #{fetch_plan_name}"
 
-      @pull_request.update(plan: fetch_plan, branch_name: @payload.dig('pull_request', 'head', 'ref'))
+      @pull_request.update(plan: fetch_plan_name, branch_name: @payload.dig('pull_request', 'head', 'ref'))
+
+      add_plans
     end
 
     def github_pr
@@ -90,8 +95,10 @@ module Github
           github_pr_id: github_pr,
           branch_name: @payload.dig('pull_request', 'head', 'ref'),
           repository: @payload.dig('repository', 'full_name'),
-          plan: fetch_plan
+          plan: fetch_plan_name
         )
+
+      add_plans
 
       Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), pull_request: @pull_request)
     end
@@ -103,6 +110,7 @@ module Github
 
       Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), check_suite: @check_suite)
 
+      @logger.info "Starting a new plan"
       @bamboo_plan_run = BambooCi::PlanRun.new(@check_suite, logger_level: @logger.level)
       @bamboo_plan_run.ci_variables = ci_vars
       @bamboo_plan_run.start_plan
@@ -131,7 +139,10 @@ module Github
       end
 
       @has_previous_exec = true
-      BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
+
+      @last_check_suite.bamboo_refs.each do |bamboo_ref|
+        BambooCi::StopPlan.build(bamboo_ref.bamboo_key)
+      end
     end
 
     def create_check_suite
@@ -159,17 +170,22 @@ module Github
 
       SlackBot.instance.execution_started_notification(@check_suite)
 
-      @check_suite.update(bamboo_ci_ref: @bamboo_plan_run.bamboo_reference)
+      @bamboo_plan_run.bamboo_references.each do |entry|
+        @logger.info "Creating Bamboo Reference: #{entry[:name]} - #{entry[:key]}"
+        plan = Plan.find_by(name: entry[:name])
+        BambooRef.create(bamboo_key: entry[:key], check_suite: @check_suite, plan: plan)
 
-      jobs = BambooCi::RunningPlan.fetch(@bamboo_plan_run.bamboo_reference)
+        jobs = BambooCi::RunningPlan.fetch(entry[:key])
 
-      return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
+        @logger.info "Fetched jobs for Bamboo Reference: #{entry[:name]} - #{jobs.inspect}"
+        return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
 
-      action = Github::Build::Action.new(@check_suite, @github_check, jobs)
-      action.create_summary
+        action = Github::Build::Action.new(@check_suite, @github_check, jobs, entry[:name])
+        action.create_summary
 
-      @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
-      stop_execution_message if @has_previous_exec
+        @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
+        stop_execution_message if @has_previous_exec
+      end
 
       [200, 'Pull Request created']
     end
@@ -186,13 +202,23 @@ module Github
       ci_vars
     end
 
-    def fetch_plan
+    def fetch_plan_name
       plan = Plan.find_by(github_repo_name: @payload.dig('repository', 'full_name'))
 
       return plan.bamboo_ci_plan_name unless plan.nil?
 
       # Default plan
       'TESTING-FRRCRAS'
+    end
+
+    def add_plans
+      return if @pull_request.nil?
+
+      Plan.where(github_repo_name: @payload.dig('repository', 'full_name')).each do |plan|
+        @pull_request.plans << plan unless @pull_request.plans.include?(plan)
+      end
+
+      @pull_request.save
     end
   end
 end

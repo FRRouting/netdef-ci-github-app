@@ -18,7 +18,7 @@ class PullRequest < ActiveRecord::Base
 
   has_many :check_suites, dependent: :delete_all
   has_many :pull_request_subscriptions, dependent: :delete_all
-
+  has_many :plans
   def finished?
     return true if check_suites.nil? or check_suites.empty?
 
@@ -29,7 +29,6 @@ class PullRequest < ActiveRecord::Base
     current_execution == check_suite
   end
 
-  # @return [CheckSuite]
   def current_execution
     check_suites.order(id: :asc).last
   end

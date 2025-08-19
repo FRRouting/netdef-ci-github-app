@@ -37,9 +37,9 @@ module Github
 
         stop_previous_execution
 
-        bamboo_plan = start_new_execution(check_suite)
+        bamboo_plans = start_new_execution(check_suite)
 
-        ci_jobs(check_suite, bamboo_plan)
+        ci_jobs(check_suite, bamboo_plans)
 
         [201, 'Starting re-run (comment)']
       end

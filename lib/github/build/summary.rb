@@ -57,8 +57,10 @@ module Github
       private
 
       def bamboo_info
+        bamboo_info = Github::BambooRefRetriever.new(@job, @job.check_suite).fetch
+
         finish = Github::PlanExecution::Finished.new({ 'bamboo_ref' => @check_suite.bamboo_ci_ref })
-        finish.fetch_build_status
+        finish.fetch_build_status(bamboo_info[:bamboo_ci_ref])
       end
 
       def must_update_previous_stage(current_stage)
@@ -90,10 +92,10 @@ module Github
 
         next_stage =
           Stage
-          .joins(:configuration)
-          .where(check_suite: @check_suite)
-          .where(configuration: { position: current_stage.configuration.position + 1 })
-          .first
+            .joins(:configuration)
+            .where(check_suite: @check_suite)
+            .where(configuration: { position: current_stage.configuration.position + 1 })
+            .first
 
         return if next_stage.nil? or next_stage.finished?
 
@@ -101,7 +103,7 @@ module Github
       end
 
       def cancelling_next_stage(pending_stage)
-        url = "https://ci1.netdef.org/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{pending_stage.check_suite.bamboo_ci_ref}"
         output = {
           title:
             "#{pending_stage.name} summary",
@@ -122,7 +124,7 @@ module Github
       end
 
       def finished_stage_summary(stage)
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
@@ -146,7 +148,7 @@ module Github
       end
 
       def update_summary(stage)
-        url = "https://ci1.netdef.org/browse/#{@check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{@check_suite.bamboo_ci_ref}"
         output = {
           title: "#{stage.name} summary",
           summary: "#{summary_basic_output(stage)}\nDetails at [#{url}](#{url}).".force_encoding('utf-8')
@@ -196,7 +198,7 @@ module Github
         message = "\n\n:arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
 
         message + jobs.where(status: %i[in_progress]).map do |job|
-          "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{job.job_ref}\n"
         end.join("\n")
       end
 
@@ -206,13 +208,13 @@ module Github
         message = ":arrow_right: Jobs queued: #{queued.size}/#{jobs.size}\n\n"
         message +
           queued.map do |job|
-            "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+            "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{job.job_ref}\n"
           end.join("\n")
       end
 
       def success_message(jobs)
         jobs.where(status: :success).map do |job|
-          "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+          "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{job.job_ref}\n"
         end.join("\n")
       end
 
@@ -227,7 +229,7 @@ module Github
         failures = build_message(job) if name.downcase.match?('build')
         failures = checkout_message(job) if name.downcase.match?('source')
 
-        "- #{job.name} -> https://ci1.netdef.org/browse/#{job.job_ref}\n#{failures}"
+        "- #{job.name} -> https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{job.job_ref}\n#{failures}"
       end
 
       def tests_message(job)
@@ -258,12 +260,9 @@ module Github
       end
 
       def fetch_parent_stage
-        jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
-        info = jobs.find { |job| job[:name] == @job.name }
+        bamboo_info = Github::BambooRefRetriever.new(@job, @check_suite).fetch
 
-        stage = first_or_create_stage(info)
-
-        logger(Logger::INFO, "fetch_parent_stage - stage: #{stage.inspect} info[:stage]: #{info[:stage]}")
+        stage = first_or_create_stage(bamboo_info)
 
         @job.update(stage: stage)
 
@@ -272,7 +271,9 @@ module Github
 
       def first_or_create_stage(info)
         config = StageConfiguration.find_by(bamboo_stage_name: info[:stage])
-        stage = Stage.find_by(check_suite: @check_suite, name: info[:stage])
+        stage = Stage.joins(check_suite: :bamboo_refs)
+                     .where(check_suites: { id: @check_suite.id }, bamboo_refs: { bamboo_key: info[:bamboo_ci_ref] })
+                     .first
         stage = Stage.create(check_suite: @check_suite, name: info[:stage], configuration: config) if stage.nil?
 
         stage

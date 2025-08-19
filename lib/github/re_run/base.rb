@@ -65,7 +65,12 @@ module Github
 
         @last_check_suite = check_suite
 
-        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+        logger(Logger::INFO, "Stopping Bamboo Plan: #{@last_check_suite.id}")
+
+        @last_check_suite.bamboo_refs.each do |bamboo_ref|
+          logger(Logger::INFO, "Stopping Bamboo Reference: #{bamboo_ref.bamboo_key}")
+          BambooCi::StopPlan.build(bamboo_ref.bamboo_key)
+        end
       end
 
       def cancel_previous_jobs(check_suite)
@@ -74,10 +79,10 @@ module Github
         end
       end
 
-      def create_ci_jobs(bamboo_plan, check_suite)
-        jobs = BambooCi::RunningPlan.fetch(bamboo_plan.bamboo_reference)
+      def create_ci_jobs(bamboo_plan, check_suite, plan_name)
+        jobs = BambooCi::RunningPlan.fetch(bamboo_plan)
 
-        action = Github::Build::Action.new(check_suite, @github_check, jobs)
+        action = Github::Build::Action.new(check_suite, @github_check, jobs, plan_name)
         action.create_summary(rerun: true)
       end
 
@@ -110,7 +115,7 @@ module Github
 
         Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
 
-        bamboo_plan_run
+        bamboo_plan_run.bamboo_references
       end
 
       def ci_vars
@@ -120,17 +125,26 @@ module Github
         ci_vars
       end
 
-      def ci_jobs(check_suite, bamboo_plan)
-        SlackBot.instance.execution_started_notification(check_suite)
+      def ci_jobs(check_suite, bamboo_plans)
+        bamboo_plans.each do |bamboo_plan|
+          logger(Logger::INFO, "Starting Bamboo Plan: #{bamboo_plan[:name]} - #{bamboo_plan[:key]}")
+          SlackBot.instance.execution_started_notification(check_suite)
 
-        check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
+          plan = Plan.find_by(name: bamboo_plan[:name])
+          bamboo_ref = BambooRef.create(bamboo_key: bamboo_plan[:key], check_suite: check_suite, plan: plan)
+          bamboo_ref.save
 
-        check_suite.update(cancelled_previous_check_suite: @last_check_suite)
+          logger(Logger::INFO, "Creating Bamboo Reference: #{bamboo_ref.bamboo_key} - #{bamboo_ref.check_suite}")
 
-        create_ci_jobs(bamboo_plan, check_suite)
+          check_suite.update(bamboo_ci_ref: bamboo_plan[:key], re_run: true)
 
-        CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
-          Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
+          check_suite.update(cancelled_previous_check_suite: @last_check_suite)
+
+          create_ci_jobs(bamboo_plan[:key], check_suite, bamboo_plan[:name])
+
+          CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
+            Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
+          end
         end
       end
 

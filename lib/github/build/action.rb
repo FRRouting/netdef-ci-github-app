@@ -26,15 +26,17 @@ module Github
       # Initializes the Action class with the given parameters.
       #
       # @param [CheckSuite] check_suite The CheckSuite to handle.
-      # @param [Github] github The Github instance to use.
+      # @param [Github::Check] github The Github::Check instance to use.
       # @param [Array] jobs The jobs to create for the CheckSuite.
+      # @param [String] Stage Plan name.
       # @param [Integer] logger_level The logging level to use (default: Logger::INFO).
-      def initialize(check_suite, github, jobs, logger_level: Logger::INFO)
+      def initialize(check_suite, github, jobs, name, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
         @jobs = jobs
         @loggers = []
         @stages = StageConfiguration.all
+        @name = name
 
         %w[github_app.log github_build_action.log].each do |filename|
           @loggers << GithubLogger.instance.create(filename, logger_level)
@@ -77,7 +79,7 @@ module Github
           if rerun
             next unless ci_job.stage.configuration.can_retry?
 
-            url = "https://ci1.netdef.org/browse/#{ci_job.job_ref}"
+            url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{ci_job.job_ref}"
             ci_job.enqueue(@github, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
           else
             ci_job.create_check_run
@@ -118,7 +120,7 @@ module Github
 
         return if stage_config.nil?
 
-        stage = Stage.find_by(check_suite: @check_suite, name: stage_config.github_check_run_name)
+        stage = Stage.find_by(check_suite: @check_suite, name: "#{stage_config.github_check_run_name} - #{@name}")
 
         logger(Logger::INFO, "create_jobs - #{job.inspect} -> #{stage.inspect}")
 
@@ -130,7 +132,8 @@ module Github
       #
       # @param [StageConfiguration] stage_config The stage configuration.
       def create_check_run_stage(stage_config)
-        stage = Stage.find_by(name: stage_config.github_check_run_name, check_suite_id: @check_suite.id)
+        logger(Logger::INFO, "create_check_run_stage - #{stage_config.github_check_run_name} - #{@name}")
+        stage = Stage.find_by(name: "#{stage_config.github_check_run_name} - #{@name}", check_suite_id: @check_suite.id)
 
         logger(Logger::INFO, "STAGE #{stage_config.github_check_run_name} #{stage.inspect} - @#{@check_suite.inspect}")
 
@@ -148,7 +151,7 @@ module Github
       # @param [StageConfiguration] stage_config The stage configuration.
       # @return [Stage] The created stage.
       def create_stage(stage_config)
-        name = stage_config.github_check_run_name
+        name = "#{stage_config.github_check_run_name} - #{@name}"
 
         stage =
           Stage.create(check_suite: @check_suite,
@@ -156,7 +159,7 @@ module Github
                        status: 'queued',
                        name: name)
 
-        url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 
         stage.enqueue(@github, output: output)
@@ -172,7 +175,7 @@ module Github
       # @return [Hash] The initial output.
       def initial_output(ci_job)
         output = { title: '', summary: '' }
-        url = "https://ci1.netdef.org/browse/#{ci_job.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{ci_job.check_suite.bamboo_ci_ref}"
 
         output[:title] = "#{ci_job.name} summary"
         output[:summary] = "Details at [#{url}](#{url})"

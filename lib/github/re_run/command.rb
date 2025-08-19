@@ -34,8 +34,8 @@ module Github
 
         check_suite = create_check_suite(check_suite)
 
-        bamboo_plan = start_new_execution(check_suite)
-        ci_jobs(check_suite, bamboo_plan)
+        bamboo_plans = start_new_execution(check_suite)
+        ci_jobs(check_suite, bamboo_plans)
 
         [201, 'Starting re-run (command)']
       end

@@ -33,7 +33,14 @@ class Stage < ActiveRecord::Base
 
   def previous_stage
     position = configuration&.position.to_i
-    check_suite.stages.joins(:configuration).find_by(configuration: { position: position - 1 })
+    suffix = name.split(' - ', 2).last
+    return nil unless suffix
+
+    check_suite.stages
+               .joins(:configuration)
+               .where(configuration: { position: position - 1 })
+               .where('stages.name LIKE ?', "%#{suffix}")
+               .first
   end
 
   def finished?
@@ -121,10 +128,10 @@ class Stage < ActiveRecord::Base
 
     header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
     in_progress_jobs = jobs.where(status: :in_progress).map do |job|
-      "- **#{job.name}** -> https://ci1.netdef.org/browse/#{job.job_ref}\n"
+      "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{job.job_ref}\n"
     end.join("\n")
 
-    url = "https://ci1.netdef.org/browse/#{check_suite.bamboo_ci_ref}"
+    url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{check_suite.bamboo_ci_ref}"
     { title: "#{name} summary", summary: "#{header}#{in_progress_jobs}\nDetails at [#{url}](#{url})" }
   end
 end

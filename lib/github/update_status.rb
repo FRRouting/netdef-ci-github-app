@@ -125,11 +125,13 @@ module Github
     #
     # @param [Integer] queue The queue number for the delayed job.
     def delete_and_create_delayed_job(queue)
-      fetch_delayed_job(queue).destroy_all
+      bamboo_info = Github::BambooRefRetriever.new(@job, @job.check_suite).fetch
+
+      fetch_delayed_job(queue, bamboo_info[:bamboo_ci_ref]).destroy_all
 
       CiJobStatus
         .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now.utc, queue: queue)
-        .update(@job.check_suite.id, @job.id)
+        .update(bamboo_info[:bamboo_ci_ref], @job.check_suite.id, @job.id)
     end
 
     ##
@@ -137,10 +139,10 @@ module Github
     #
     # @param [Integer] queue The queue number for the delayed job.
     # @return [ActiveRecord::Relation] The relation containing the delayed jobs.
-    def fetch_delayed_job(queue)
+    def fetch_delayed_job(queue, bamboo_ref)
       Delayed::Job
         .where(queue: queue)
-        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{@check_suite.id}%")
+        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{bamboo_ref}%")
     end
 
     ##

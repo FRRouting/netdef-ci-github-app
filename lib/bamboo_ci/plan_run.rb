@@ -36,6 +36,7 @@ module BambooCi
     end
 
     def start_plan
+      @refs = []
       @response = submit_pr_to_ci(@check_suite, @ci_variables)
 
       case @response&.code.to_i
@@ -56,6 +57,10 @@ module BambooCi
       return nil if @response.nil?
 
       JSON.parse(@response.body)['buildResultKey']
+    end
+
+    def bamboo_references
+      @refs
     end
 
     private

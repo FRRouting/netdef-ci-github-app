@@ -26,7 +26,7 @@ module BambooCi
     end
 
     def self.comment(check_suite, new_check_suite)
-      new_url = "https://ci1.netdef.org/browse/#{new_check_suite.bamboo_ci_ref}"
+      new_url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{new_check_suite.bamboo_ci_ref}"
       comment = "This execution was cancelled due to a new commit or `ci:rerun` (#{new_url})"
 
       add_comment_to_ci(check_suite.bamboo_ci_ref, comment)

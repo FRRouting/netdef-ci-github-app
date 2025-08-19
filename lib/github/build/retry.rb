@@ -36,7 +36,7 @@ module Github
           next if stage.nil?
           next if stage.success?
 
-          url = "https://ci1.netdef.org/browse/#{stage.check_suite.bamboo_ci_ref}"
+          url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{stage.check_suite.bamboo_ci_ref}"
           output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 
           stage.enqueue(@github, output: output)
