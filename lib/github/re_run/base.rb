@@ -131,7 +131,8 @@ module Github
           SlackBot.instance.execution_started_notification(check_suite)
 
           plan = Plan.find_by(name: bamboo_plan[:name])
-          bamboo_ref = BambooRef.create(bamboo_key: bamboo_plan[:key], check_suite: check_suite, plan: plan)
+          bamboo_ref = BambooRef.find_by(bamboo_key: bamboo_plan[:key], plan: plan)
+          bamboo_ref.check_suite = check_suite
           bamboo_ref.save
 
           logger(Logger::INFO, "Creating Bamboo Reference: #{bamboo_ref.bamboo_key} - #{bamboo_ref.check_suite}")
