@@ -135,8 +135,6 @@ module Github
         logger(Logger::INFO, "create_check_run_stage - #{stage_config.github_check_run_name} - #{@name}")
         stage = Stage.find_by(name: "#{stage_config.github_check_run_name} - #{@name}", check_suite_id: @check_suite.id)
 
-        logger(Logger::INFO, "STAGE #{stage_config.github_check_run_name} #{stage.inspect} - @#{@check_suite.inspect}")
-
         return create_stage(stage_config) if stage.nil?
         return unless stage.configuration.can_retry?
 

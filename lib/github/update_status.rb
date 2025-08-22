@@ -50,6 +50,7 @@ module Github
     #
     # @return [Array] An array containing the status code and message.
     def update
+      logger(Logger::INFO, "Updating status for job: #{@reference} with status: #{@status}")
       return job_not_found if @job.nil?
       return [304, 'Not Modified'] if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
       return [304, 'Not Modified'] if @job.in_progress? and !%w[success failure].include? @status
@@ -117,6 +118,8 @@ module Github
     def insert_new_delayed_job
       queue = @job.check_suite.pull_request.github_pr_id % 10
 
+      logger(Logger::INFO, "Inserting new delayed job for queue: #{queue} to update job #{@job.id}")
+
       delete_and_create_delayed_job(queue)
     end
 
@@ -125,13 +128,15 @@ module Github
     #
     # @param [Integer] queue The queue number for the delayed job.
     def delete_and_create_delayed_job(queue)
-      bamboo_info = Github::BambooRefRetriever.new(@job, @job.check_suite).fetch
+      fetch_delayed_job(queue).destroy_all
 
-      fetch_delayed_job(queue, bamboo_info[:bamboo_ci_ref]).destroy_all
+      logger(Logger::INFO,
+             "Inserting new delayed job for queue: #{queue} to update job #{@job.id} " \
+             "and bamboo_ci_ref: #{@check_suite.bamboo_ci_ref}")
 
       CiJobStatus
         .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now.utc, queue: queue)
-        .update(bamboo_info[:bamboo_ci_ref], @job.check_suite.id, @job.id)
+        .update(@check_suite.bamboo_ci_ref, @job.id)
     end
 
     ##
@@ -139,10 +144,13 @@ module Github
     #
     # @param [Integer] queue The queue number for the delayed job.
     # @return [ActiveRecord::Relation] The relation containing the delayed jobs.
-    def fetch_delayed_job(queue, bamboo_ref)
+    def fetch_delayed_job(queue)
+      logger(Logger::INFO,
+             "Removing old delayed job for queue: #{queue} and bamboo_ci_ref: #{@check_suite.bamboo_ci_ref}")
+
       Delayed::Job
         .where(queue: queue)
-        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{bamboo_ref}%")
+        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{@check_suite.bamboo_ci_ref}%")
     end
 
     ##
@@ -181,6 +189,7 @@ module Github
                   else
                     GithubLogger.instance.create("pr#{@job.check_suite.pull_request.github_pr_id}.log", Logger::INFO)
                   end
+      @loggers << Logger.new($stdout)
     end
   end
 end

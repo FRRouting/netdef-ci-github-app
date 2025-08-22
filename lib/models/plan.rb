@@ -11,7 +11,7 @@
 require 'otr-activerecord'
 
 class Plan < ActiveRecord::Base
-  has_many :bamboo_refs, dependent: :delete_all
+  has_many :check_suites
 
   belongs_to :pull_request
 end

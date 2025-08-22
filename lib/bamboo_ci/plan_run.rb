@@ -22,7 +22,7 @@ module BambooCi
     attr_reader :ci_key
     attr_accessor :checks_run, :ci_variables
 
-    def initialize(check_suite, logger_level: Logger::INFO)
+    def initialize(check_suite, plan, logger_level: Logger::INFO)
       @logger_manager = []
       @logger_level = logger_level
 
@@ -32,15 +32,18 @@ module BambooCi
       logger(Logger::INFO, "BambooCi::PlanRun - CheckSuite: #{check_suite.inspect}")
 
       @check_suite = check_suite
+      @plan = plan
       @ci_variables = []
     end
 
     def start_plan
       @refs = []
-      @response = submit_pr_to_ci(@check_suite, @ci_variables)
+      @response = submit_pr_to_ci(@check_suite, @plan, @ci_variables)
 
       case @response&.code.to_i
       when 200, 201
+        @check_suite.update(bamboo_ci_ref: JSON.parse(@response.body)['buildResultKey'])
+
         success(@response)
       when 400..500
         failed(@response)

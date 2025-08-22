@@ -7,7 +7,6 @@
 #   Network Device Education Foundation, Inc. ("NetDEF")
 #
 #   frozen_string_literal: true
-#
 
 class AddPullRequestsPlans < ActiveRecord::Migration[6.0]
   def change

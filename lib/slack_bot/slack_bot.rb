@@ -149,7 +149,7 @@ class SlackBot
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
 
     pr_url = "https://github.com/#{pull_request.repository}/pull/#{pull_request.github_pr_id}"
-    bamboo_link = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{stage.check_suite.bamboo_ci_ref}"
+    bamboo_link = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
 
     post_request(URI(url),
                  machine: 'slack_bot.netdef.org',

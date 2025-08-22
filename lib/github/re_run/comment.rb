@@ -19,6 +19,7 @@ module Github
         super(payload, logger_level: logger_level)
 
         @logger_manager << GithubLogger.instance.create('github_rerun_comment.log', logger_level)
+        @logger_manager << Logger.new($stdout)
       end
 
       def start
@@ -27,24 +28,44 @@ module Github
 
         logger(Logger::DEBUG, ">>> Github::ReRun::Comment - sha256: #{sha256.inspect}, payload: #{@payload.inspect}")
 
-        check_suite = sha256_or_comment?
+        fetch_pull_request
 
-        logger(Logger::DEBUG, ">>> Check suite: #{check_suite.inspect}")
+        return [404, 'Pull Request not found'] if @pull_request.nil?
+        return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
 
-        return [404, 'Failed to create a check suite'] if check_suite.nil?
-
-        github_reaction_feedback(comment_id)
-
-        stop_previous_execution
-
-        bamboo_plans = start_new_execution(check_suite)
-
-        ci_jobs(check_suite, bamboo_plans)
+        confirm_and_start
 
         [201, 'Starting re-run (comment)']
       end
 
       private
+
+      def confirm_and_start
+        github_reaction_feedback(comment_id)
+
+        @pull_request.plans.each do |plan|
+          run_by_plan(plan)
+        end
+      end
+
+      def run_by_plan(plan)
+        check_suite = sha256_or_comment?
+        logger(Logger::DEBUG, ">>> Check suite: #{check_suite.inspect}")
+
+        return [404, 'Failed to create a check suite'] if check_suite.nil?
+
+        check_suite.update(plan: plan)
+
+        stop_previous_execution(plan)
+
+        start_new_execution(check_suite, plan)
+
+        ci_jobs(check_suite, plan)
+      end
+
+      def fetch_pull_request
+        @pull_request = PullRequest.find_by(github_pr_id: pr_id)
+      end
 
       def sha256_or_comment?
         fetch_old_check_suite
@@ -56,10 +77,9 @@ module Github
         commit = fetch_last_commit_or_sha256
         github_check = fetch_github_check
         pull_request_info = github_check.pull_request_info(pr_id, repo)
-        pull_request = fetch_or_create_pr(pull_request_info)
 
         fetch_old_check_suite(commit[:sha])
-        check_suite = create_check_suite_by_commit(commit, pull_request, pull_request_info)
+        check_suite = create_check_suite_by_commit(commit, @pull_request, pull_request_info)
         logger(Logger::INFO, "CheckSuite errors: #{check_suite.inspect}")
         return nil unless check_suite.persisted?
 
@@ -144,7 +164,9 @@ module Github
       def github_reaction_feedback(comment_id)
         return if comment_id.nil?
 
-        @github_check.comment_reaction_thumb_up(repo, comment_id)
+        github_check = Github::Check.new(@pull_request.check_suites.last)
+
+        github_check.comment_reaction_thumb_up(repo, comment_id)
       end
 
       def fetch_old_check_suite(sha = sha256)
@@ -161,7 +183,7 @@ module Github
 
       def create_new_check_suite
         CheckSuite.create(
-          pull_request: @old_check_suite.pull_request,
+          pull_request: @pull_request,
           author: @old_check_suite.author,
           commit_sha_ref: @old_check_suite.commit_sha_ref,
           work_branch: @old_check_suite.work_branch,

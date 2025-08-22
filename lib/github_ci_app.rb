@@ -30,7 +30,7 @@ require_relative 'github/plan_execution/finished'
 require_relative 'github/user_info'
 require_relative 'github/build/skip_old_tests'
 require_relative 'github/topotest_failures/retrieve_error'
-require_relative 'github/bamboo_ref_retriever'
+require_relative 'github/build/plan_run'
 
 # Helpers libs
 require_relative 'helpers/configuration'

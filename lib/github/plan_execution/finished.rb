@@ -34,9 +34,12 @@ module Github
       #
       # @param [Hash] payload The payload containing information about the CheckSuite.
       def initialize(payload)
-        @bamboo_ref = BambooRef.find_by(bamboo_key: payload['bamboo_ref']) if payload['bamboo_ref']
-        @check_suite = @bamboo_ref.check_suite if @bamboo_ref
-        @check_suite = CheckSuite.find(payload['check_suite_id']) if payload['check_suite_id']
+        @check_suite = CheckSuite.where(
+          bamboo_ci_ref: payload['bamboo_ref']
+        ).or(
+          CheckSuite.where(id: payload['check_suite_id'])
+        ).last
+
         @logger = GithubLogger.instance.create('github_plan_execution_finished.log', Logger::INFO)
         @hanged = payload['hanged'] || false
       end
@@ -52,7 +55,7 @@ module Github
         return [404, 'Check Suite not found'] if @check_suite.nil?
 
         fetch_ci_execution
-        build_status = fetch_build_status(@bamboo_ref.bamboo_key)
+        build_status = fetch_build_status
 
         @logger.info ">>> build_status: #{build_status.inspect}. Hanged? #{@hanged}"
 
@@ -69,8 +72,8 @@ module Github
       # Fetches the build status from Bamboo CI.
       #
       # @return [Hash] The build status.
-      def fetch_build_status(bamboo_key)
-        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{bamboo_key}"))
+      def fetch_build_status
+        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
 
       ##
@@ -181,7 +184,7 @@ module Github
       # @param [CiJob] ci_job The CI job to create the message for.
       # @return [Hash] The output message.
       def create_output_message(ci_job)
-        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{ci_job.job_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.job_ref}"
 
         {
           title: ci_job.name,

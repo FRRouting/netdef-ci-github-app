@@ -1,6 +1,6 @@
 #   SPDX-License-Identifier: BSD-2-Clause
 #
-#   20250812144322_add_plan_to_bamboo_ref.rb
+#   20250822071834_add_check_suite_plan.rb
 #   Part of NetDEF CI System
 #
 #   Copyright (c) 2025 by
@@ -9,8 +9,8 @@
 #   frozen_string_literal: true
 #
 
-class AddPlanToBambooRef < ActiveRecord::Migration[6.0]
+class AddCheckSuitePlan < ActiveRecord::Migration[6.0]
   def change
-    add_reference :bamboo_refs, :plan, null: false, foreign_key: true
+    add_reference :check_suites, :plan, foreign_key: true
   end
 end

@@ -28,30 +28,21 @@ module BambooCi
       get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
     end
 
-    def submit_pr_to_ci(check_suite, ci_variables)
-      resp = nil
-      check_suite.pull_request.plans.each do |plan|
-        url = "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}"
+    def submit_pr_to_ci(check_suite, plan, ci_variables)
+      url = "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}"
 
-        url += custom_variables(check_suite)
+      url += custom_variables(check_suite)
 
-        ci_variables.each do |variable|
-          url += "&bamboo.variable.github_#{variable[:name]}=#{variable[:value]}"
-        end
-
-        logger(Logger::DEBUG, "Submission URL:\n  #{url}")
-
-        # Fetch Request
-        resp = post_request(URI(url))
-
-        json = JSON.parse(resp.body)
-
-        logger(Logger::INFO, "BambooCi::PlanRun - Response: #{resp.code} #{resp.body} - #{plan.bamboo_ci_plan_name}")
-
-        puts json
-
-        @refs << { name: plan.name, key: json['buildResultKey'] }
+      ci_variables.each do |variable|
+        url += "&bamboo.variable.github_#{variable[:name]}=#{variable[:value]}"
       end
+
+      logger(Logger::DEBUG, "Submission URL:\n  #{url}")
+
+      # Fetch Request
+      resp = post_request(URI(url))
+
+      logger(Logger::INFO, "BambooCi::PlanRun - Response: #{resp.code} #{resp.body} - #{plan.bamboo_ci_plan_name}")
 
       resp
     end
