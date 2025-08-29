@@ -12,7 +12,7 @@ describe Github::BuildPlan do
   let(:build_plan) { described_class.new(payload) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
-  let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
+  let(:fake_plan_run) { BambooCi::PlanRun.new(nil, pull_request.plans.last) }
   let(:fake_check_run) { create(:check_suite) }
 
   before do
