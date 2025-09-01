@@ -54,7 +54,7 @@ module Github
 
       @pull_request.update(branch_name: @payload.dig('pull_request', 'head', 'ref'))
 
-      add_plans
+      add_plans(@pull_request)
     end
 
     def github_pr
@@ -67,34 +67,18 @@ module Github
           author: @payload.dig('pull_request', 'user', 'login'),
           github_pr_id: github_pr,
           branch_name: @payload.dig('pull_request', 'head', 'ref'),
-          repository: @payload.dig('repository', 'full_name'),
-          plan: fetch_plan_name
+          repository: @payload.dig('repository', 'full_name')
         )
 
-      add_plans
+      add_plans(@pull_request)
 
       Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), pull_request: @pull_request)
     end
 
-    def fetch_plan_name
-      plan = Plan.find_by(github_repo_name: @payload.dig('repository', 'full_name'))
-
-      return plan.bamboo_ci_plan_name unless plan.nil?
-
-      # Default plan
-      'TESTING-FRRCRAS'
-    end
-
-    def add_plans
-      return if @pull_request.nil?
-
-      @pull_request.plans = []
-
-      Plan.where(github_repo_name: @payload.dig('repository', 'full_name')).each do |plan|
-        @pull_request.plans << plan unless @pull_request.plans.include?(plan)
-      end
-
-      @pull_request.save
+    def add_plans(pull_request)
+      plans = Plan.where(github_repo_name: @payload.dig('repository', 'full_name'))
+      pull_request.plans = plans
+      pull_request.save
     end
   end
 end

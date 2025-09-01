@@ -18,7 +18,6 @@ module Github
   module Build
     class Summary
       def initialize(job, logger_level: Logger::INFO, agent: 'Github')
-        puts job.inspect
         @job = job.reload
         @check_suite = @job.check_suite
         @github = Github::Check.new(@check_suite)
@@ -64,8 +63,6 @@ module Github
 
       def must_update_previous_stage(current_stage)
         previous_stage = current_stage.previous_stage
-
-        puts "previous_stage: #{previous_stage.inspect}"
 
         return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
 

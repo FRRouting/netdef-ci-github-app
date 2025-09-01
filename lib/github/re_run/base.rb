@@ -36,7 +36,9 @@ module Github
         CheckSuite
           .joins(pull_request: :plans)
           .joins(:ci_jobs)
-          .where(pull_request: { plan: plan, github_pr_id: pr_id, repository: repo }, ci_jobs: { status: 1 })
+          .where(pull_request: { plans: { id:  plan.id },
+                                 github_pr_id: pr_id, repository: repo },
+                 ci_jobs: { status: 1 })
           .uniq
       end
 
@@ -80,15 +82,6 @@ module Github
         action.create_summary(rerun: true)
       end
 
-      def fetch_plan
-        plan = Plan.find_by_github_repo_name(@payload.dig('repository', 'full_name'))
-
-        return plan.bamboo_ci_plan_name unless plan.nil?
-
-        # Default plan
-        'TESTING-FRRCRAS'
-      end
-
       def logger(severity, message)
         @logger_manager.each do |logger_object|
           logger_object.add(severity, message)
@@ -123,8 +116,6 @@ module Github
         SlackBot.instance.execution_started_notification(check_suite)
 
         check_suite.update(cancelled_previous_check_suite: @last_check_suite)
-
-        puts "Plan: #{plan.name}"
 
         create_ci_jobs(check_suite, plan.name)
 

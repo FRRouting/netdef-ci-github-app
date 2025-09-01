@@ -35,8 +35,6 @@ module Github
 
           check_suite = create_check_suite(check_suite)
 
-          puts check_suite.re_run
-
           start_new_execution(check_suite, plan)
           ci_jobs(check_suite, plan)
         end

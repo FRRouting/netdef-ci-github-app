@@ -40,7 +40,7 @@ module BambooCi
       logger(Logger::DEBUG, "Submission URL:\n  #{url}")
 
       # Fetch Request
-      post_request(URI(url))
+      post_request(URI(url.strip))
     end
 
     def custom_variables(check_suite)

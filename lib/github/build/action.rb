@@ -56,7 +56,6 @@ module Github
         Github::Build::SkipOldTests.new(@check_suite).skip_old_tests
 
         @stages_config.each do |stage_config|
-          puts stage_config.github_check_run_name
           create_check_run_stage(stage_config)
         end
 

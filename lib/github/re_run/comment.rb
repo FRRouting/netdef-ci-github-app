@@ -41,11 +41,13 @@ module Github
 
         github_reaction_feedback(comment_id)
 
+        status = nil
+
         @pull_request.plans.each do |plan|
-          run_by_plan(plan)
+          status = run_by_plan(plan)
         end
 
-        [201, 'Starting re-run (comment)']
+        status
       end
 
       def run_by_plan(plan)
@@ -61,6 +63,8 @@ module Github
         start_new_execution(check_suite, plan)
 
         ci_jobs(check_suite, plan)
+
+        [201, 'Starting re-run (comment)']
       end
 
       def fetch_pull_request
@@ -111,32 +115,6 @@ module Github
           base_sha_ref: pull_request_info.dig(:base, :sha),
           merge_branch: pull_request_info.dig(:base, :ref),
           re_run: true
-        )
-      end
-
-      def fetch_or_create_pr(pull_request_info)
-        last_check_suite = CheckSuite
-                           .joins(:pull_request)
-                           .where(pull_request: { github_pr_id: pr_id, repository: repo })
-                           .last
-
-        return last_check_suite.pull_request unless last_check_suite.nil?
-
-        pull_request = create_pull_request(pull_request_info)
-
-        logger(Logger::DEBUG, ">>> Created a new pull request: #{pull_request}")
-        logger(Logger::ERROR, "Error: #{pull_request.errors.inspect}") unless pull_request.persisted?
-
-        pull_request
-      end
-
-      def create_pull_request(pull_request_info)
-        PullRequest.create(
-          author: @payload.dig('issue', 'user', 'login'),
-          github_pr_id: pr_id,
-          branch_name: pull_request_info.dig(:head, :ref),
-          repository: repo,
-          plan: fetch_plan
         )
       end
 

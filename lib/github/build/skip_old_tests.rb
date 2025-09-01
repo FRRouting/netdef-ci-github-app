@@ -35,7 +35,6 @@ module Github
         return if check_run[:app][:name] != 'NetDEF CI Hook' or @stages.include?(check_run[:name])
 
         @logger.info("Skipping old test suite: #{check_run[:name]}")
-        puts("Skipping old test suite: #{check_run[:name]}")
 
         message = 'Old test suite, skipping...'
         @github.skipped(check_run[:id], { title: "#{check_run[:name]} summary", summary: message })
