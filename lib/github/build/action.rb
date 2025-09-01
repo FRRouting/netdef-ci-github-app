@@ -35,7 +35,7 @@ module Github
         @github = github
         @jobs = jobs
         @loggers = []
-        @stages = StageConfiguration.all
+        @stages_config = StageConfiguration.all
         @name = name
 
         %w[github_app.log github_build_action.log].each do |filename|
@@ -51,11 +51,12 @@ module Github
       #
       # @param [Boolean] rerun Indicates if the jobs should be rerun (default: false).
       def create_summary(rerun: false)
-        logger(Logger::INFO, "SUMMARY #{@stages.inspect}")
+        logger(Logger::INFO, "SUMMARY #{@stages_config.inspect}")
 
         Github::Build::SkipOldTests.new(@check_suite).skip_old_tests
 
-        @stages.each do |stage_config|
+        @stages_config.each do |stage_config|
+          puts stage_config.github_check_run_name
           create_check_run_stage(stage_config)
         end
 
@@ -79,7 +80,7 @@ module Github
           if rerun
             next unless ci_job.stage.configuration.can_retry?
 
-            url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{ci_job.job_ref}"
+            url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.job_ref}"
             ci_job.enqueue(@github, { title: ci_job.name, summary: "Details at [#{url}](#{url})" })
           else
             ci_job.create_check_run
@@ -157,7 +158,7 @@ module Github
                        status: 'queued',
                        name: name)
 
-        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{stage.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
         output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
 
         stage.enqueue(@github, output: output)
@@ -173,7 +174,7 @@ module Github
       # @return [Hash] The initial output.
       def initial_output(ci_job)
         output = { title: '', summary: '' }
-        url = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{ci_job.check_suite.bamboo_ci_ref}"
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{ci_job.check_suite.bamboo_ci_ref}"
 
         output[:title] = "#{ci_job.name} summary"
         output[:summary] = "Details at [#{url}](#{url})"

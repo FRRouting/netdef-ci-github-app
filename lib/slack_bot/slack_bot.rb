@@ -197,7 +197,7 @@ class SlackBot
     pr = check_suite.pull_request
 
     pr_url = "https://github.com/#{pr.repository}/pull/#{pr.github_pr_id}"
-    bamboo_link = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{check_suite.bamboo_ci_ref}"
+    bamboo_link = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{check_suite.bamboo_ci_ref}"
 
     "PR <#{pr_url}|##{pr.github_pr_id}>. <#{bamboo_link}|#{status}> "
   end
@@ -205,7 +205,7 @@ class SlackBot
   def generate_notification_message(job, status)
     pr = job.check_suite.pull_request
     pr_url = "https://github.com/#{pr.repository}/pull/#{pr.github_pr_id}/checks?check_run_id=#{job.check_ref}"
-    bamboo_link = "https://#{GitHubApp::Configuration.instance.config['ci']['url']}/browse/#{job.job_ref}"
+    bamboo_link = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}"
 
     "PR <#{pr_url}|##{pr.github_pr_id}>. <#{bamboo_link}|#{job.name} - #{status}> "
   end

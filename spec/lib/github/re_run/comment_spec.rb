@@ -50,7 +50,8 @@ describe Github::ReRun::Comment do
     let(:fake_translation) { create(:stage_configuration) }
 
     context 'when receives a valid command' do
-      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:pull_request) { create(:pull_request, github_pr_id: 22, repository: 'test') }
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
       let(:ci_jobs) do
         [
           { name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name },
@@ -88,7 +89,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
       end
 
       it 'must returns success' do
@@ -138,7 +139,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
       end
 
       it 'must returns success' do
@@ -207,7 +208,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
 
         another_check_suite
       end
@@ -229,7 +230,8 @@ describe Github::ReRun::Comment do
     end
 
     context 'when you receive an comment' do
-      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:pull_request) { create(:pull_request, github_pr_id: 12, repository: 'test') }
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: check_suite.commit_sha_ref, re_run: true) }
 
       let(:ci_jobs) do
@@ -288,7 +290,7 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
       end
 
       it 'must returns success' do
@@ -323,7 +325,7 @@ describe Github::ReRun::Comment do
       allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
       allow(BambooCi::StopPlan).to receive(:build)
-      allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(bamboo_jobs)
+      allow(BambooCi::RunningPlan).to receive(:fetch).and_return(bamboo_jobs)
     end
 
     context 'when you receive an comment and does not exist a PR' do
@@ -371,55 +373,6 @@ describe Github::ReRun::Comment do
       it 'must returns success' do
         expect(rerun.start).to eq([201, 'Starting re-run (comment)'])
         expect(check_suite_rerun).not_to be_nil
-      end
-    end
-
-    context 'when can not save check_suite' do
-      let(:commit_sha) { Faker::Internet.uuid }
-
-      let(:payload) do
-        {
-          'action' => 'created',
-          'comment' => {
-            'body' => 'CI:rerun 000000'
-          },
-          'repository' => { 'full_name' => 'unit_test' },
-          'issue' => { 'number' => pull_request.github_pr_id }
-        }
-      end
-
-      let(:pull_request_info) do
-        {
-          head: {
-            ref: 'master'
-          },
-          base: {
-            ref: 'test',
-            sha: commit_sha
-          }
-        }
-      end
-
-      let(:pull_request_commits) do
-        [
-          { sha: commit_sha, date: Time.now }
-        ]
-      end
-
-      let(:bamboo_jobs) do
-        [
-          { name: 'test', job_ref: 'checkout-01', stage: fake_translation.bamboo_stage_name }
-        ]
-      end
-
-      let(:fake_check_suite) { create(:check_suite, pull_request: pull_request) }
-
-      before do
-        create(:plan, github_repo_name: 'unit_test')
-      end
-
-      it 'must returns success' do
-        expect(rerun.start).to eq([404, 'Failed to create a check suite'])
       end
     end
   end

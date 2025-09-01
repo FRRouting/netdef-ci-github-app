@@ -20,36 +20,53 @@ module Github
       end
 
       def build
-        @pull_request.plans.each do |plan|
-          @has_previous_exec = false
+        @status = []
 
-          @logger.info "Starting Plan: #{plan.name}"
+        return [422, 'No Plans associated with this Pull Request'] if @pull_request.plans.empty?
 
-          fetch_last_check_suite(plan)
+        @pull_request.plans.each { |plan| create_execution_by_plan(plan) }
 
-          create_check_suite
-
-          next [422, 'Failed to save Check Suite'] unless @check_suite.persisted?
-
-          @check_suite.update(plan: plan)
-
-          @logger.info "Check Suite created: #{@check_suite.inspect}"
-
-          # Stop a previous execution - Avoiding CI spam
-          stop_previous_execution
-
-          @logger.info "Starting a new execution for Pull Request: #{@pull_request.inspect}"
-          # Starting a new CI run
-          status = start_new_execution(plan)
-
-          @logger.info "New execution started with status: #{status}"
-          next [status, 'Failed to create CI Plan'] if status != 200
-
-          ci_jobs(plan)
-        end
+        @status
       end
 
       private
+
+      def create_execution_by_plan(plan)
+        @has_previous_exec = false
+
+        @logger.info "Starting Plan: #{plan.name}"
+
+        fetch_last_check_suite(plan)
+
+        create_check_suite
+
+        unless @check_suite.persisted?
+          @status = [422, 'Failed to save Check Suite']
+
+          return
+        end
+
+        @check_suite.update(plan: plan)
+
+        @logger.info "Check Suite created: #{@check_suite.inspect}"
+
+        # Stop a previous execution - Avoiding CI spam
+        stop_previous_execution
+
+        @logger.info "Starting a new execution for Pull Request: #{@pull_request.inspect}"
+        # Starting a new CI run
+        status = start_new_execution(plan)
+
+        @logger.info "New execution started with status: #{status}"
+
+        if status != 200
+          @status = [status, 'Failed to create CI Plan']
+
+          return
+        end
+
+        @status = ci_jobs(plan)
+      end
 
       def ci_jobs(plan)
         @logger.info 'Creating GitHub Check'
@@ -70,8 +87,6 @@ module Github
       end
 
       def start_new_execution(plan)
-        create_pull_request if @pull_request.nil?
-
         @check_suite.pull_request = @pull_request
 
         Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), check_suite: @check_suite)
@@ -122,7 +137,6 @@ module Github
           CheckSuite
           .joins(pull_request: :plans)
           .where(pull_request: { id: @pull_request.id, plans: { name: plan.name } })
-          .where("check_suites.bamboo_ci_ref LIKE '#{plan.bamboo_ci_plan_name}%'")
           .last
       end
 

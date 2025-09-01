@@ -43,8 +43,6 @@ module Github
       fetch_pull_request
 
       Github::Build::PlanRun.new(@pull_request, @payload).build
-
-      @logger.info "Pull Request: #{@pull_request.id} created a new execution."
     end
 
     private

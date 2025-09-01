@@ -9,11 +9,11 @@
 #  frozen_string_literal: true
 
 describe Github::Build::Action do
-  let(:action) { described_class.new(check_suite, fake_github_check, jobs) }
+  let(:action) { described_class.new(check_suite, fake_github_check, jobs, 'Tato') }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
-  let(:stage) { create(:stage, check_suite: check_suite) }
+  let(:stage) { create(:stage, name: 'Build - Tato', check_suite: check_suite) }
   let(:jobs) do
     [
       {
@@ -163,7 +163,8 @@ describe Github::Build::Action do
 
     before do
       stage.configuration.update(start_in_progress: true)
-      described_class.new(check_suite_new, fake_github_check, jobs).create_summary(rerun: false)
+      described_class.new(check_suite_new, fake_github_check, jobs,
+                          check_suite_new.pull_request.plans.last.name).create_summary(rerun: false)
     end
 
     it 'must not change' do
@@ -177,11 +178,12 @@ describe Github::Build::Action do
 
     before do
       stage.configuration.update(start_in_progress: true)
-      described_class.new(check_suite_new, fake_github_check, [ci_job]).create_summary(rerun: false)
+      described_class.new(check_suite_new, fake_github_check, [ci_job],
+                          check_suite_new.pull_request.plans.last.name).create_summary(rerun: false)
     end
 
     it 'must not change' do
-      expect { described_class.new(check_suite_new, fake_github_check, [ci_job]).create_summary(rerun: false) }
+      expect { described_class.new(check_suite_new, fake_github_check, [ci_job], '').create_summary(rerun: false) }
         .not_to raise_error
     end
   end

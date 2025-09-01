@@ -30,22 +30,22 @@ module Github
 
         fetch_pull_request
 
-        return [404, 'Pull Request not found'] if @pull_request.nil?
-        return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
-
         confirm_and_start
-
-        [201, 'Starting re-run (comment)']
       end
 
       private
 
       def confirm_and_start
+        return [404, 'Pull Request not found'] if @pull_request.nil?
+        return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
+
         github_reaction_feedback(comment_id)
 
         @pull_request.plans.each do |plan|
           run_by_plan(plan)
         end
+
+        [201, 'Starting re-run (comment)']
       end
 
       def run_by_plan(plan)

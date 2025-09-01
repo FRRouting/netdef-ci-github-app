@@ -40,11 +40,7 @@ module BambooCi
       logger(Logger::DEBUG, "Submission URL:\n  #{url}")
 
       # Fetch Request
-      resp = post_request(URI(url))
-
-      logger(Logger::INFO, "BambooCi::PlanRun - Response: #{resp.code} #{resp.body} - #{plan.bamboo_ci_plan_name}")
-
-      resp
+      post_request(URI(url))
     end
 
     def custom_variables(check_suite)

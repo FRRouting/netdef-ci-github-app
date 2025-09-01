@@ -124,6 +124,8 @@ module Github
 
         check_suite.update(cancelled_previous_check_suite: @last_check_suite)
 
+        puts "Plan: #{plan.name}"
+
         create_ci_jobs(check_suite, plan.name)
 
         update_unavailable_jobs(check_suite)

@@ -26,7 +26,7 @@ class Stage < ActiveRecord::Base
   scope :next_stages, ->(current_position) { where(configuration: { position: [(current_position + 1)..] }) }
 
   def suffix
-    name.split(' - ', 2).last
+    name.split(' - ').last
   end
 
   def update_execution_time

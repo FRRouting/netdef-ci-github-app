@@ -30,12 +30,16 @@ module Github
 
         @github_check = Github::Check.new(check_suite)
 
-        stop_previous_execution(plan)
+        check_suite.pull_request.plans.each do |plan|
+          stop_previous_execution(plan)
 
-        check_suite = create_check_suite(check_suite)
+          check_suite = create_check_suite(check_suite)
 
-        bamboo_plans = start_new_execution(check_suite, plan)
-        ci_jobs(check_suite, bamboo_plans)
+          puts check_suite.re_run
+
+          start_new_execution(check_suite, plan)
+          ci_jobs(check_suite, plan)
+        end
 
         [201, 'Starting re-run (command)']
       end
