@@ -7,7 +7,6 @@
 #   Network Device Education Foundation, Inc. ("NetDEF")
 #
 #   frozen_string_literal: true
-#
 
 describe Github::Build::PlanRun do
   let(:plan_run) { described_class.new(pull_request, payload) }

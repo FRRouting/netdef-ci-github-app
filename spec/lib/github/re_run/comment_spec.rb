@@ -318,7 +318,7 @@ describe Github::ReRun::Comment do
         {
           'action' => 'created',
           'comment' => {
-            'body' => "CI:rerun",
+            'body' => 'CI:rerun',
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => check_suite.pull_request.repository },
@@ -373,7 +373,7 @@ describe Github::ReRun::Comment do
         {
           'action' => 'created',
           'comment' => {
-            'body' => "CI:rerun",
+            'body' => 'CI:rerun',
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => check_suite.pull_request.repository },
