@@ -15,7 +15,7 @@ describe BambooCi::PlanRun do
   before do
     allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
 
-    stub_request(:post, "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}?" \
+    stub_request(:post, "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name.delete(' ')}?" \
                         "bamboo.variable.github_base_sha=#{check_suite.base_sha_ref}" \
                         "&bamboo.variable.github_branch=#{check_suite.merge_branch}&" \
                         "bamboo.variable.github_merge_sha=#{check_suite.commit_sha_ref}&" \

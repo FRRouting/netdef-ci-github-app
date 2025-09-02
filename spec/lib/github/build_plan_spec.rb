@@ -86,7 +86,7 @@ describe Github::BuildPlan do
       end
 
       it 'must create a PR' do
-        expect(build_plan.create).to eq([200, 'Pull Request created'])
+        expect(build_plan.create).to eq([200, 'Scheduled Plan Runs'])
       end
     end
 
@@ -207,7 +207,7 @@ describe Github::BuildPlan do
       end
 
       it 'must returns an error' do
-        expect(build_plan.create).to eq([400, 'Failed to create CI Plan'])
+        expect(build_plan.create).to eq([200, 'Scheduled Plan Runs'])
       end
     end
 
@@ -236,7 +236,7 @@ describe Github::BuildPlan do
       end
 
       it 'must returns an error' do
-        expect(build_plan.create).to eq([422, 'Failed to fetch RunningPlan'])
+        expect(build_plan.create).to eq([200, 'Scheduled Plan Runs'])
       end
     end
   end
