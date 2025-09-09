@@ -13,7 +13,7 @@ require_relative 'base'
 module Github
   module ReRun
     class Command < Base
-      TIMER = 5 # seconds
+      TIMER = 1 # seconds
 
       def initialize(payload, logger_level: Logger::INFO)
         super(payload, logger_level: logger_level)
