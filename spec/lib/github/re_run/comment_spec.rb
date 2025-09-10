@@ -97,7 +97,7 @@ describe Github::ReRun::Comment do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([200, "Scheduled Plan Runs"])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suites.size).to eq(2)
       end
     end
@@ -147,7 +147,7 @@ describe Github::ReRun::Comment do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([200, "Scheduled Plan Runs"])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suites.size).to eq(2)
       end
     end
@@ -218,7 +218,7 @@ describe Github::ReRun::Comment do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([200, "Scheduled Plan Runs"])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suite_rerun).not_to be_nil
       end
 
@@ -298,7 +298,7 @@ describe Github::ReRun::Comment do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([200, "Scheduled Plan Runs"])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suite_rerun).not_to be_nil
       end
     end
@@ -482,7 +482,7 @@ describe Github::ReRun::Comment do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([200, "Scheduled Plan Runs"])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
       end
     end
   end
@@ -558,7 +558,7 @@ describe Github::ReRun::Comment do
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: commit_sha, re_run: true) }
 
       it 'must returns success' do
-        expect(rerun.start).to eq([200, "Scheduled Plan Runs"])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suite_rerun).not_to be_nil
       end
     end

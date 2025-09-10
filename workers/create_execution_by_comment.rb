@@ -16,7 +16,7 @@ class CreateExecutionByComment < Github::ReRun::Base
     return [422, 'Plan not found'] if plan.nil?
 
     instance = new(pull_request_id, payload, plan)
-    
+
     logger.info "CreateExecutionByComment: Plan '#{plan.name}' for Pull Request ID: #{pull_request_id} with " \
                 "status: #{instance.status.inspect}"
 
@@ -24,7 +24,7 @@ class CreateExecutionByComment < Github::ReRun::Base
   end
 
   attr_reader :status
-  
+
   def initialize(pull_request_id, payload, plan)
     super(payload, logger_level: Logger::INFO)
 
@@ -36,7 +36,7 @@ class CreateExecutionByComment < Github::ReRun::Base
 
     run_by_plan(plan)
   end
-  
+
   private
 
   def run_by_plan(plan)
