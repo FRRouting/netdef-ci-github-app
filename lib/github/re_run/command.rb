@@ -43,20 +43,8 @@ module Github
         check_suite.pull_request.plans.each do |plan|
           CreateExecutionByCommand
             .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_command')
-            .create(plan.id, check_suite.id)
+            .create(plan.id, check_suite.id, @payload)
         end
-      end
-
-      def create_check_suite(check_suite)
-        CheckSuite.create(
-          pull_request: check_suite.pull_request,
-          author: check_suite.author,
-          commit_sha_ref: check_suite.commit_sha_ref,
-          work_branch: check_suite.work_branch,
-          base_sha_ref: check_suite.base_sha_ref,
-          merge_branch: check_suite.merge_branch,
-          re_run: true
-        )
       end
 
       def fetch_check_suite

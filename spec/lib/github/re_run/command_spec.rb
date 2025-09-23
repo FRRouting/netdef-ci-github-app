@@ -84,7 +84,7 @@ describe Github::ReRun::Command do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run (command)'])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suites.size).to eq(2)
         expect(check_suites.first.re_run).to be_falsey
         expect(check_suites.last.re_run).to be_truthy
