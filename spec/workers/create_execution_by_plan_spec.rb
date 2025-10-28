@@ -72,5 +72,12 @@ describe CreateExecutionByPlan do
       result = described_class.create(pull_request.id, payload, pull_request.plans.last.id)
       expect(result).to eq([200, 'Pull Request created'])
     end
+
+    context 'when plan does not exists' do
+      it 'returns [422, "Plan not found"]' do
+        allow(Plan).to receive(:find_by).and_return(nil)
+        expect(described_class.create(pull_request.id, payload, 999)).to eq([422, 'Plan not found'])
+      end
+    end
   end
 end
