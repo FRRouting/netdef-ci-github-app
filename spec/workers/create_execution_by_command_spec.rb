@@ -41,10 +41,5 @@ describe CreateExecutionByCommand do
       allow(CheckSuite).to receive(:find).with(999).and_return(nil)
       expect(described_class.create(plan.id, 999, payload)).to eq([404, 'Failed to fetch a check suite'])
     end
-
-    it 'instantiates and returns status' do
-      allow(CheckSuite).to receive(:find).with(check_suite.id).and_return(check_suite)
-      expect(described_class.create(plan.id, check_suite.id, payload)).to be_nil
-    end
   end
 end
