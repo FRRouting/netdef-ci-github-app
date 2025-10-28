@@ -7,7 +7,6 @@
 #   Network Device Education Foundation, Inc. ("NetDEF")
 #
 #   frozen_string_literal: true
-#
 
 describe CreateExecutionByComment do
   let(:pull_request) { create(:pull_request) }
@@ -54,7 +53,8 @@ describe CreateExecutionByComment do
     allow(GithubLogger).to receive_message_chain(:instance, :create).and_return(Logger.new($stdout))
     allow(Logger).to receive(:new).and_return(Logger.new($stdout))
     allow(PullRequest).to receive(:find).and_return(pull_request)
-    allow_any_instance_of(CreateExecutionByComment).to receive(:run_by_plan).and_return([201, 'Starting re-run (comment)'])
+    allow_any_instance_of(CreateExecutionByComment).to receive(:run_by_plan).and_return([201,
+                                                                                         'Starting re-run (comment)'])
   end
 
   describe '.create' do

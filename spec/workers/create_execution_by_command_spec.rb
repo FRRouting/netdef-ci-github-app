@@ -7,7 +7,6 @@
 #   Network Device Education Foundation, Inc. ("NetDEF")
 #
 #   frozen_string_literal: true
-#
 
 describe CreateExecutionByCommand do
   let(:plan) { create(:plan) }
@@ -18,7 +17,6 @@ describe CreateExecutionByCommand do
       'sender' => { 'login' => 'user', 'id' => 123, 'type' => 'User' }
     }
   end
-
 
   before do
     allow(Plan).to receive(:find).with(plan.id).and_return(plan)
