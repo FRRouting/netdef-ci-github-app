@@ -18,20 +18,19 @@ class PullRequest < ActiveRecord::Base
 
   has_many :check_suites, dependent: :delete_all
   has_many :pull_request_subscriptions, dependent: :delete_all
-
+  has_many :plans
   def finished?
     return true if check_suites.nil? or check_suites.empty?
 
-    current_execution.finished?
+    current_execution_by_plan(plan).finished?
   end
 
   def current_execution?(check_suite)
-    current_execution == check_suite
+    current_execution_by_plan(check_suite.plan) == check_suite
   end
 
-  # @return [CheckSuite]
-  def current_execution
-    check_suites.order(id: :asc).last
+  def current_execution_by_plan(plan_obj)
+    check_suites.where(plan: plan_obj).order(id: :asc).last
   end
 
   def self.unique_repository_names

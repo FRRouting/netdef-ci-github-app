@@ -32,23 +32,24 @@ module Github
 
       private
 
-      def fetch_run_ci_by_pr
+      def fetch_run_ci_by_pr(plan)
         CheckSuite
-          .joins(:pull_request)
+          .joins(pull_request: :plans)
           .joins(:ci_jobs)
-          .where(pull_request: { github_pr_id: pr_id, repository: repo }, ci_jobs: { status: 1 })
+          .where(pull_request: { plans: { id:  plan.id },
+                                 github_pr_id: pr_id, repository: repo },
+                 ci_jobs: { status: 1 })
           .uniq
       end
 
-      def stop_previous_execution
-        return if fetch_run_ci_by_pr.empty?
+      def stop_previous_execution(plan)
+        return if fetch_run_ci_by_pr(plan).empty?
 
         logger(Logger::INFO, 'Stopping previous execution')
-        logger(Logger::INFO, fetch_run_ci_by_pr.inspect)
 
         @last_check_suite = nil
 
-        fetch_run_ci_by_pr.each do |check_suite|
+        fetch_run_ci_by_pr(plan).each do |check_suite|
           stop_and_update_previous_execution(check_suite)
         end
       end
@@ -74,20 +75,11 @@ module Github
         end
       end
 
-      def create_ci_jobs(bamboo_plan, check_suite)
-        jobs = BambooCi::RunningPlan.fetch(bamboo_plan.bamboo_reference)
+      def create_ci_jobs(check_suite, plan_name)
+        jobs = BambooCi::RunningPlan.fetch(check_suite.bamboo_ci_ref)
 
-        action = Github::Build::Action.new(check_suite, @github_check, jobs)
+        action = Github::Build::Action.new(check_suite, @github_check, jobs, plan_name)
         action.create_summary(rerun: true)
-      end
-
-      def fetch_plan
-        plan = Plan.find_by_github_repo_name(@payload.dig('repository', 'full_name'))
-
-        return plan.bamboo_ci_plan_name unless plan.nil?
-
-        # Default plan
-        'TESTING-FRRCRAS'
       end
 
       def logger(severity, message)
@@ -96,8 +88,10 @@ module Github
         end
       end
 
-      def start_new_execution(check_suite)
-        bamboo_plan_run = BambooCi::PlanRun.new(check_suite, logger_level: @logger_level)
+      def start_new_execution(check_suite, plan)
+        cleanup(check_suite)
+
+        bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
         bamboo_plan_run.ci_variables = ci_vars
         bamboo_plan_run.start_plan
 
@@ -109,8 +103,6 @@ module Github
                             retry_type: 'full')
 
         Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
-
-        bamboo_plan_run
       end
 
       def ci_vars
@@ -120,17 +112,25 @@ module Github
         ci_vars
       end
 
-      def ci_jobs(check_suite, bamboo_plan)
+      def ci_jobs(check_suite, plan)
         SlackBot.instance.execution_started_notification(check_suite)
-
-        check_suite.update(bamboo_ci_ref: bamboo_plan.bamboo_reference, re_run: true)
 
         check_suite.update(cancelled_previous_check_suite: @last_check_suite)
 
-        create_ci_jobs(bamboo_plan, check_suite)
+        create_ci_jobs(check_suite, plan.name)
 
+        update_unavailable_jobs(check_suite)
+      end
+
+      def update_unavailable_jobs(check_suite)
         CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).each do |cs|
           Github::Build::UnavailableJobs.new(cs).update(new_check_suite: check_suite)
+        end
+      end
+
+      def cleanup(check_suite)
+        check_suite.pull_request.check_suites.each do |suite|
+          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}%")
         end
       end
 

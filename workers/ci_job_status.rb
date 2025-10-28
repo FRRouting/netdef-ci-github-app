@@ -11,9 +11,9 @@
 require_relative '../config/setup'
 
 class CiJobStatus
-  def self.update(check_suite_id, ci_job_id)
+  def self.update(bamboo_ci_ref, ci_job_id)
     @logger = GithubLogger.instance.create('ci_job_status.log', Logger::INFO)
-    @logger.info("CiJobStatus::Update: Checksuite #{check_suite_id} -> '#{ci_job_id}'")
+    @logger.info("CiJobStatus::Update: Checksuite #{bamboo_ci_ref} -> '#{ci_job_id}'")
 
     job = CiJob.find(ci_job_id)
 
@@ -22,9 +22,9 @@ class CiJobStatus
 
     return unless job.finished?
 
-    @logger.info("Github::PlanExecution::Finished: '#{job.check_suite.bamboo_ci_ref}'")
+    @logger.info("Github::PlanExecution::Finished: '#{bamboo_ci_ref}'")
 
-    finished = Github::PlanExecution::Finished.new({ 'bamboo_ref' => job.check_suite.bamboo_ci_ref })
+    finished = Github::PlanExecution::Finished.new({ 'bamboo_ref' => bamboo_ci_ref })
     finished.finished
   end
 end

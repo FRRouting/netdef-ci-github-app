@@ -30,6 +30,7 @@ require_relative 'github/plan_execution/finished'
 require_relative 'github/user_info'
 require_relative 'github/build/skip_old_tests'
 require_relative 'github/topotest_failures/retrieve_error'
+require_relative 'github/build/plan_run'
 
 # Helpers libs
 require_relative 'helpers/configuration'
@@ -43,6 +44,9 @@ require_relative '../workers/ci_job_status'
 require_relative '../workers/timeout_execution'
 require_relative '../workers/ci_job_fetch_topotest_failures'
 require_relative '../workers/slack_username2_id'
+require_relative '../workers/create_execution_by_plan'
+require_relative '../workers/create_execution_by_comment'
+require_relative '../workers/create_execution_by_command'
 
 # Slack libs
 require_relative 'slack/slack'

@@ -45,5 +45,11 @@ FactoryBot.define do
         create(:stage, check_suite: check_suite)
       end
     end
+
+    trait :with_stages_and_jobs do
+      after(:create) do |check_suite|
+        create(:stage, :with_job, check_suite: check_suite)
+      end
+    end
   end
 end

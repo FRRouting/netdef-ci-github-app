@@ -10,6 +10,7 @@
 
 FactoryBot.define do
   factory :plan do
+    name { Faker::App.name }
     bamboo_ci_plan_name { Faker::App.name }
     github_repo_name { Faker::App.name }
   end

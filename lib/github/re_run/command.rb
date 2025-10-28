@@ -13,6 +13,8 @@ require_relative 'base'
 module Github
   module ReRun
     class Command < Base
+      TIMER = 1 # seconds
+
       def initialize(payload, logger_level: Logger::INFO)
         super(payload, logger_level: logger_level)
 
@@ -30,28 +32,19 @@ module Github
 
         @github_check = Github::Check.new(check_suite)
 
-        stop_previous_execution
+        suite_by_plan(check_suite)
 
-        check_suite = create_check_suite(check_suite)
-
-        bamboo_plan = start_new_execution(check_suite)
-        ci_jobs(check_suite, bamboo_plan)
-
-        [201, 'Starting re-run (command)']
+        [200, 'Scheduled Plan Runs']
       end
 
       private
 
-      def create_check_suite(check_suite)
-        CheckSuite.create(
-          pull_request: check_suite.pull_request,
-          author: check_suite.author,
-          commit_sha_ref: check_suite.commit_sha_ref,
-          work_branch: check_suite.work_branch,
-          base_sha_ref: check_suite.base_sha_ref,
-          merge_branch: check_suite.merge_branch,
-          re_run: true
-        )
+      def suite_by_plan(check_suite)
+        check_suite.pull_request.plans.each do |plan|
+          CreateExecutionByCommand
+            .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_command')
+            .create(plan.id, check_suite.id, @payload)
+        end
       end
 
       def fetch_check_suite

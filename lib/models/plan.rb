@@ -11,4 +11,7 @@
 require 'otr-activerecord'
 
 class Plan < ActiveRecord::Base
+  has_many :check_suites
+
+  belongs_to :pull_request
 end
