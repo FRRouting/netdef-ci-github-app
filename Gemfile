@@ -39,6 +39,9 @@ gem 'rake'
 # Delayed Job
 gem 'delayed_job_active_record'
 
+# Prometheus metrics
+gem 'prometheus-client'
+
 # Code lint
 gem 'rubocop', '1.56.1', group: %i[development test]
 gem 'rubocop-performance', group: %i[development test]
