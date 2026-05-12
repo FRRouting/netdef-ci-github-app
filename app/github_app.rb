@@ -16,6 +16,7 @@ require 'net/https'
 require 'json'
 require 'sinatra'
 require 'octokit'
+require 'prometheus/client/formats/text'
 require 'netrc'
 require 'date'
 require 'yaml'
@@ -36,6 +37,12 @@ class GithubApp < Sinatra::Base
     end
 
     attr_writer :sinatra_logger_level
+  end
+
+  get '/metrics' do
+    PrometheusMetrics.refresh!
+    content_type 'text/plain; version=0.0.4; charset=utf-8'
+    Prometheus::Client::Formats::Text.marshal(PrometheusMetrics::REGISTRY)
   end
 
   get '/telemetry' do

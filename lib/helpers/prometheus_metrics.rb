@@ -175,11 +175,11 @@ module PrometheusMetrics
   end
 
   def self.refresh_ci_domain
-    CiJob.group(:status).count.each do |status, count|
+    CiJob.unscoped.group(:status).count.each do |status, count|
       CI_JOBS.set(count, labels: { status: status.to_s })
     end
 
-    Stage.group(:status).count.each do |status, count|
+    Stage.unscoped.group(:status).count.each do |status, count|
       CI_STAGES.set(count, labels: { status: status.to_s })
     end
   end
