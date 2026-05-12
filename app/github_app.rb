@@ -128,6 +128,7 @@ class GithubApp < Sinatra::Base
 
       halt 200, 'PONG!'
     when 'pull_request'
+      logger.info 'Creating new action'
       build_plan = Github::BuildPlan.new(payload, logger_level: GithubApp.sinatra_logger_level)
       resp = build_plan.create
 

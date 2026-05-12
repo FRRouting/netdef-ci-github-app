@@ -25,7 +25,7 @@ PrometheusMetrics.subscribe_query_notifications!
 File.write('.session.key', SecureRandom.hex(32))
 
 # Refresh delayed_job + CI domain gauges on every Prometheus scrape
-use Prometheus::Middleware::Collector
+use Prometheus::Middleware::Collector, metrics_prefix: 'http'
 
 pids = []
 pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=0,1,2,3")

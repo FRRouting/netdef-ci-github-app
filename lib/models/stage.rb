@@ -9,7 +9,7 @@
 #  frozen_string_literal: true
 
 class Stage < ActiveRecord::Base
-  enum status: { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
+  enum :status, { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
 
   has_many :jobs, class_name: 'CiJob'
   has_many :audit_statuses, as: :auditable
