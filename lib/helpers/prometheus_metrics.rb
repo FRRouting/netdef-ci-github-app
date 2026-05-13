@@ -47,6 +47,11 @@ module PrometheusMetrics
     docstring: 'Delayed jobs locked longer than max_run_time (5 min), indicating a stuck worker',
     labels: [:queue]
   )
+  DJ_TABLE = REGISTRY.gauge(
+    :delayed_jobs_table,
+    docstring: 'Unix timestamp of the next scheduled job per queue (0 when no job is scheduled)',
+    labels: %i[job_id queue job_class job_args run_at]
+  )
 
   # --- CI domain metrics ---
 
@@ -143,6 +148,7 @@ module PrometheusMetrics
 
   def self.refresh!
     refresh_delayed_jobs
+    refresh_scheduled_jobs_detail
     refresh_ci_domain
     refresh_connection_pool
     refresh_puma
@@ -151,15 +157,31 @@ module PrometheusMetrics
   end
 
   def self.refresh_delayed_jobs
+    [DJ_PENDING, DJ_RUNNING, DJ_SCHEDULED, DJ_FAILED, DJ_MAX_ATTEMPTS_REACHED, DJ_LOCKED_TOO_LONG].each do |gauge|
+      gauge.values.each_key { |labels| gauge.set(0, labels: labels) }
+    end
+
     now = Time.now
     stuck_threshold = now - DJ_MAX_RUN_TIME
 
-    pending   = Delayed::Job.where('run_at <= ? AND locked_at IS NULL AND failed_at IS NULL', now).group(:queue).count
-    running   = Delayed::Job.where('locked_at IS NOT NULL AND failed_at IS NULL').group(:queue).count
-    scheduled = Delayed::Job.where('run_at > ? AND locked_at IS NULL AND failed_at IS NULL', now).group(:queue).count
-    failed    = Delayed::Job.where('failed_at IS NOT NULL').group(:queue).count
-    max_att   = Delayed::Job.where('attempts >= ? AND failed_at IS NULL', DJ_MAX_ATTEMPTS).group(:queue).count
-    stuck     = Delayed::Job.where('locked_at IS NOT NULL AND locked_at < ? AND failed_at IS NULL', stuck_threshold).group(:queue).count
+    pending = Delayed::Job
+              .where('run_at <= ? AND locked_at IS NULL AND failed_at IS NULL', now).group(:queue).count
+
+    running = Delayed::Job
+              .where('locked_at IS NOT NULL AND failed_at IS NULL').group(:queue).count
+
+    scheduled = Delayed::Job
+                .where('run_at > ? AND locked_at IS NULL AND failed_at IS NULL', now).group(:queue).count
+
+    failed = Delayed::Job
+             .where('failed_at IS NOT NULL').group(:queue).count
+
+    max_att = Delayed::Job
+              .where('attempts >= ? AND failed_at IS NULL', DJ_MAX_ATTEMPTS).group(:queue).count
+
+    stuck = Delayed::Job
+            .where('locked_at IS NOT NULL AND locked_at < ? AND failed_at IS NULL', stuck_threshold)
+            .group(:queue).count
 
     all_queues = (pending.keys + running.keys + scheduled.keys + failed.keys + max_att.keys + stuck.keys).uniq
 
@@ -212,11 +234,57 @@ module PrometheusMetrics
     # tmp/puma_stats.json not written yet (first 30s after boot)
   end
 
+  def self.refresh_scheduled_jobs_detail
+    now = Time.now
+
+    DJ_TABLE.values.each_key { |labels| DJ_TABLE.set(0, labels: labels) }
+
+    Delayed::Job
+      .where('run_at > ? AND locked_at IS NULL AND failed_at IS NULL', now)
+      .select(:id, :queue, :handler, :run_at)
+      .each do |job|
+        job_class, job_args = parse_dj_handler(job.handler)
+        labels =
+          {
+            job_id: job.id.to_s,
+            queue: job.queue.to_s,
+            job_class: job_class,
+            job_args: job_args,
+            run_at: job.run_at
+          }
+        DJ_TABLE.set(job.run_at.to_i, labels: labels)
+      end
+  end
+
+  # Parses a Delayed::PerformableMethod YAML handler without loading arbitrary Ruby objects.
+  # Returns [class::method string, truncated args string].
+  def self.parse_dj_handler(handler)
+    return ['Unknown', ''] unless handler
+
+    obj_class   = extract_dj_class(handler)
+    method_name = handler[/method_name: :(\S+)/, 1] || ''
+    raw_args    = handler[/^args:\n(.*?)(?=\n\S|\z)/m, 1].to_s.strip
+    args_str    = raw_args.gsub("\n", ', ').squeeze(' ')
+    args_str    = "#{args_str[0, 77]}..." if args_str.length > 80
+
+    ["#{obj_class}##{method_name}", args_str]
+  rescue StandardError
+    ['Unknown', '']
+  end
+
+  def self.extract_dj_class(handler)
+    handler[%r{object: !ruby/class '([^']+)'}, 1] ||
+      handler[%r{object: !ruby/object:(\S+)}, 1] ||
+      handler[%r{!ruby/object:(\S+)}, 1] ||
+      'Unknown'
+  end
+
   def self.extract_sql_operation(sql)
     op = sql.to_s.strip.split(/\s/, 2).first&.upcase
     op if %w[SELECT INSERT UPDATE DELETE].include?(op)
   end
 
-  private_class_method :refresh_delayed_jobs, :refresh_ci_domain, :refresh_connection_pool,
-                       :refresh_puma, :extract_sql_operation
+  private_class_method :refresh_delayed_jobs, :refresh_scheduled_jobs_detail, :refresh_ci_domain,
+                       :refresh_connection_pool, :refresh_puma, :extract_sql_operation,
+                       :parse_dj_handler, :extract_dj_class
 end
