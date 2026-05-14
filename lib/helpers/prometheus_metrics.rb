@@ -124,13 +124,13 @@ module PrometheusMetrics
 
   AR_QUERIES = REGISTRY.counter(
     :activerecord_queries_total,
-    docstring: 'Total number of SQL queries executed, by operation type',
-    labels: [:operation]
+    docstring: 'Total number of SQL queries executed, by operation type and table',
+    labels: %i[operation table]
   )
   AR_QUERY_DURATION = REGISTRY.histogram(
     :activerecord_query_duration_seconds,
-    docstring: 'Duration of SQL queries in seconds, by operation type',
-    labels: [:operation]
+    docstring: 'Duration of SQL queries in seconds, by operation type and table',
+    labels: %i[operation table]
   )
 
   # Call once at startup to begin recording per-query metrics.
@@ -140,7 +140,7 @@ module PrometheusMetrics
       operation = extract_sql_operation(event.payload[:sql])
       next if operation.nil?
 
-      labels = { operation: operation }
+      labels = { operation: operation, table: extract_table_name(event.payload[:name]) }
       AR_QUERIES.increment(labels: labels)
       AR_QUERY_DURATION.observe(event.duration / 1000.0, labels: labels)
     end
@@ -284,7 +284,17 @@ module PrometheusMetrics
     op if %w[SELECT INSERT UPDATE DELETE].include?(op)
   end
 
+  # Extracts the table/model name from ActiveRecord's event name (e.g. "User Load" => "users").
+  def self.extract_table_name(name)
+    return 'unknown' if name.nil? || name.empty?
+
+    model = name.to_s.split.first
+    return 'other' if %w[SCHEMA EXPLAIN TRANSACTION].include?(model&.upcase)
+
+    model&.downcase&.gsub('::', '_') || 'unknown'
+  end
+
   private_class_method :refresh_delayed_jobs, :refresh_scheduled_jobs_detail, :refresh_ci_domain,
                        :refresh_connection_pool, :refresh_puma, :extract_sql_operation,
-                       :parse_dj_handler, :extract_dj_class
+                       :extract_table_name, :parse_dj_handler, :extract_dj_class
 end
