@@ -13,11 +13,19 @@ require 'rackup'
 require 'rack/handler/puma'
 require 'rack/session/cookie'
 require 'securerandom'
+require 'prometheus/middleware/collector'
+require 'prometheus/middleware/exporter'
 
 require_relative 'app/github_app'
 require_relative 'config/delayed_job'
+require_relative 'lib/helpers/prometheus_metrics'
+
+PrometheusMetrics.subscribe_query_notifications!
 
 File.write('.session.key', SecureRandom.hex(32))
+
+# Refresh delayed_job + CI domain gauges on every Prometheus scrape
+use Prometheus::Middleware::Collector, metrics_prefix: 'http'
 
 pids = []
 pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=0,1,2,3")

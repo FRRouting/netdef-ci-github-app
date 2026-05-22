@@ -16,6 +16,7 @@ require 'net/https'
 require 'json'
 require 'sinatra'
 require 'octokit'
+require 'prometheus/client/formats/text'
 require 'netrc'
 require 'date'
 require 'yaml'
@@ -36,6 +37,13 @@ class GithubApp < Sinatra::Base
     end
 
     attr_writer :sinatra_logger_level
+  end
+
+  get '/metrics' do
+    authenticate_metrics
+    PrometheusMetrics.refresh!
+    content_type 'text/plain; version=0.0.4; charset=utf-8'
+    Prometheus::Client::Formats::Text.marshal(PrometheusMetrics::REGISTRY)
   end
 
   get '/telemetry' do
@@ -121,6 +129,7 @@ class GithubApp < Sinatra::Base
 
       halt 200, 'PONG!'
     when 'pull_request'
+      logger.info 'Creating new action'
       build_plan = Github::BuildPlan.new(payload, logger_level: GithubApp.sinatra_logger_level)
       resp = build_plan.create
 
