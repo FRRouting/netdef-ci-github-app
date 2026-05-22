@@ -9,14 +9,14 @@
 #  frozen_string_literal: true
 
 module PrometheusMetrics
-  GAUGE_COUNT_MAP = [
-    [DJ_PENDING,              :pending],
-    [DJ_RUNNING,              :running],
-    [DJ_SCHEDULED,            :scheduled],
-    [DJ_FAILED,               :failed],
-    [DJ_MAX_ATTEMPTS_REACHED, :max_att],
-    [DJ_LOCKED_TOO_LONG,      :stuck]
-  ].freeze
+  GAUGE_COUNT_MAP = {
+    DJ_PENDING => :pending,
+    DJ_RUNNING => :running,
+    DJ_SCHEDULED => :scheduled,
+    DJ_FAILED => :failed,
+    DJ_MAX_ATTEMPTS_REACHED => :max_att,
+    DJ_LOCKED_TOO_LONG => :stuck
+  }.freeze
 
   def self.refresh_delayed_jobs
     reset_dj_gauges
@@ -27,7 +27,7 @@ module PrometheusMetrics
   end
 
   def self.reset_dj_gauges
-    GAUGE_COUNT_MAP.each do |gauge, _|
+    GAUGE_COUNT_MAP.each_key do |gauge|
       gauge.values.each_key { |labels| gauge.set(0, labels: labels) }
     end
   end
