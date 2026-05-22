@@ -14,6 +14,22 @@ require_relative 'configuration'
 
 module Sinatra
   module Payload
+    def authenticate_metrics
+      auth = request.env['HTTP_AUTHORIZATION']
+      return halt 401, 'Unauthorized' if auth.nil? || !auth.start_with?('Basic ')
+
+      credentials = Base64.decode64(auth.delete_prefix('Basic ')).split(':', 2)
+      username, password = credentials
+
+      config = GitHubApp::Configuration.instance.config.dig('metrics_auth')
+      return halt 401, 'Unauthorized' if config.nil?
+
+      valid_user = Rack::Utils.secure_compare(config['username'].to_s, username.to_s)
+      valid_pass = Rack::Utils.secure_compare(config['password'].to_s, password.to_s)
+
+      halt 401, 'Unauthorized' unless valid_user && valid_pass
+    end
+
     # Instantiate an Octokit client, authenticated as an installation of a
     # GitHub App, to run API operations.
     def authenticate_request

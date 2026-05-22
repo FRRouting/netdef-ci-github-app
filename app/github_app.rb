@@ -40,6 +40,7 @@ class GithubApp < Sinatra::Base
   end
 
   get '/metrics' do
+    authenticate_metrics
     PrometheusMetrics.refresh!
     content_type 'text/plain; version=0.0.4; charset=utf-8'
     Prometheus::Client::Formats::Text.marshal(PrometheusMetrics::REGISTRY)
