@@ -26,14 +26,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: 3.1.2
 
       - name: rubocop
-        uses: reviewdog/action-rubocop@v2.6.0
+        uses: reviewdog/action-rubocop@v2.22.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           rubocop_version: gemfile
@@ -59,7 +59,7 @@ jobs:
           
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
          
@@ -98,7 +98,7 @@ jobs:
             -f h -o tmp/rspec_results.html
 
       - name: Save coverage report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage-report
@@ -106,7 +106,7 @@ jobs:
           if-no-files-found: warn
 
       - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v2
+        uses: SonicGarden/rspec-report-action@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: 'Unit tests'
