@@ -49,7 +49,7 @@ module Sinatra
       valid_user = Rack::Utils.secure_compare(config['username'].to_s, username.to_s)
       valid_pass = Rack::Utils.secure_compare(config['password'].to_s, password.to_s)
 
-      halt 401, 'Unauthorized' unless valid_user && valid_pass
+      return halt 401, 'Unauthorized' unless valid_user && valid_pass
 
       true
     end
