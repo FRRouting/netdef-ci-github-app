@@ -19,6 +19,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   rubocop:
@@ -106,7 +107,7 @@ jobs:
           if-no-files-found: warn
 
       - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v6
+        uses: SonicGarden/rspec-report-action@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: 'Unit tests'
