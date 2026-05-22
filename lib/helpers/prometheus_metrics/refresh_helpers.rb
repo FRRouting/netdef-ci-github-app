@@ -45,8 +45,8 @@ module PrometheusMetrics
       failed: Delayed::Job.where('failed_at IS NOT NULL').group(:queue).count,
       max_att: Delayed::Job.where('attempts >= ? AND failed_at IS NULL', DJ_MAX_ATTEMPTS).group(:queue).count,
       stuck: Delayed::Job
-               .where('locked_at IS NOT NULL AND locked_at < ? AND failed_at IS NULL', now - DJ_MAX_RUN_TIME)
-               .group(:queue).count
+        .where('locked_at IS NOT NULL AND locked_at < ? AND failed_at IS NULL', now - DJ_MAX_RUN_TIME)
+        .group(:queue).count
     }
   end
 
