@@ -73,14 +73,14 @@ class PrBambooSync
     []
   end
 
-  def process_pr(github, repo, pr)
+  def process_pr(github, repo, pr_object)
     sha         = pr.dig(:head, :sha)
     active_runs = fetch_active_github_runs(github, repo, sha)
     return [] if active_runs.empty?
 
-    log_and_print "  PR ##{pr[:number]} SHA=#{sha[0..7]}: #{active_runs.size} active GitHub run(s)"
+    log_and_print "  PR ##{pr_object[:number]} SHA=#{sha[0..7]}: #{active_runs.size} active GitHub run(s)"
 
-    find_check_suites(repo, pr[:number], sha).map { |cs| validate_suite(cs, active_runs.size) }
+    find_check_suites(repo, pr_object[:number], sha).map { |cs| validate_suite(cs, active_runs.size) }
   end
 
   def fetch_active_github_runs(github, repo, sha)
@@ -107,17 +107,21 @@ class PrBambooSync
 
     log_suite_result(check_suite.bamboo_ci_ref, github_run_count, db_running, bamboo_status, status)
 
-    { pr_id: check_suite.pull_request.github_pr_id,
+    {
+      pr_id: check_suite.pull_request.github_pr_id,
       repository: check_suite.pull_request.repository,
       bamboo_ref: check_suite.bamboo_ci_ref,
       status: status,
-      check_suite: check_suite }
+      check_suite: check_suite
+    }
   end
 
   def log_suite_result(bamboo_ref, github_run_count, db_running, bamboo_status, status)
     db_state     = db_running ? 'running' : 'done'
     bamboo_stage = bamboo_status&.dig('currentStage') || 'N/A'
-    log_and_print "    bamboo=#{bamboo_ref} | gh_runs=#{github_run_count} | DB: #{db_state} | Bamboo stage: #{bamboo_stage} | #{status}"
+    msg = "    bamboo=#{bamboo_ref} | gh_runs=#{github_run_count} "
+    msg += "| DB: #{db_state} | Bamboo stage: #{bamboo_stage} | #{status}"
+    log_and_print msg
   end
 
   def fetch_bamboo_status(bamboo_ref)
