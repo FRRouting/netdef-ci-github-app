@@ -156,129 +156,6 @@ module PrometheusMetrics
     warn "PrometheusMetrics#refresh! error: #{e.message}"
   end
 
-  def self.refresh_delayed_jobs
-    [DJ_PENDING, DJ_RUNNING, DJ_SCHEDULED, DJ_FAILED, DJ_MAX_ATTEMPTS_REACHED, DJ_LOCKED_TOO_LONG].each do |gauge|
-      gauge.values.each_key { |labels| gauge.set(0, labels: labels) }
-    end
-
-    now = Time.now
-    stuck_threshold = now - DJ_MAX_RUN_TIME
-
-    pending = Delayed::Job
-              .where('run_at <= ? AND locked_at IS NULL AND failed_at IS NULL', now).group(:queue).count
-
-    running = Delayed::Job
-              .where('locked_at IS NOT NULL AND failed_at IS NULL').group(:queue).count
-
-    scheduled = Delayed::Job
-                .where('run_at > ? AND locked_at IS NULL AND failed_at IS NULL', now).group(:queue).count
-
-    failed = Delayed::Job
-             .where('failed_at IS NOT NULL').group(:queue).count
-
-    max_att = Delayed::Job
-              .where('attempts >= ? AND failed_at IS NULL', DJ_MAX_ATTEMPTS).group(:queue).count
-
-    stuck = Delayed::Job
-            .where('locked_at IS NOT NULL AND locked_at < ? AND failed_at IS NULL', stuck_threshold)
-            .group(:queue).count
-
-    all_queues = (pending.keys + running.keys + scheduled.keys + failed.keys + max_att.keys + stuck.keys).uniq
-
-    all_queues.each do |queue|
-      q = { queue: queue.to_s }
-      DJ_PENDING.set(pending[queue].to_i, labels: q)
-      DJ_RUNNING.set(running[queue].to_i, labels: q)
-      DJ_SCHEDULED.set(scheduled[queue].to_i, labels: q)
-      DJ_FAILED.set(failed[queue].to_i, labels: q)
-      DJ_MAX_ATTEMPTS_REACHED.set(max_att[queue].to_i, labels: q)
-      DJ_LOCKED_TOO_LONG.set(stuck[queue].to_i, labels: q)
-    end
-  end
-
-  def self.refresh_ci_domain
-    CiJob.unscoped.group(:status).count.each do |status, count|
-      CI_JOBS.set(count, labels: { status: status.to_s })
-    end
-
-    Stage.unscoped.group(:status).count.each do |status, count|
-      CI_STAGES.set(count, labels: { status: status.to_s })
-    end
-  end
-
-  def self.refresh_connection_pool
-    stat = ActiveRecord::Base.connection_pool.stat
-    AR_POOL_SIZE.set(stat[:size])
-    AR_POOL_CONNECTIONS.set(stat[:connections])
-    AR_POOL_BUSY.set(stat[:busy])
-    AR_POOL_IDLE.set(stat[:idle])
-    AR_POOL_WAITING.set(stat[:waiting])
-  end
-
-  def self.refresh_puma
-    stats = JSON.parse(File.read('tmp/puma_stats.json'), symbolize_names: true)
-    return unless stats.key?(:worker_status)
-
-    PUMA_WORKERS_TOTAL.set(stats[:workers].to_i)
-    PUMA_BOOTED_WORKERS.set(stats[:booted_workers].to_i)
-
-    stats[:worker_status].each do |w|
-      s = w[:last_status]
-      labels = { worker: w[:index].to_s }
-      PUMA_BACKLOG.set(s[:backlog].to_i, labels: labels)
-      PUMA_RUNNING_THREADS.set(s[:running].to_i, labels: labels)
-      PUMA_POOL_CAPACITY.set(s[:pool_capacity].to_i, labels: labels)
-      PUMA_MAX_THREADS.set(s[:max_threads].to_i, labels: labels)
-    end
-  rescue Errno::ENOENT
-    # tmp/puma_stats.json not written yet (first 30s after boot)
-  end
-
-  def self.refresh_scheduled_jobs_detail
-    now = Time.now
-
-    DJ_TABLE.values.each_key { |labels| DJ_TABLE.set(0, labels: labels) }
-
-    Delayed::Job
-      .where('run_at > ? AND locked_at IS NULL AND failed_at IS NULL', now)
-      .select(:id, :queue, :handler, :run_at)
-      .each do |job|
-        job_class, job_args = parse_dj_handler(job.handler)
-        labels =
-          {
-            job_id: job.id.to_s,
-            queue: job.queue.to_s,
-            job_class: job_class,
-            job_args: job_args,
-            run_at: job.run_at
-          }
-        DJ_TABLE.set(job.run_at.to_i, labels: labels)
-      end
-  end
-
-  # Parses a Delayed::PerformableMethod YAML handler without loading arbitrary Ruby objects.
-  # Returns [class::method string, truncated args string].
-  def self.parse_dj_handler(handler)
-    return ['Unknown', ''] unless handler
-
-    obj_class   = extract_dj_class(handler)
-    method_name = handler[/method_name: :(\S+)/, 1] || ''
-    raw_args    = handler[/^args:\n(.*?)(?=\n\S|\z)/m, 1].to_s.strip
-    args_str    = raw_args.gsub("\n", ', ').squeeze(' ')
-    args_str    = "#{args_str[0, 77]}..." if args_str.length > 80
-
-    ["#{obj_class}##{method_name}", args_str]
-  rescue StandardError
-    ['Unknown', '']
-  end
-
-  def self.extract_dj_class(handler)
-    handler[%r{object: !ruby/class '([^']+)'}, 1] ||
-      handler[%r{object: !ruby/object:(\S+)}, 1] ||
-      handler[%r{!ruby/object:(\S+)}, 1] ||
-      'Unknown'
-  end
-
   def self.extract_sql_operation(sql)
     op = sql.to_s.strip.split(/\s/, 2).first&.upcase
     op if %w[SELECT INSERT UPDATE DELETE].include?(op)
@@ -294,7 +171,7 @@ module PrometheusMetrics
     model&.downcase&.gsub('::', '_') || 'unknown'
   end
 
-  private_class_method :refresh_delayed_jobs, :refresh_scheduled_jobs_detail, :refresh_ci_domain,
-                       :refresh_connection_pool, :refresh_puma, :extract_sql_operation,
-                       :extract_table_name, :parse_dj_handler, :extract_dj_class
+  private_class_method :extract_sql_operation, :extract_table_name
 end
+
+require_relative 'prometheus_metrics/refresh_helpers'
