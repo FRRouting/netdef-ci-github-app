@@ -85,6 +85,8 @@ GEM
       ast (~> 2.4.1)
       racc
     pg (1.5.7)
+    prometheus-client (4.2.5)
+      base64
     public_suffix (6.0.1)
     puma (6.4.2)
       nio4r (~> 2.0)
@@ -181,6 +183,7 @@ DEPENDENCIES
   octokit (~> 9.1)
   otr-activerecord (~> 2.3)
   pg (~> 1.5, >= 1.5.3)
+  prometheus-client
   puma
   rack (= 3.1.7)
   rack-test

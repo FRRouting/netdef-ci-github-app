@@ -11,7 +11,7 @@
 require 'otr-activerecord'
 
 class CiJob < ActiveRecord::Base
-  enum status: { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
+  enum :status, { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
 
   validates :name, presence: true
   validates :job_ref, presence: true
