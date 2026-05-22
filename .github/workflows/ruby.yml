@@ -96,7 +96,7 @@ jobs:
         run: |
           cp config_template.yml config.yml
           bundle exec rspec \
-            -f j -o tmp/rspec_results.json \
+            -f progress \
             -f h -o tmp/rspec_results.html
 
       - name: Save coverage report
@@ -106,11 +106,3 @@ jobs:
           name: coverage-report
           path: /home/runner/work/netdef-ci-github-app/netdef-ci-github-app/coverage
           if-no-files-found: warn
-
-      - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v7
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          title: 'Unit tests'
-          json-path: tmp/rspec_results.json
-        if: always()
