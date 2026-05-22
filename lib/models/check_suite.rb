@@ -15,6 +15,7 @@ class CheckSuite < ActiveRecord::Base
   validates :commit_sha_ref, presence: true
 
   belongs_to :pull_request
+  belongs_to :plan
 
   belongs_to :stopped_in_stage, class_name: 'Stage', optional: true
   belongs_to :cancelled_previous_check_suite, class_name: 'CheckSuite', optional: true

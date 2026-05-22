@@ -14,7 +14,7 @@ FactoryBot.define do
     status { 0 }
     check_ref { Faker::Alphanumeric.alphanumeric(number: 18, min_alpha: 3, min_numeric: 3) }
 
-    configuration { create(:stage_configuration, github_check_run_name: name) }
+    configuration { create(:stage_configuration, github_check_run_name: name.split(' - ').first) }
 
     trait :failure do
       status { :failure }

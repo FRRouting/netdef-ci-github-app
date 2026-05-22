@@ -319,5 +319,40 @@ describe Github::PlanExecution::Finished do
         expect(pla_exec.finished).to eq([200, 'Still running'])
       end
     end
+
+    context 'when ci_job.job_ref is nil and not current execution' do
+      let(:status) { 200 }
+      let(:ci_job) { check_suite.ci_jobs.last }
+      let(:check_suite) { create(:check_suite, :with_stages_and_jobs, :with_running_ci_jobs) }
+      let(:payload) { { 'bamboo_ref' => check_suite.bamboo_ci_ref } }
+      let(:summary) { double(build_summary: nil) }
+      let(:body) do
+        {
+          'stages' => {
+            'stage' => [
+              {
+                'results' => {
+                  'result' => [ci_job]
+                }
+              }
+            ]
+          }
+        }
+      end
+
+      before do
+        allow(ci_job).to receive(:enqueue)
+        allow(check_suite).to receive(:ci_jobs).and_return([ci_job])
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(check_suite.pull_request).to receive(:current_execution?).and_return(false)
+        allow(Github::Build::Summary).to receive(:new).and_return(summary)
+        allow(summary).to receive(:build_summary)
+        allow_any_instance_of(PullRequest).to receive(:current_execution?).and_return(false)
+      end
+
+      it 'enqueues the ci_job and returns false' do
+        expect(pla_exec.finished).to eq([200, 'Finished'])
+      end
+    end
   end
 end

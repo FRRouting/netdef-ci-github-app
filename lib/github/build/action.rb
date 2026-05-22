@@ -26,15 +26,17 @@ module Github
       # Initializes the Action class with the given parameters.
       #
       # @param [CheckSuite] check_suite The CheckSuite to handle.
-      # @param [Github] github The Github instance to use.
+      # @param [Github::Check] github The Github::Check instance to use.
       # @param [Array] jobs The jobs to create for the CheckSuite.
+      # @param [String] Stage Plan name.
       # @param [Integer] logger_level The logging level to use (default: Logger::INFO).
-      def initialize(check_suite, github, jobs, logger_level: Logger::INFO)
+      def initialize(check_suite, github, jobs, name, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
         @jobs = jobs
         @loggers = []
-        @stages = StageConfiguration.all
+        @stages_config = StageConfiguration.all
+        @name = name
 
         %w[github_app.log github_build_action.log].each do |filename|
           @loggers << GithubLogger.instance.create(filename, logger_level)
@@ -49,11 +51,11 @@ module Github
       #
       # @param [Boolean] rerun Indicates if the jobs should be rerun (default: false).
       def create_summary(rerun: false)
-        logger(Logger::INFO, "SUMMARY #{@stages.inspect}")
+        logger(Logger::INFO, "SUMMARY #{@stages_config.inspect}")
 
         Github::Build::SkipOldTests.new(@check_suite).skip_old_tests
 
-        @stages.each do |stage_config|
+        @stages_config.each do |stage_config|
           create_check_run_stage(stage_config)
         end
 
@@ -118,7 +120,7 @@ module Github
 
         return if stage_config.nil?
 
-        stage = Stage.find_by(check_suite: @check_suite, name: stage_config.github_check_run_name)
+        stage = Stage.find_by(check_suite: @check_suite, name: "#{stage_config.github_check_run_name} - #{@name}")
 
         logger(Logger::INFO, "create_jobs - #{job.inspect} -> #{stage.inspect}")
 
@@ -130,9 +132,8 @@ module Github
       #
       # @param [StageConfiguration] stage_config The stage configuration.
       def create_check_run_stage(stage_config)
-        stage = Stage.find_by(name: stage_config.github_check_run_name, check_suite_id: @check_suite.id)
-
-        logger(Logger::INFO, "STAGE #{stage_config.github_check_run_name} #{stage.inspect} - @#{@check_suite.inspect}")
+        logger(Logger::INFO, "create_check_run_stage - #{stage_config.github_check_run_name} - #{@name}")
+        stage = Stage.find_by(name: "#{stage_config.github_check_run_name} - #{@name}", check_suite_id: @check_suite.id)
 
         return create_stage(stage_config) if stage.nil?
         return unless stage.configuration.can_retry?
@@ -148,7 +149,7 @@ module Github
       # @param [StageConfiguration] stage_config The stage configuration.
       # @return [Stage] The created stage.
       def create_stage(stage_config)
-        name = stage_config.github_check_run_name
+        name = "#{stage_config.github_check_run_name} - #{@name}"
 
         stage =
           Stage.create(check_suite: @check_suite,

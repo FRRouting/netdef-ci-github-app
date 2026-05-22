@@ -234,12 +234,16 @@ module Github
         @logger.info ">>> @result: #{@result.inspect}"
         return if @result.nil? or @result.empty? or @result['status-code']&.between?(400, 500)
 
-        @result.dig('stages', 'stage').each do |stage|
-          stage.dig('results', 'result').each do |result|
-            ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: @check_suite.id)
+        @result.dig('stages', 'stage')&.each do |stage|
+          check_stage(stage, github_check)
+        end
+      end
 
-            update_stage_status(ci_job, result, github_check)
-          end
+      def check_stage(stage, github_check)
+        stage.dig('results', 'result')&.each do |result|
+          ci_job = CiJob.find_by(job_ref: result['buildResultKey'], check_suite_id: @check_suite.id)
+
+          update_stage_status(ci_job, result, github_check)
         end
       end
 

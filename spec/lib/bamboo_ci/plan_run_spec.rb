@@ -9,12 +9,13 @@
 #  frozen_string_literal: true
 
 describe BambooCi::PlanRun do
-  let(:plan_run) { described_class.new(check_suite) }
+  let(:plan) { check_suite.pull_request.plans.last }
+  let(:plan_run) { described_class.new(check_suite, plan) }
 
   before do
     allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
 
-    stub_request(:post, "https://127.0.0.1/rest/api/latest/queue/#{check_suite.pull_request.plan}?" \
+    stub_request(:post, "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name.delete(' ')}?" \
                         "bamboo.variable.github_base_sha=#{check_suite.base_sha_ref}" \
                         "&bamboo.variable.github_branch=#{check_suite.merge_branch}&" \
                         "bamboo.variable.github_merge_sha=#{check_suite.commit_sha_ref}&" \

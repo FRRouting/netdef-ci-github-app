@@ -9,10 +9,11 @@
 #  frozen_string_literal: true
 
 describe Github::ReRun::Command do
+  let(:pull_request) { create(:pull_request) }
   let(:rerun) { described_class.new(payload) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
-  let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
+  let(:fake_plan_run) { BambooCi::PlanRun.new(nil, pull_request.plans.last) }
 
   before do
     allow(File).to receive(:read).and_return('')
@@ -83,7 +84,7 @@ describe Github::ReRun::Command do
       end
 
       it 'must returns success' do
-        expect(rerun.start).to eq([201, 'Starting re-run (command)'])
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suites.size).to eq(2)
         expect(check_suites.first.re_run).to be_falsey
         expect(check_suites.last.re_run).to be_truthy

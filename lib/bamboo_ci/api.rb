@@ -28,8 +28,8 @@ module BambooCi
       get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
     end
 
-    def submit_pr_to_ci(check_suite, ci_variables)
-      url = "https://127.0.0.1/rest/api/latest/queue/#{check_suite.pull_request.plan}"
+    def submit_pr_to_ci(check_suite, plan, ci_variables)
+      url = "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}"
 
       url += custom_variables(check_suite)
 
@@ -40,7 +40,7 @@ module BambooCi
       logger(Logger::DEBUG, "Submission URL:\n  #{url}")
 
       # Fetch Request
-      post_request(URI(url))
+      post_request(URI(url.delete(' ')))
     end
 
     def custom_variables(check_suite)
@@ -58,7 +58,7 @@ module BambooCi
       logger(Logger::DEBUG, "Comment Submission URL:\n  #{url}")
 
       # Fetch Request
-      post_request(URI(url), body: "<comment><content>#{comment}</content></comment>")
+      post_request(URI(url.delete(' ')), body: "<comment><content>#{comment}</content></comment>")
     end
 
     def logger(severity, message)

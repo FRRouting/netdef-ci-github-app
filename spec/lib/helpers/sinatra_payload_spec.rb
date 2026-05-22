@@ -171,4 +171,66 @@ describe Sinatra::Payload do
       end
     end
   end
+
+  describe '.authenticate_metrics' do
+    let(:metrics_config) { { 'username' => 'admin', 'password' => 'secret' } }
+    let(:valid_auth) { "Basic #{Base64.strict_encode64('admin:secret')}" }
+
+    before do
+      base_config = GitHubApp::Configuration.instance.config
+      allow(GitHubApp::Configuration.instance).to receive(:config)
+        .and_return(base_config.merge('metrics_auth' => metrics_config))
+      allow(dummy).to receive(:request).and_return(dummy)
+      allow(dummy).to receive(:env).and_return(env)
+    end
+
+    context 'when HTTP_AUTHORIZATION header is absent' do
+      let(:env) { {} }
+
+      it 'returns 401' do
+        expect(dummy.authenticate_metrics).to be_falsey
+      end
+    end
+
+    context "when HTTP_AUTHORIZATION header does not start with 'Basic '" do
+      let(:env) { { 'HTTP_AUTHORIZATION' => 'Bearer sometoken' } }
+
+      it 'returns 401' do
+        expect(dummy.authenticate_metrics).to be_falsey
+      end
+    end
+
+    context 'when metrics_auth config is not set' do
+      let(:env) { { 'HTTP_AUTHORIZATION' => valid_auth } }
+      let(:metrics_config) { nil }
+
+      it 'returns 401' do
+        expect(dummy.authenticate_metrics).to be_falsey
+      end
+    end
+
+    context 'when credentials are valid' do
+      let(:env) { { 'HTTP_AUTHORIZATION' => valid_auth } }
+
+      it 'returns true' do
+        expect(dummy.authenticate_metrics).to be_truthy
+      end
+    end
+
+    context 'when username is wrong' do
+      let(:env) { { 'HTTP_AUTHORIZATION' => "Basic #{Base64.strict_encode64('wronguser:secret')}" } }
+
+      it 'returns 401' do
+        expect(dummy.authenticate_metrics).to be_falsey
+      end
+    end
+
+    context 'when password is wrong' do
+      let(:env) { { 'HTTP_AUTHORIZATION' => "Basic #{Base64.strict_encode64('admin:wrongpass')}" } }
+
+      it 'returns 401' do
+        expect(dummy.authenticate_metrics).to be_falsey
+      end
+    end
+  end
 end

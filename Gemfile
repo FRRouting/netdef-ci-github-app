@@ -10,7 +10,7 @@
 
 source 'https://rubygems.org'
 
-ruby '3.1.2'
+ruby '>= 3.1.2'
 
 # Token
 gem 'jwt'
@@ -38,6 +38,9 @@ gem 'rake'
 
 # Delayed Job
 gem 'delayed_job_active_record'
+
+# Prometheus metrics
+gem 'prometheus-client'
 
 # Code lint
 gem 'rubocop', '1.56.1', group: %i[development test]

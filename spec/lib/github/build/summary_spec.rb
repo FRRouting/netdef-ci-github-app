@@ -126,8 +126,12 @@ describe Github::Build::Summary do
   context 'when the tests stage finished unsuccessfully' do
     let(:first_stage_config) { create(:stage_configuration, position: 1) }
     let(:second_stage_config) { create(:stage_configuration, position: 2) }
-    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
-    let(:second_stage) { create(:stage, configuration: second_stage_config, check_suite: check_suite) }
+    let(:first_stage) do
+      create(:stage, name: 'Coding - Ajax', configuration: first_stage_config, check_suite: check_suite)
+    end
+    let(:second_stage) do
+      create(:stage, name: 'Tests - Ajax', configuration: second_stage_config, check_suite: check_suite)
+    end
     let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
     let(:ci_job) { create(:ci_job, :failure, check_suite: check_suite, stage: second_stage) }
 
@@ -146,8 +150,12 @@ describe Github::Build::Summary do
   context 'when the tests stage finished unsuccessfully and build_message returns null' do
     let(:first_stage_config) { create(:stage_configuration, position: 1) }
     let(:second_stage_config) { create(:stage_configuration, position: 2) }
-    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
-    let(:second_stage) { create(:stage, name: 'Build', configuration: second_stage_config, check_suite: check_suite) }
+    let(:first_stage) do
+      create(:stage, name: 'Code - Tato', configuration: first_stage_config, check_suite: check_suite)
+    end
+    let(:second_stage) do
+      create(:stage, name: 'Build - Tato', configuration: second_stage_config, check_suite: check_suite)
+    end
     let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
     let(:ci_job) { create(:ci_job, :failure, name: 'Ubuntu Build', check_suite: check_suite, stage: second_stage) }
 
@@ -159,6 +167,7 @@ describe Github::Build::Summary do
     end
 
     it 'must update stage' do
+      puts ci_job.inspect
       summary.build_summary
       expect(ci_job.stage.reload.status).to eq('failure')
       expect(ci_job2.stage.reload.status).to eq('success')
@@ -168,8 +177,12 @@ describe Github::Build::Summary do
   context 'when the tests stage finished unsuccessfully and build_message returns errorlog' do
     let(:first_stage_config) { create(:stage_configuration, position: 1) }
     let(:second_stage_config) { create(:stage_configuration, position: 2) }
-    let(:first_stage) { create(:stage, configuration: first_stage_config, check_suite: check_suite) }
-    let(:second_stage) { create(:stage, name: 'Build', configuration: second_stage_config, check_suite: check_suite) }
+    let(:first_stage) do
+      create(:stage, name: 'Coding - Ajax', configuration: first_stage_config, check_suite: check_suite)
+    end
+    let(:second_stage) do
+      create(:stage, name: 'Build - Ajax', configuration: second_stage_config, check_suite: check_suite)
+    end
     let(:ci_job2) { create(:ci_job, :success, check_suite: check_suite, stage: first_stage) }
     let(:ci_job) { create(:ci_job, :failure, name: 'Ubuntu Build', check_suite: check_suite, stage: second_stage) }
 

@@ -12,7 +12,7 @@ describe Github::Retry::Comment do
   let(:github_retry) { described_class.new(payload) }
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
-  let(:fake_plan_run) { BambooCi::PlanRun.new(nil) }
+  let(:fake_plan_run) { BambooCi::PlanRun.new(nil, check_suite.pull_request.plans.last) }
   let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
 
   before do
