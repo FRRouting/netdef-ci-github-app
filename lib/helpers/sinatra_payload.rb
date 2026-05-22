@@ -16,18 +16,11 @@ module Sinatra
   module Payload
     def authenticate_metrics
       auth = request.env['HTTP_AUTHORIZATION']
-      return halt 401, 'Unauthorized' if auth.nil? || !auth.start_with?('Basic ')
+      config = GitHubApp::Configuration.instance.config['metrics_auth']
 
-      credentials = Base64.decode64(auth.delete_prefix('Basic ')).split(':', 2)
-      username, password = credentials
+      return halt 401, 'Unauthorized' if authentication_header?(auth) || config.nil?
 
-      config = GitHubApp::Configuration.instance.config.dig('metrics_auth')
-      return halt 401, 'Unauthorized' if config.nil?
-
-      valid_user = Rack::Utils.secure_compare(config['username'].to_s, username.to_s)
-      valid_pass = Rack::Utils.secure_compare(config['password'].to_s, password.to_s)
-
-      halt 401, 'Unauthorized' unless valid_user && valid_pass
+      authorized?(config, auth)
     end
 
     # Instantiate an Octokit client, authenticated as an installation of a
@@ -49,6 +42,25 @@ module Sinatra
     end
 
     private
+
+    def authorized?(config, auth)
+      username, password = get_credentials(auth)
+
+      valid_user = Rack::Utils.secure_compare(config['username'].to_s, username.to_s)
+      valid_pass = Rack::Utils.secure_compare(config['password'].to_s, password.to_s)
+
+      halt 401, 'Unauthorized' unless valid_user && valid_pass
+
+      true
+    end
+
+    def authentication_header?(auth)
+      auth.nil? || !auth.start_with?('Basic ')
+    end
+
+    def get_credentials(auth)
+      Base64.decode64(auth.delete_prefix('Basic ')).split(':', 2)
+    end
 
     def fetch_signature
       request.env['HTTP_SIGNATURE'] || request.env['HTTP_X_HUB_SIGNATURE_256']
