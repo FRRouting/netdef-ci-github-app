@@ -145,10 +145,4 @@ class Stage < ActiveRecord::Base
     url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{check_suite.bamboo_ci_ref}"
     { title: "#{name} summary", summary: "#{header}#{in_progress_jobs}\nDetails at [#{url}](#{url})" }
   end
-
-  def mount_in_progress_jobs(jobs)
-    jobs.where(status: :in_progress).map do |job|
-      "- **#{job.name}** -> https://#{url}/browse/#{job.job_ref}\n"
-    end.join("\n")
-  end
 end

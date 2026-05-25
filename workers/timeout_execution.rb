@@ -48,13 +48,20 @@ class TimeoutExecution
 
     ##
     # Handles the CheckSuite if it is considered hanged.
-    # Calls the finished method of Github::PlanExecution::Finished with the hanged flag set to true.
+    # Marks each CiJob with updated_at older than 2 hours as failure and updates GitHub CI.
     #
     # @param [CheckSuite] check_suite The CheckSuite to handle.
     def watchdog(check_suite)
-      Github::PlanExecution::Finished
-        .new({ 'check_suite_id' => check_suite.id, 'hanged' => true })
-        .finished
+      github = Github::Check.new(check_suite)
+
+      check_suite.ci_jobs
+                 .where(status: %i[queued in_progress])
+                 .where('updated_at < ?', 2.hours.ago.utc)
+                 .each do |job|
+        @logger.info("TimeoutExecution watchdog: marking job #{job.id} (#{job.name}) as failure")
+        job.failure(github, agent: 'TimeoutExecution')
+        Github::Build::Summary.new(job).build_summary
+      end
 
       true
     end
