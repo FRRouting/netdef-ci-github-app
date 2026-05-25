@@ -31,6 +31,26 @@ describe Stage do
     allow(SlackBot.instance).to receive(:stage_in_progress_notification)
   end
 
+  describe '.related_stages' do
+    let(:check_suite) { create(:check_suite) }
+    let(:suffix) { 'AMD' }
+    let!(:matching_stage) { create(:stage, name: "TopoTest - #{suffix}", check_suite: check_suite) }
+    let!(:other_suffix_stage) { create(:stage, name: 'TopoTest - x86', check_suite: check_suite) }
+    let!(:other_suite_stage) { create(:stage, name: "TopoTest - #{suffix}", check_suite: create(:check_suite)) }
+
+    it 'returns stages matching the suffix and check_suite' do
+      expect(described_class.related_stages(check_suite, suffix)).to include(matching_stage)
+    end
+
+    it 'excludes stages with a different suffix' do
+      expect(described_class.related_stages(check_suite, suffix)).not_to include(other_suffix_stage)
+    end
+
+    it 'excludes stages from a different check_suite' do
+      expect(described_class.related_stages(check_suite, suffix)).not_to include(other_suite_stage)
+    end
+  end
+
   describe '#create_github_check' do
     let(:stage) { create(:stage, check_ref: nil) }
 
