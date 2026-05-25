@@ -77,7 +77,7 @@ describe BambooCi::Api do
     let(:plan) { check_suite.pull_request.plans.last }
 
     let(:url) do
-      "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}" \
+      "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name.delete(' ')}" \
         "#{custom_variables}#{ci_variables_parsed}"
     end
 

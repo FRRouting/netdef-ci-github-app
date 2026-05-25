@@ -27,6 +27,7 @@ before_fork do
   Thread.new do
     loop do
       Telemetry.instance.update_stats Puma.stats
+      File.write('tmp/puma_stats.json', Puma.stats_hash.to_json)
       sleep 30
     end
   end
