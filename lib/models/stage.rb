@@ -148,7 +148,7 @@ class Stage < ActiveRecord::Base
 
   def mount_in_progress_jobs(jobs)
     jobs.where(status: :in_progress).map do |job|
-      "- **#{job.name}** -> https://#{url}/browse/#{job.job_ref}\n"
+      "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
     end.join("\n")
   end
 end

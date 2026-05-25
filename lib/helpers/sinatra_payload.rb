@@ -18,7 +18,8 @@ module Sinatra
       auth = request.env['HTTP_AUTHORIZATION']
       config = GitHubApp::Configuration.instance.config['metrics_auth']
 
-      return halt 401, 'Unauthorized' if authentication_header?(auth) || config.nil?
+      return true if config.nil?
+      return halt 401, 'Unauthorized' if authentication_header?(auth)
 
       authorized?(config, auth)
     end

@@ -74,7 +74,7 @@ class PrBambooSync
   end
 
   def process_pr(github, repo, pr_object)
-    sha         = pr.dig(:head, :sha)
+    sha         = pr_object.dig(:head, :sha)
     active_runs = fetch_active_github_runs(github, repo, sha)
     return [] if active_runs.empty?
 
