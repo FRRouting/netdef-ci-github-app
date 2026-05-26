@@ -87,8 +87,16 @@ class CreateExecutionByComment < Github::ReRun::Base
   #
   # @raise [ActiveRecord::RecordNotFound] if the pull request is not found.
   def fetch_github_check
-    pull_request = PullRequest.find_by(github_pr_id: pr_id)
-    Github::Check.new(pull_request.check_suites.last)
+    pull_request = PullRequest.find_by(github_pr_id: pr_id) || @pull_request
+
+    last_check_suite = pull_request.check_suites.last
+
+    if last_check_suite.nil?
+      logger(Logger::ERROR, "fetch_github_check - PullRequest #{pr_id} not found")
+      raise 'PullRequest not found'
+    end
+
+    Github::Check.new(last_check_suite)
   end
 
   def create_check_suite_by_commit(commit, pull_request, pull_request_info)
