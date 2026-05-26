@@ -28,7 +28,7 @@ module PrometheusMetrics
 
   def self.reset_dj_gauges
     GAUGE_COUNT_MAP.each_key do |gauge|
-      gauge.values.each_key { |labels| gauge.set(0, labels: labels) }
+      sanitized_gauge_labels(gauge).each { |labels| gauge.set(0, labels: labels) }
     end
   end
 
@@ -97,7 +97,7 @@ module PrometheusMetrics
 
   def self.refresh_scheduled_jobs_detail
     now = Time.now
-    DJ_TABLE.values.each_key { |labels| DJ_TABLE.set(0, labels: labels) }
+    sanitized_gauge_labels(DJ_TABLE).each { |labels| DJ_TABLE.set(0, labels: labels) }
 
     Delayed::Job
       .where('run_at > ? AND locked_at IS NULL AND failed_at IS NULL', now)
@@ -140,8 +140,13 @@ module PrometheusMetrics
       'Unknown'
   end
 
+  def self.sanitized_gauge_labels(gauge)
+    gauge.values.keys.map { |l| l.reject { |k, _| k == :pid } }.uniq
+  end
+
   private_class_method :refresh_delayed_jobs, :reset_dj_gauges, :dj_active_counts, :dj_problem_counts,
                        :set_dj_queue_gauges, :refresh_ci_domain, :refresh_connection_pool,
                        :refresh_puma, :update_puma_worker, :refresh_scheduled_jobs_detail,
-                       :record_scheduled_job, :parse_dj_handler, :extract_dj_class
+                       :record_scheduled_job, :parse_dj_handler, :extract_dj_class,
+                       :sanitized_gauge_labels
 end

@@ -9,8 +9,14 @@
 #  frozen_string_literal: true
 
 require 'prometheus/client'
+require 'prometheus/client/data_stores/direct_file_store'
+require 'fileutils'
 
 module PrometheusMetrics
+  METRICS_DIR = ENV.fetch('PROMETHEUS_METRICS_DIR', '/tmp/prometheus_metrics')
+  FileUtils.mkdir_p(METRICS_DIR)
+  Prometheus::Client.config.data_store = Prometheus::Client::DataStores::DirectFileStore.new(dir: METRICS_DIR)
+
   REGISTRY = Prometheus::Client.registry
   DJ_MAX_ATTEMPTS = 5
   DJ_MAX_RUN_TIME = 300 # 5 minutes, matches Delayed::Worker.max_run_time
@@ -131,6 +137,19 @@ module PrometheusMetrics
     :activerecord_query_duration_seconds,
     docstring: 'Duration of SQL queries in seconds, by operation type and table',
     labels: %i[operation table]
+  )
+
+  # --- HTTP requests (all routes) ---
+
+  HTTP_REQUESTS = REGISTRY.counter(
+    :http_requests_total,
+    docstring: 'Total HTTP requests handled by the app, by method, route pattern and status code',
+    labels: %i[method path status]
+  )
+  HTTP_REQUEST_DURATION = REGISTRY.histogram(
+    :http_request_duration_seconds,
+    docstring: 'HTTP request duration in seconds, by route pattern',
+    labels: [:path]
   )
 
   # --- GitHub webhook events ---
