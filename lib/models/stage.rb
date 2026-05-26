@@ -16,7 +16,7 @@ class Stage < ActiveRecord::Base
   belongs_to :configuration, class_name: 'StageConfiguration', foreign_key: 'stage_configuration_id'
   belongs_to :check_suite
 
-  default_scope -> { order(id: :asc) }, all_queries: true
+  default_scope -> { order(id: :asc) }
 
   scope :related_stages, lambda { |check_suite, suffix|
                            where('stages.name LIKE ?', "%#{suffix}").where(check_suite: check_suite)
@@ -148,7 +148,7 @@ class Stage < ActiveRecord::Base
 
   def mount_in_progress_jobs(jobs)
     jobs.where(status: :in_progress).map do |job|
-      "- **#{job.name}** -> https://#{url}/browse/#{job.job_ref}\n"
+      "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
     end.join("\n")
   end
 end

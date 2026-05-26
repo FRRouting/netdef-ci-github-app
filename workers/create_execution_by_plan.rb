@@ -15,7 +15,7 @@ class CreateExecutionByPlan
 
     return [422, 'Plan not found'] if plan.nil?
 
-    instance = new(pull_request_id, payload, plan_id)
+    instance = new(pull_request_id, payload, plan)
 
     logger.info "CreateExecutionByPlan: Plan '#{plan.name}' for Pull Request ID: #{pull_request_id} with " \
                 "status: #{instance.status.inspect}"
@@ -25,7 +25,7 @@ class CreateExecutionByPlan
 
   attr_reader :status
 
-  def initialize(pull_request_id, payload, plan_id)
+  def initialize(pull_request_id, payload, plan)
     @logger = Logger.new($stdout)
     @logger.level = Logger::INFO
 
@@ -33,7 +33,7 @@ class CreateExecutionByPlan
     @payload = payload
     @status = []
 
-    create_execution_by_plan(Plan.find_by(id: plan_id))
+    create_execution_by_plan(plan)
   end
 
   private

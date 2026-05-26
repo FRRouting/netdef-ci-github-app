@@ -22,7 +22,7 @@ class PullRequest < ActiveRecord::Base
   def finished?
     return true if check_suites.nil? or check_suites.empty?
 
-    current_execution_by_plan(plan).finished?
+    plans.all? { |plan| current_execution_by_plan(plan)&.finished? }
   end
 
   def current_execution?(check_suite)

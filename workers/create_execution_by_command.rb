@@ -10,10 +10,11 @@
 
 class CreateExecutionByCommand < Github::ReRun::Base
   def self.create(plan_id, check_suite_id, payload)
-    check_suite = CheckSuite.find(check_suite_id)
-    plan = Plan.find(plan_id)
+    check_suite = CheckSuite.find_by(id: check_suite_id)
+    plan = Plan.find_by(id: plan_id)
 
     return [404, 'Failed to fetch a check suite'] if check_suite.nil?
+    return [404, 'Plan not found'] if plan.nil?
 
     instance = new(plan, check_suite, payload)
 
@@ -32,15 +33,28 @@ class CreateExecutionByCommand < Github::ReRun::Base
 
     stop_previous_execution(plan)
 
-    check_suite = create_check_suite(check_suite)
+    check_suite = create_check_suite(check_suite, plan)
 
-    start_new_execution(check_suite, plan)
+    unless check_suite.persisted?
+      @status = [422, 'Failed to save Check Suite']
+      return
+    end
+
+    bamboo_status = start_new_execution(check_suite, plan)
+
+    unless bamboo_status == 200
+      @status = [bamboo_status, 'Failed to create CI Plan']
+      return
+    end
+
     ci_jobs(check_suite, plan)
+    @status = [200, 'Scheduled Plan Runs']
   end
 
-  def create_check_suite(check_suite)
+  def create_check_suite(check_suite, plan)
     CheckSuite.create(
       pull_request: check_suite.pull_request,
+      plan: plan,
       author: check_suite.author,
       commit_sha_ref: check_suite.commit_sha_ref,
       work_branch: check_suite.work_branch,
@@ -55,7 +69,7 @@ class CreateExecutionByCommand < Github::ReRun::Base
 
     bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
     bamboo_plan_run.ci_variables = ci_vars
-    bamboo_plan_run.start_plan
+    status = bamboo_plan_run.start_plan
 
     audit_retry =
       AuditRetry.create(check_suite: check_suite,
@@ -65,5 +79,7 @@ class CreateExecutionByCommand < Github::ReRun::Base
                         retry_type: 'full')
 
     Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
+
+    status
   end
 end

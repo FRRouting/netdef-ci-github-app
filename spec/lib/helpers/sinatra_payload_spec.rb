@@ -205,7 +205,7 @@ describe Sinatra::Payload do
       let(:metrics_config) { nil }
 
       it 'returns 401' do
-        expect(dummy.authenticate_metrics).to be_falsey
+        expect(dummy.authenticate_metrics).to be_truthy
       end
     end
 

@@ -130,7 +130,7 @@ module Github
 
       def cleanup(check_suite)
         check_suite.pull_request.check_suites.each do |suite|
-          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}%")
+          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}%").destroy_all
         end
       end
 
