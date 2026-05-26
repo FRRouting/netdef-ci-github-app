@@ -52,6 +52,8 @@ class TimeoutExecution
     #
     # @param [CheckSuite] check_suite The CheckSuite to handle.
     def watchdog(check_suite)
+      PrometheusMetrics::CI_TIMEOUTS.increment
+
       Github::PlanExecution::Finished
         .new({ 'check_suite_id' => check_suite.id, 'hanged' => true })
         .finished

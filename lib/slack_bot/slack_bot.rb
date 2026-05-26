@@ -30,9 +30,9 @@ class SlackBot
     reason = invalid_rerun_message(job)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/comment"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: reason)
+    PrometheusMetrics.track_slack('invalid_rerun_comment') do
+      post_request(URI(url), machine: 'slack_bot.netdef.org', body: reason)
+    end
 
     reason
   end
@@ -43,9 +43,11 @@ class SlackBot
     reason = invalid_rerun_message(job)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: reason, slack_user_id: subscription.slack_user_id }.to_json)
+    PrometheusMetrics.track_slack('invalid_rerun_dm') do
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: reason, slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def notify_errors(job)
@@ -151,46 +153,56 @@ class SlackBot
     pr_url = "https://github.com/#{pull_request.repository}/pull/#{pull_request.github_pr_id}"
     bamboo_link = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
 
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: {
-                   message: "PR <#{pr_url}|##{pull_request.github_pr_id}>. " \
-                            "Stage: <#{bamboo_link}|[CI] #{stage.name} - #{stage.status}> ",
-                   slack_user_id: subscription.slack_user_id
-                 }.to_json)
+    PrometheusMetrics.track_slack('stage') do
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: {
+                     message: "PR <#{pr_url}|##{pull_request.github_pr_id}>. " \
+                              "Stage: <#{bamboo_link}|[CI] #{stage.name} - #{stage.status}> ",
+                     slack_user_id: subscription.slack_user_id
+                   }.to_json)
+    end
   end
 
   def send_success_message(job, subscription)
     message = generate_notification_message(job, 'Success')
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, unfurl_links: false, unfurl_media: false,
-                         slack_user_id: subscription.slack_user_id }.to_json)
+    PrometheusMetrics.track_slack('success') do
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: message, unfurl_links: false, unfurl_media: false,
+                           slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def send_error_message(message, subscription)
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    PrometheusMetrics.track_slack('error') do
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def send_cancel_message(message, subscription)
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    PrometheusMetrics.track_slack('cancelled') do
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def started_finished_notification(check_suite, subscription, started_or_finished: 'Started')
     message = pull_request_message(check_suite, started_or_finished)
 
     url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
-    post_request(URI(url),
-                 machine: 'slack_bot.netdef.org',
-                 body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    PrometheusMetrics.track_slack(started_or_finished.downcase) do
+      post_request(URI(url),
+                   machine: 'slack_bot.netdef.org',
+                   body: { message: message, slack_user_id: subscription.slack_user_id }.to_json)
+    end
   end
 
   def pull_request_message(check_suite, status)

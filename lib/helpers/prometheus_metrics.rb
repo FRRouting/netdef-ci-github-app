@@ -133,6 +133,85 @@ module PrometheusMetrics
     labels: %i[operation table]
   )
 
+  # --- GitHub webhook events ---
+
+  GITHUB_WEBHOOK_EVENTS = REGISTRY.counter(
+    :github_webhook_events_total,
+    docstring: 'GitHub webhook events received by the app, by event type and processing result',
+    labels: %i[event result]
+  )
+
+  # --- Bamboo CI API integration ---
+
+  BAMBOO_REQUESTS = REGISTRY.counter(
+    :bamboo_api_requests_total,
+    docstring: 'HTTP requests made to the Bamboo CI API, by operation and outcome',
+    labels: %i[operation status]
+  )
+  BAMBOO_DURATION = REGISTRY.histogram(
+    :bamboo_api_request_duration_seconds,
+    docstring: 'Duration of Bamboo CI API requests in seconds, by operation',
+    labels: [:operation]
+  )
+
+  # --- CI job lifecycle ---
+
+  CI_JOB_DURATION = REGISTRY.histogram(
+    :ci_job_execution_seconds,
+    docstring: 'CI job execution duration in seconds, by stage name and final status',
+    labels: %i[stage status]
+  )
+  CI_JOB_RETRIES = REGISTRY.counter(
+    :ci_job_retry_total,
+    docstring: 'CI job retries triggered, by reason (partial or full)',
+    labels: [:reason]
+  )
+  CI_TIMEOUTS = REGISTRY.counter(
+    :ci_job_timeout_total,
+    docstring: 'Check suites marked as hanged by the timeout watchdog (no update for >2h)'
+  )
+
+  # --- Application exceptions ---
+
+  APP_EXCEPTIONS = REGISTRY.counter(
+    :app_exceptions_total,
+    docstring: 'Unhandled exceptions caught by the Sinatra app, by exception class and handler',
+    labels: %i[class handler]
+  )
+
+  # --- Slack notifications ---
+
+  SLACK_NOTIFICATIONS = REGISTRY.counter(
+    :slack_notifications_total,
+    docstring: 'Slack notifications sent by the app, by notification type and delivery status',
+    labels: %i[type status]
+  )
+
+  # Wraps a Bamboo CI API call, recording request count and duration.
+  # Returns the block result, or nil on exception (mirroring GitHubApp::Request behaviour).
+  def self.track_bamboo(operation)
+    start = Time.now
+    result = yield
+    BAMBOO_REQUESTS.increment(labels: { operation: operation, status: bamboo_response_status(result) })
+    BAMBOO_DURATION.observe(Time.now - start, labels: { operation: operation })
+    result
+  rescue StandardError
+    BAMBOO_REQUESTS.increment(labels: { operation: operation, status: 'error' })
+    BAMBOO_DURATION.observe(Time.now - start, labels: { operation: operation })
+    nil
+  end
+
+  # Wraps a Slack HTTP call, recording delivery count and status.
+  # Returns the block result, or nil on exception.
+  def self.track_slack(type)
+    result = yield
+    SLACK_NOTIFICATIONS.increment(labels: { type: type, status: result.nil? ? 'error' : 'sent' })
+    result
+  rescue StandardError
+    SLACK_NOTIFICATIONS.increment(labels: { type: type, status: 'error' })
+    nil
+  end
+
   # Call once at startup to begin recording per-query metrics.
   def self.subscribe_query_notifications!
     ActiveSupport::Notifications.subscribe('sql.active_record') do |*args|
@@ -145,6 +224,14 @@ module PrometheusMetrics
       AR_QUERY_DURATION.observe(event.duration / 1000.0, labels: labels)
     end
   end
+
+  def self.bamboo_response_status(result)
+    return 'error' if result.nil?
+    return 'success' unless result.respond_to?(:code)
+
+    result.code.to_i < 400 ? 'success' : 'error'
+  end
+  private_class_method :bamboo_response_status
 
   def self.refresh!
     refresh_delayed_jobs
