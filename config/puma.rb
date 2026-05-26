@@ -24,6 +24,8 @@ preload_app!
 pidfile 'puma.pid'
 
 before_fork do
+  ActiveRecord::Base.connection_pool.disconnect!
+
   Thread.new do
     loop do
       Telemetry.instance.update_stats Puma.stats
@@ -31,4 +33,8 @@ before_fork do
       sleep 30
     end
   end
+end
+
+on_worker_boot do
+  ActiveRecord::Base.establish_connection
 end

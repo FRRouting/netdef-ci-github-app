@@ -16,7 +16,7 @@ class Stage < ActiveRecord::Base
   belongs_to :configuration, class_name: 'StageConfiguration', foreign_key: 'stage_configuration_id'
   belongs_to :check_suite
 
-  default_scope -> { order(id: :asc) }, all_queries: true
+  default_scope -> { order(id: :asc) }
 
   scope :related_stages, lambda { |check_suite, suffix|
                            where('stages.name LIKE ?', "%#{suffix}").where(check_suite: check_suite)
