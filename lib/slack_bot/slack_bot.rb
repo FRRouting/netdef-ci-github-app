@@ -148,20 +148,25 @@ class SlackBot
   end
 
   def send_stage_notification(stage, pull_request, subscription)
-    url = "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+    PrometheusMetrics.track_slack('stage') do
+      post_request(URI(slack_user_url),
+                   machine: 'slack_bot.netdef.org',
+                   body: stage_notification_body(stage, pull_request, subscription.slack_user_id).to_json)
+    end
+  end
 
+  def slack_user_url
+    "#{GitHubApp::Configuration.instance.config['slack_bot_url']}/github/user"
+  end
+
+  def stage_notification_body(stage, pull_request, slack_user_id)
     pr_url = "https://github.com/#{pull_request.repository}/pull/#{pull_request.github_pr_id}"
     bamboo_link = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
-
-    PrometheusMetrics.track_slack('stage') do
-      post_request(URI(url),
-                   machine: 'slack_bot.netdef.org',
-                   body: {
-                     message: "PR <#{pr_url}|##{pull_request.github_pr_id}>. " \
-                              "Stage: <#{bamboo_link}|[CI] #{stage.name} - #{stage.status}> ",
-                     slack_user_id: subscription.slack_user_id
-                   }.to_json)
-    end
+    {
+      message: "PR <#{pr_url}|##{pull_request.github_pr_id}>. " \
+               "Stage: <#{bamboo_link}|[CI] #{stage.name} - #{stage.status}> ",
+      slack_user_id: slack_user_id
+    }
   end
 
   def send_success_message(job, subscription)

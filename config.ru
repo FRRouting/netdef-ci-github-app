@@ -20,6 +20,7 @@ require_relative 'app/github_app'
 require_relative 'config/delayed_job'
 require_relative 'lib/helpers/prometheus_metrics'
 
+PrometheusMetrics.cleanup_stale_metric_files!
 PrometheusMetrics.subscribe_query_notifications!
 
 File.write('.session.key', SecureRandom.hex(32))
