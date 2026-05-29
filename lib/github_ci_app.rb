@@ -35,6 +35,7 @@ require_relative 'github/build/plan_run'
 # Helpers libs
 require_relative 'helpers/configuration'
 require_relative 'helpers/github_logger'
+require_relative 'helpers/prometheus_metrics'
 require_relative 'helpers/request'
 require_relative 'helpers/sinatra_payload'
 require_relative 'helpers/telemetry'

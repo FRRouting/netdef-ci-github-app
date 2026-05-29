@@ -30,6 +30,37 @@ class GithubApp < Sinatra::Base
 
   helpers Sinatra::Payload
 
+  before do
+    @_github_event = request.env['HTTP_X_GITHUB_EVENT']
+    @_request_start = Time.now
+  end
+
+  after do
+    route   = request.env['sinatra.route']&.split(' ', 2)&.last || request.path_info
+    elapsed = Time.now - @_request_start
+
+    PrometheusMetrics::HTTP_REQUESTS.increment(
+      labels: { method: request.request_method, path: route, status: response.status.to_s }
+    )
+    PrometheusMetrics::HTTP_REQUEST_DURATION.observe(elapsed, labels: { path: route })
+
+    next unless @_github_event
+
+    result = response.status < 400 ? 'processed' : 'error'
+    PrometheusMetrics::GITHUB_WEBHOOK_EVENTS.increment(
+      labels: { event: @_github_event, result: result }
+    )
+  end
+
+  error StandardError do |e|
+    handler = request.path_info.split('/').reject(&:empty?).first || 'root'
+    PrometheusMetrics::APP_EXCEPTIONS.increment(
+      labels: { class: e.class.name, handler: handler }
+    )
+    content_type :json
+    halt 500, { error: 'Internal Server Error' }.to_json
+  end
+
   class << self
     def sinatra_logger_level
       GitHubApp::Configuration.instance.reload
