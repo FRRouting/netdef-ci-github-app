@@ -154,6 +154,18 @@ describe PrometheusMetrics do
         expect { PrometheusMetrics.cleanup_stale_metric_files! }.not_to raise_error
       end
     end
+
+    context 'when a metric file name does not contain a numeric PID (regex does not match)' do
+      let(:no_pid_file) { File.join(metrics_dir, 'metric_test___notapid.bin') }
+
+      before { FileUtils.touch(no_pid_file) }
+      after  { FileUtils.rm_f(no_pid_file) }
+
+      it 'does not delete the file (pid is nil so condition is skipped)' do
+        PrometheusMetrics.cleanup_stale_metric_files!
+        expect(File.exist?(no_pid_file)).to be true
+      end
+    end
   end
 
   describe '.refresh!' do
@@ -355,6 +367,12 @@ describe PrometheusMetrics do
 
     context 'with an empty string' do
       let(:name) { '' }
+
+      it { is_expected.to eq('unknown') }
+    end
+
+    context 'with a whitespace-only string' do
+      let(:name) { '   ' }
 
       it { is_expected.to eq('unknown') }
     end
