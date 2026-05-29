@@ -129,6 +129,8 @@ describe CiJob do
   end
 
   describe '#checkout_code?' do
+    let(:stage) { nil }
+
     context 'when job name contains checkout' do
       let(:ci_job) { create(:ci_job, name: 'Checkout Code', check_ref: nil) }
 
@@ -242,6 +244,9 @@ describe CiJob do
     end
 
     it 'creates a GitHub check run and sets check_ref when check_ref is nil' do
+      without_partial_double_verification do
+        allow(ci_job).to receive(:github_stage_full_name).and_return('SomeCheckName')
+      end
       ci_job.send(:create_github_check, github)
       expect(ci_job.reload.check_ref).to eq('7777')
     end

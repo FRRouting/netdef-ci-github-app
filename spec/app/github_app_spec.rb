@@ -77,7 +77,7 @@ describe 'GithubApp' do
       let(:signature) do
         OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
                                 config.dig('auth_signature', 'password'),
-                                payload.to_s)
+                                payload.to_json)
       end
 
       let(:header) { "sha256=#{signature}" }
@@ -103,7 +103,7 @@ describe 'GithubApp' do
       let(:signature) do
         OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
                                 config.dig('auth_signature', 'password'),
-                                payload.to_s)
+                                payload.to_json)
       end
 
       let(:header) { "sha256=#{signature}" }
