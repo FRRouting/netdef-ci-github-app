@@ -473,9 +473,9 @@ describe PrometheusMetrics do
         .and_return([])
       allow(PrometheusMetrics::DJ_TABLE).to receive(:set)
 
-      scope = double
-      allow(scope).to receive(:where).and_return(double(select: [job]))
-      allow(Delayed::Job).to receive(:where).and_return(scope)
+      where_result = double
+      allow(where_result).to receive(:select).and_return([job])
+      allow(Delayed::Job).to receive(:where).and_return(where_result)
 
       allow(PrometheusMetrics).to receive(:record_scheduled_job)
     end
