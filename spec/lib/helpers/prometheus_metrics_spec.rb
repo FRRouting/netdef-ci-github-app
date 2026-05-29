@@ -359,4 +359,48 @@ describe PrometheusMetrics do
       it { is_expected.to eq('unknown') }
     end
   end
+
+  describe '.subscribe_query_notifications!' do
+    let(:subscriber) { PrometheusMetrics.subscribe_query_notifications! }
+
+    after { ActiveSupport::Notifications.unsubscribe(subscriber) }
+
+    context 'when a tracked SQL operation (SELECT) is instrumented' do
+      before do
+        allow(PrometheusMetrics::AR_QUERIES).to receive(:increment)
+        allow(PrometheusMetrics::AR_QUERY_DURATION).to receive(:observe)
+      end
+
+      it 'increments AR_QUERIES with operation and table labels' do
+        subscriber
+        expect(PrometheusMetrics::AR_QUERIES).to receive(:increment)
+          .with(labels: { operation: 'SELECT', table: 'user' })
+
+        ActiveSupport::Notifications.instrument('sql.active_record',
+                                                 sql: 'SELECT * FROM users',
+                                                 name: 'User Load') {}
+      end
+
+      it 'observes AR_QUERY_DURATION with operation and table labels' do
+        subscriber
+        expect(PrometheusMetrics::AR_QUERY_DURATION).to receive(:observe)
+          .with(a_kind_of(Numeric), labels: { operation: 'SELECT', table: 'user' })
+
+        ActiveSupport::Notifications.instrument('sql.active_record',
+                                                 sql: 'SELECT * FROM users',
+                                                 name: 'User Load') {}
+      end
+    end
+
+    context 'when a non-tracked SQL operation (BEGIN) is instrumented' do
+      it 'does not increment AR_QUERIES' do
+        subscriber
+        expect(PrometheusMetrics::AR_QUERIES).not_to receive(:increment)
+
+        ActiveSupport::Notifications.instrument('sql.active_record',
+                                                 sql: 'BEGIN',
+                                                 name: 'TRANSACTION') {}
+      end
+    end
+  end
 end

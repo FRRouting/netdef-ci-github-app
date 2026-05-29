@@ -93,6 +93,16 @@ describe PrometheusMetrics do
         expect { result }.not_to raise_error
       end
     end
+
+    context 'when an internal error is raised during parsing' do
+      let(:handler) { 'any non-nil string' }
+
+      before { allow(PrometheusMetrics).to receive(:extract_dj_class).and_raise(StandardError, 'unexpected') }
+
+      it 'returns ["Unknown", ""] via the rescue branch' do
+        expect(PrometheusMetrics.send(:parse_dj_handler, handler)).to eq(['Unknown', ''])
+      end
+    end
   end
 
   describe '.extract_dj_class (private)' do
@@ -483,6 +493,26 @@ describe PrometheusMetrics do
     it 'calls record_scheduled_job for each upcoming job' do
       expect(PrometheusMetrics).to receive(:record_scheduled_job).with(job)
       PrometheusMetrics.send(:refresh_scheduled_jobs_detail)
+    end
+  end
+
+  describe '.reset_dj_gauges (private)' do
+    it 'iterates over all gauges in GAUGE_COUNT_MAP without raising' do
+      expect { PrometheusMetrics.send(:reset_dj_gauges) }.not_to raise_error
+    end
+
+    context 'when gauges have existing labeled values' do
+      before do
+        PrometheusMetrics::GAUGE_COUNT_MAP.each_key { |g| allow(g).to receive(:set) }
+        allow(PrometheusMetrics).to receive(:sanitized_gauge_labels).and_return([{ queue: 'default' }])
+      end
+
+      it 'sets every gauge to 0 for each known label' do
+        PrometheusMetrics::GAUGE_COUNT_MAP.each_key do |gauge|
+          expect(gauge).to receive(:set).with(0, labels: { queue: 'default' })
+        end
+        PrometheusMetrics.send(:reset_dj_gauges)
+      end
     end
   end
 end
