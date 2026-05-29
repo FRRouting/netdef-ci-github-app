@@ -114,6 +114,8 @@ describe PrometheusMetrics do
       after  { File.delete(dead_file) if File.exist?(dead_file) }
 
       it 'deletes the stale file' do
+        # default all other pids to alive; only the dead one returns false
+        allow(PrometheusMetrics).to receive(:process_alive?).and_return(true)
         allow(PrometheusMetrics).to receive(:process_alive?).with(dead_pid).and_return(false)
         PrometheusMetrics.cleanup_stale_metric_files!
         expect(File.exist?(dead_file)).to be false
@@ -140,7 +142,7 @@ describe PrometheusMetrics do
       after  { File.delete(live_file) if File.exist?(live_file) }
 
       it 'does not delete the file' do
-        allow(PrometheusMetrics).to receive(:process_alive?).with(live_pid).and_return(true)
+        allow(PrometheusMetrics).to receive(:process_alive?).and_return(true)
         PrometheusMetrics.cleanup_stale_metric_files!
         expect(File.exist?(live_file)).to be true
       end
@@ -324,7 +326,7 @@ describe PrometheusMetrics do
     context 'with a namespaced model name' do
       let(:name) { 'BambooCi::Result Load' }
 
-      it { is_expected.to eq('bambooci__result') }
+      it { is_expected.to eq('bambooci_result') }
     end
 
     context 'with SCHEMA' do

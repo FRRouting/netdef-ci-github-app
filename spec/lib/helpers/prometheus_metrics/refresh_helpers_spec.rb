@@ -187,10 +187,10 @@ describe PrometheusMetrics do
 
   describe '.refresh_connection_pool (private)' do
     let(:pool_stat) { { size: 5, connections: 4, busy: 2, idle: 2, waiting: 0 } }
-    let(:pool) { double(stat: pool_stat) }
 
     before do
-      allow(ActiveRecord::Base).to receive(:connection_pool).and_return(pool)
+      # Stub only stat on the real pool so DatabaseCleaner keeps working
+      allow(ActiveRecord::Base.connection_pool).to receive(:stat).and_return(pool_stat)
       allow(PrometheusMetrics::AR_POOL_SIZE).to receive(:set)
       allow(PrometheusMetrics::AR_POOL_CONNECTIONS).to receive(:set)
       allow(PrometheusMetrics::AR_POOL_BUSY).to receive(:set)
@@ -398,8 +398,7 @@ describe PrometheusMetrics do
   describe '.record_scheduled_job (private)' do
     let(:run_at) { Time.now + 60 }
     let(:job) do
-      instance_double(
-        Delayed::Job,
+      double(
         id: 42,
         queue: 'default',
         handler: "--- !ruby/object:MyWorker\nmethod_name: :process\nargs:\n",
@@ -461,8 +460,7 @@ describe PrometheusMetrics do
   describe '.refresh_scheduled_jobs_detail (private)' do
     let(:now) { Time.now }
     let(:job) do
-      instance_double(
-        Delayed::Job,
+      double(
         id: 10,
         queue: 'ci',
         handler: "--- !ruby/object:CiWorker\nmethod_name: :run\nargs:\n",
