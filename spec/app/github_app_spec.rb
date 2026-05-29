@@ -69,6 +69,56 @@ describe 'GithubApp' do
         expect(last_response.body).to eq('Success')
       end
     end
+
+    context 'when payload status is finished' do
+      let(:payload) { { 'status' => 'finished' } }
+      let(:config) { GitHubApp::Configuration.instance.config }
+
+      let(:signature) do
+        OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
+                                config.dig('auth_signature', 'password'),
+                                payload.to_s)
+      end
+
+      let(:header) { "sha256=#{signature}" }
+      let(:fake_finished) { instance_double(Github::PlanExecution::Finished) }
+
+      before do
+        allow(Github::PlanExecution::Finished).to receive(:new).with(payload).and_return(fake_finished)
+        allow(fake_finished).to receive(:finished).and_return([200, 'Finished'])
+      end
+
+      it 'delegates to Github::PlanExecution::Finished' do
+        post '/update/status', payload.to_json, { 'HTTP_ACCEPT' => 'application/json', 'HTTP_SIGNATURE' => header }
+
+        expect(last_response.status).to eq 200
+        expect(last_response.body).to eq('Finished')
+      end
+    end
+
+    context 'when a StandardError is raised during request processing' do
+      let(:config) { GitHubApp::Configuration.instance.config }
+      let(:payload) { {} }
+
+      let(:signature) do
+        OpenSSL::HMAC.hexdigest(OpenSSL::Digest.new('sha256'),
+                                config.dig('auth_signature', 'password'),
+                                payload.to_s)
+      end
+
+      let(:header) { "sha256=#{signature}" }
+
+      before do
+        allow(Github::UpdateStatus).to receive(:new).and_raise(StandardError, 'unexpected error')
+      end
+
+      it 'returns 500 with Internal Server Error body' do
+        post '/update/status', payload.to_json, { 'HTTP_ACCEPT' => 'application/json', 'HTTP_SIGNATURE' => header }
+
+        expect(last_response.status).to eq 500
+        expect(JSON.parse(last_response.body)).to eq({ 'error' => 'Internal Server Error' })
+      end
+    end
   end
 
   describe 'GitHub commands' do

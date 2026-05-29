@@ -147,6 +147,8 @@ describe CiJob do
   end
 
   describe '#finished?' do
+    let(:stage) { nil }
+
     context 'when status is queued' do
       let(:ci_job) { create(:ci_job, status: :queued, check_ref: nil) }
 
@@ -181,6 +183,7 @@ describe CiJob do
   end
 
   describe 'with a valid check_ref (GitHub check run exists)' do
+    let(:stage) { nil }
     let(:fake_check_run) { double(id: 9999) }
     let(:ci_job) { create(:ci_job) }
 
@@ -230,6 +233,7 @@ describe CiJob do
   end
 
   describe '#create_github_check (private)' do
+    let(:stage) { nil }
     let(:fake_check_run) { double(id: 7777) }
     let(:ci_job) { create(:ci_job, check_ref: nil) }
 
