@@ -111,7 +111,7 @@ describe PrometheusMetrics do
       let(:dead_file) { File.join(metrics_dir, "metric_test___#{dead_pid}.bin") }
 
       before { FileUtils.touch(dead_file) }
-      after  { File.delete(dead_file) if File.exist?(dead_file) }
+      after  { FileUtils.rm_f(dead_file) }
 
       it 'deletes the stale file' do
         # default all other pids to alive; only the dead one returns false
@@ -126,7 +126,7 @@ describe PrometheusMetrics do
       let(:own_file) { File.join(metrics_dir, "metric_test___#{Process.pid}.bin") }
 
       before { FileUtils.touch(own_file) }
-      after  { File.delete(own_file) if File.exist?(own_file) }
+      after  { FileUtils.rm_f(own_file) }
 
       it 'does not delete the file' do
         PrometheusMetrics.cleanup_stale_metric_files!
@@ -139,7 +139,7 @@ describe PrometheusMetrics do
       let(:live_file) { File.join(metrics_dir, "metric_test___#{live_pid}.bin") }
 
       before { FileUtils.touch(live_file) }
-      after  { File.delete(live_file) if File.exist?(live_file) }
+      after  { FileUtils.rm_f(live_file) }
 
       it 'does not delete the file' do
         allow(PrometheusMetrics).to receive(:process_alive?).and_return(true)
@@ -377,8 +377,8 @@ describe PrometheusMetrics do
           .with(labels: { operation: 'SELECT', table: 'user' })
 
         ActiveSupport::Notifications.instrument('sql.active_record',
-                                                 sql: 'SELECT * FROM users',
-                                                 name: 'User Load') {}
+                                                sql: 'SELECT * FROM users',
+                                                name: 'User Load')
       end
 
       it 'observes AR_QUERY_DURATION with operation and table labels' do
@@ -387,8 +387,8 @@ describe PrometheusMetrics do
           .with(a_kind_of(Numeric), labels: { operation: 'SELECT', table: 'user' })
 
         ActiveSupport::Notifications.instrument('sql.active_record',
-                                                 sql: 'SELECT * FROM users',
-                                                 name: 'User Load') {}
+                                                sql: 'SELECT * FROM users',
+                                                name: 'User Load')
       end
     end
 
@@ -398,8 +398,8 @@ describe PrometheusMetrics do
         expect(PrometheusMetrics::AR_QUERIES).not_to receive(:increment)
 
         ActiveSupport::Notifications.instrument('sql.active_record',
-                                                 sql: 'BEGIN',
-                                                 name: 'TRANSACTION') {}
+                                                sql: 'BEGIN',
+                                                name: 'TRANSACTION')
       end
     end
   end

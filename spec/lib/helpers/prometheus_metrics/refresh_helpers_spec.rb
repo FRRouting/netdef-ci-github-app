@@ -87,7 +87,7 @@ describe PrometheusMetrics do
     end
 
     context 'when the handler is an unexpected format' do
-      let(:handler) { "invalid: yaml: [[[" }
+      let(:handler) { 'invalid: yaml: [[[' }
 
       it 'returns Unknown and empty args without raising' do
         expect { result }.not_to raise_error
@@ -177,7 +177,8 @@ describe PrometheusMetrics do
 
     it 'resets previously known labels to 0' do
       allow(PrometheusMetrics).to receive(:sanitized_gauge_labels).with(gauge)
-        .and_return([{ status: 'queued' }, { status: 'failed' }])
+                                                                  .and_return([{ status: 'queued' },
+                                                                               { status: 'failed' }])
 
       expect(gauge).to receive(:set).with(0, labels: { status: 'queued' })
       expect(gauge).to receive(:set).with(0, labels: { status: 'failed' })
@@ -381,12 +382,12 @@ describe PrometheusMetrics do
   describe '.set_dj_queue_gauges (private)' do
     let(:counts) do
       {
-        pending:  { 'default' => 2, 'ci' => 1 },
-        running:  { 'default' => 0 },
+        pending: { 'default' => 2, 'ci' => 1 },
+        running: { 'default' => 0 },
         scheduled: {},
-        failed:   {},
-        max_att:  {},
-        stuck:    {}
+        failed: {},
+        max_att: {},
+        stuck: {}
       }
     end
 
@@ -480,7 +481,7 @@ describe PrometheusMetrics do
 
     before do
       allow(PrometheusMetrics).to receive(:sanitized_gauge_labels).with(PrometheusMetrics::DJ_TABLE)
-        .and_return([])
+                                                                  .and_return([])
       allow(PrometheusMetrics::DJ_TABLE).to receive(:set)
 
       where_result = double
