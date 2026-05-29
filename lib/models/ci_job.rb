@@ -9,6 +9,7 @@
 #  frozen_string_literal: true
 
 require 'otr-activerecord'
+require_relative '../helpers/prometheus_metrics'
 
 class CiJob < ActiveRecord::Base
   enum :status, { queued: 0, in_progress: 1, success: 2, cancelled: -1, failure: -2, skipped: -3 }
@@ -46,7 +47,11 @@ class CiJob < ActiveRecord::Base
 
     return if started.nil? || finished.nil?
 
-    update(execution_time: finished.created_at - started.created_at)
+    duration = finished.created_at - started.created_at
+    update(execution_time: duration)
+
+    stage_name = stage&.configuration&.bamboo_stage_name || 'unknown'
+    PrometheusMetrics::CI_JOB_DURATION.observe(duration, labels: { stage: stage_name, status: status })
   end
 
   def create_check_run(agent: 'Github')

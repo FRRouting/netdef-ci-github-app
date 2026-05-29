@@ -60,4 +60,41 @@ describe BambooCi::Retry do
       expect(service).to eq('ok')
     end
   end
+
+  context 'when put_request returns nil (network failure)' do
+    let(:plan_key) { 42 }
+
+    context 'when calling restart with nil response' do
+      before do
+        allow(described_class).to receive(:put_request).and_return(nil)
+        allow(PrometheusMetrics).to receive(:track_bamboo).and_yield.and_return(nil)
+      end
+
+      it 'does not raise and returns nil' do
+        expect { described_class.restart(plan_key) }.not_to raise_error
+      end
+    end
+
+    context 'when calling rerun with nil response' do
+      let(:url) { "https://127.0.0.1/rest/api/latest/queue/#{plan_key}?executeAllStages=true&orphanRemoval=true" }
+
+      before do
+        stub_request(:put, url)
+          .with(
+            headers: {
+              'Accept' => %w[*/* application/json],
+              'Accept-Encoding' => 'gzip;q=1.0,deflate;q=0.6,identity;q=0.3',
+              'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==',
+              'Host' => '127.0.0.1',
+              'User-Agent' => 'Ruby'
+            }
+          )
+          .to_timeout
+      end
+
+      it 'returns nil when the HTTP request times out' do
+        expect(described_class.rerun(plan_key)).to be_nil
+      end
+    end
+  end
 end

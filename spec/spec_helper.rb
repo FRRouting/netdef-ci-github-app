@@ -42,6 +42,7 @@ RSpec.configure do |config|
   config.add_formatter('json', 'tmp/rspec_results.json')
 
   pid = nil
+  worker = nil
 
   config.before(:suite) do
     DatabaseCleaner.strategy = :transaction
@@ -49,17 +50,16 @@ RSpec.configure do |config|
   end
 
   config.before(:all) do
-    pid = Thread.new do
-      Delayed::Worker.new(
-        min_priority: 0,
-        max_priority: 10,
-        quiet: true
-      ).start
-    end
+    worker = Delayed::Worker.new(min_priority: 0, max_priority: 10, quiet: true)
+    pid = Thread.new { worker.start }
   end
 
   config.after(:all) do
+    worker&.stop
+    pid&.join(2)
     pid&.exit
+    pid = nil
+    worker = nil
   end
 
   config.before(:each) do
