@@ -32,6 +32,8 @@ class Stage < ActiveRecord::Base
   end
 
   def previous_stage
+    return nil unless suffix
+
     position = configuration&.position.to_i
     check_suite.stages.joins(:configuration).find_by(configuration: { position: position - 1 })
   end
@@ -103,6 +105,10 @@ class Stage < ActiveRecord::Base
 
   def notification
     SlackBot.instance.stage_finished_notification(self)
+  end
+
+  def suffix
+    name.split(' - ', 2).last
   end
 
   def create_github_check(github)
