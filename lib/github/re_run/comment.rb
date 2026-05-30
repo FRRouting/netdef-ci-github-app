@@ -41,13 +41,17 @@ module Github
 
         github_reaction_feedback(comment_id)
 
-        @pull_request.plans.each do |plan|
+        fetch_plans.each do |plan|
           CreateExecutionByComment
             .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_comment')
             .create(@pull_request.id, @payload, plan)
         end
 
         [200, 'Scheduled Plan Runs']
+      end
+
+      def fetch_plans
+        @pull_request.plans.presence || Plan.where(github_repo_name: repo)
       end
 
       def github_reaction_feedback(comment_id)

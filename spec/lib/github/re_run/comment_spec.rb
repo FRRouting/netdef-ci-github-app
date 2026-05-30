@@ -303,6 +303,54 @@ describe Github::ReRun::Comment do
       end
     end
 
+    context 'when the pull request has no associated plans (legacy)' do
+      let(:plan) { create(:plan, github_repo_name: 'test') }
+      let(:pull_request) { create(:pull_request, github_pr_id: 22, repository: 'test', plans: []) }
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
+      let(:fake_plan_run) { BambooCi::PlanRun.new(nil, plan) }
+      let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1, 'user' => { 'login' => 'John' } },
+          'repository' => { 'full_name' => 'test' },
+          'issue' => { 'number' => pull_request.github_pr_id }
+        }
+      end
+
+      before do
+        plan
+        check_suite
+
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive(:create).and_return(check_suite)
+        allow(fake_github_check).to receive(:add_comment)
+        allow(fake_github_check).to receive(:cancelled)
+        allow(fake_github_check).to receive(:in_progress)
+        allow(fake_github_check).to receive(:queued)
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up)
+        allow(fake_github_check).to receive(:fetch_username).and_return({})
+        allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive(:start_plan).and_return(200)
+        allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
+
+        allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
+      end
+
+      it 'must return success using plans from repository' do
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
+        expect(check_suites.size).to eq(2)
+        expect(check_suites.last.re_run).to be_truthy
+      end
+    end
+
     context 'when receives an invalid pull request' do
       let(:pull_request) { create(:pull_request, github_pr_id: 12, repository: 'test') }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
