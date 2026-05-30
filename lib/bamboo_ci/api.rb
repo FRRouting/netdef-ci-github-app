@@ -32,8 +32,8 @@ module BambooCi
       end
     end
 
-    def submit_pr_to_ci(check_suite, plan, ci_variables)
-      url = "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}"
+    def submit_pr_to_ci(check_suite, ci_variables)
+      url = "https://127.0.0.1/rest/api/latest/queue/#{check_suite.pull_request.plan}"
 
       url += custom_variables(check_suite)
 
@@ -43,9 +43,8 @@ module BambooCi
 
       logger(Logger::DEBUG, "Submission URL:\n  #{url}")
 
-      PrometheusMetrics.track_bamboo('submit_plan') do
-        post_request(URI(url.delete(' ')))
-      end
+      # Fetch Request
+      post_request(URI(url))
     end
 
     def custom_variables(check_suite)
@@ -62,9 +61,8 @@ module BambooCi
 
       logger(Logger::DEBUG, "Comment Submission URL:\n  #{url}")
 
-      PrometheusMetrics.track_bamboo('add_comment') do
-        post_request(URI(url.delete(' ')), body: "<comment><content>#{comment}</content></comment>")
-      end
+      # Fetch Request
+      post_request(URI(url), body: "<comment><content>#{comment}</content></comment>")
     end
 
     def logger(severity, message)

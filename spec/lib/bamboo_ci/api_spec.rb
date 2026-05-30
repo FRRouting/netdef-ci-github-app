@@ -74,10 +74,9 @@ describe BambooCi::Api do
     let(:id) { 1 }
     let(:status) { 200 }
     let(:check_suite) { create(:check_suite) }
-    let(:plan) { check_suite.pull_request.plans.last }
 
     let(:url) do
-      "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name.delete(' ')}" \
+      "https://127.0.0.1/rest/api/latest/queue/#{check_suite.pull_request.plan}" \
         "#{custom_variables}#{ci_variables_parsed}"
     end
 
@@ -105,7 +104,7 @@ describe BambooCi::Api do
     end
 
     it 'must returns success' do
-      expect(dummy.submit_pr_to_ci(check_suite, plan, ci_variables).code.to_i).to eq(status)
+      expect(dummy.submit_pr_to_ci(check_suite, ci_variables).code.to_i).to eq(status)
     end
   end
 

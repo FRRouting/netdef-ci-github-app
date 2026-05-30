@@ -18,17 +18,6 @@ class Stage < ActiveRecord::Base
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
-  scope :related_stages, lambda { |check_suite, suffix|
-                           where('stages.name LIKE ?', "%#{suffix}").where(check_suite: check_suite)
-                         }
-
-  scope :next_stage, ->(current_position) { where(configuration: { position: current_position + 1 }) }
-  scope :next_stages, ->(current_position) { where(configuration: { position: [(current_position + 1)..] }) }
-
-  def suffix
-    name.split(' - ').last
-  end
-
   def update_execution_time
     started = audit_statuses.find_by(status: :in_progress)
     finished = audit_statuses.find_by(status: %i[success failure])
@@ -44,14 +33,7 @@ class Stage < ActiveRecord::Base
 
   def previous_stage
     position = configuration&.position.to_i
-
-    return nil unless suffix
-
-    check_suite.stages
-               .joins(:configuration)
-               .where(configuration: { position: position - 1 })
-               .where('stages.name LIKE ?', "%#{suffix}")
-               .first
+    check_suite.stages.joins(:configuration).find_by(configuration: { position: position - 1 })
   end
 
   def finished?
@@ -135,14 +117,13 @@ class Stage < ActiveRecord::Base
   end
 
   def output_in_progress
+    url = GitHubApp::Configuration.instance.ci_url
     in_progress = jobs.where(status: :in_progress)
 
     header = ":arrow_right: Jobs in progress: #{in_progress.size}/#{jobs.size}\n\n"
-    in_progress_jobs = in_progress.map do |job|
-      "- **#{job.name}** -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
-    end.join("\n")
+    in_progress_jobs = mount_in_progress_jobs(jobs)
 
-    url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{check_suite.bamboo_ci_ref}"
+    url = "https://#{url}/browse/#{check_suite.bamboo_ci_ref}"
     { title: "#{name} summary", summary: "#{header}#{in_progress_jobs}\nDetails at [#{url}](#{url})" }
   end
 

@@ -56,7 +56,7 @@ module GitHubApp
 
       # Fetch Request
       resp = http.request(req)
-      logger(Logger::INFO, resp)
+      logger(Logger::DEBUG, resp)
 
       resp
     end
