@@ -32,8 +32,4 @@ class PullRequest < ActiveRecord::Base
   def current_execution_by_plan(plan_obj)
     check_suites.where(plan: plan_obj).order(id: :asc).last
   end
-
-  def self.unique_repository_names
-    distinct.pluck(:repository)
-  end
 end

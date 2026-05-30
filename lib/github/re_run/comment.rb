@@ -41,13 +41,79 @@ module Github
 
         github_reaction_feedback(comment_id)
 
-        @pull_request.plans.each do |plan|
-          CreateExecutionByComment
-            .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_comment')
-            .create(@pull_request.id, @payload, plan)
-        end
+      def comment_flow
+        commit = fetch_last_commit_or_sha256
+        github_check = Github::Check.new(nil)
+        pull_request_info = github_check.pull_request_info(pr_id, repo)
+        pull_request = fetch_or_create_pr(pull_request_info)
 
-        [200, 'Scheduled Plan Runs']
+        fetch_old_check_suite(commit[:sha])
+        check_suite = create_check_suite_by_commit(commit, pull_request, pull_request_info)
+        logger(Logger::INFO, "CheckSuite errors: #{check_suite.inspect}")
+        return nil unless check_suite.persisted?
+
+        @github_check = Github::Check.new(check_suite)
+
+        check_suite
+      end
+
+      def create_check_suite_by_commit(commit, pull_request, pull_request_info)
+        CheckSuite.create(
+          pull_request: pull_request,
+          author: @payload.dig('comment', 'user', 'login'),
+          commit_sha_ref: commit[:sha],
+          work_branch: pull_request_info.dig(:head, :ref),
+          base_sha_ref: pull_request_info.dig(:base, :sha),
+          merge_branch: pull_request_info.dig(:base, :ref),
+          re_run: true
+        )
+      end
+
+      def fetch_or_create_pr(pull_request_info)
+        last_check_suite = CheckSuite
+                           .joins(:pull_request)
+                           .where(pull_request: { github_pr_id: pr_id, repository: repo })
+                           .last
+
+        return last_check_suite.pull_request unless last_check_suite.nil?
+
+        pull_request = create_pull_request(pull_request_info)
+
+        logger(Logger::DEBUG, ">>> Created a new pull request: #{pull_request}")
+        logger(Logger::ERROR, "Error: #{pull_request.errors.inspect}") unless pull_request.persisted?
+
+        pull_request
+      end
+
+      def create_pull_request(pull_request_info)
+        PullRequest.create(
+          author: @payload.dig('issue', 'user', 'login'),
+          github_pr_id: pr_id,
+          branch_name: pull_request_info.dig(:head, :ref),
+          repository: repo,
+          plan: fetch_plan
+        )
+      end
+
+      def sha256_flow
+        @github_check = Github::Check.new(@old_check_suite)
+        create_new_check_suite
+      end
+
+      # The behaviour will be the following: It will fetch the last commit if it has
+      # received a comment and only fetch a commit if the command starts with ci:rerrun #<sha256>.
+      # If there is any other character before the # it will be considered a comment.
+      def fetch_last_commit_or_sha256
+        pull_request_commit = Github::Parsers::PullRequestCommit.new(repo, pr_id)
+        commit = pull_request_commit.find_by_sha(sha256)
+
+        return commit if commit and action.match(/ci:rerun\s+#/i)
+
+        fetch_last_commit
+      end
+
+      def fetch_last_commit
+        Github::Parsers::PullRequestCommit.new(repo, pr_id).last_commit_in_pr
       end
 
       def github_reaction_feedback(comment_id)

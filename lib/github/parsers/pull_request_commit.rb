@@ -10,25 +10,14 @@
 
 module Github
   module Parsers
-    # Class responsible for parsing pull request commits.
     class PullRequestCommit
-      # Initializes a new PullRequestCommit parser.
-      #
-      # @param repo [String] the repository name.
-      # @param pr_id [Integer] the pull request ID.
       def initialize(repo, pr_id)
         @repo = repo
         @pr_id = pr_id
 
-        pull_request = PullRequest.find_by(github_pr_id: pr_id)
-
-        @github_check = Github::Check.new(pull_request.check_suites.last)
+        @github_check = Github::Check.new(nil)
       end
 
-      # Finds a commit by its SHA.
-      #
-      # @param sha256 [String] the SHA256 hash of the commit.
-      # @return [Hash, nil] the commit data if found, otherwise nil.
       def find_by_sha(sha256)
         return nil if sha256.nil?
 
@@ -48,9 +37,6 @@ module Github
         nil
       end
 
-      # Retrieves the last commit in the pull request.
-      #
-      # @return [Hash, nil] the last commit data if found, otherwise nil.
       def last_commit_in_pr
         page = 1
         last_commit = nil

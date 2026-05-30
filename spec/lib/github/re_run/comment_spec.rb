@@ -14,7 +14,6 @@ describe Github::ReRun::Comment do
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:fake_plan_run) { BambooCi::PlanRun.new(nil, pull_request.plans.last) }
   let(:fake_unavailable) { Github::Build::UnavailableJobs.new(nil) }
-  let!(:pull_request) { create(:pull_request, :with_check_suite, id: 1) }
 
   before do
     allow(File).to receive(:read).and_return('')
@@ -526,7 +525,7 @@ describe Github::ReRun::Comment do
             'user' => { 'login' => 'John' }
           },
           'repository' => { 'full_name' => 'unit_test' },
-          'issue' => { 'number' => pull_request.github_pr_id }
+          'issue' => { 'number' => '10' }
         }
       end
 
@@ -554,12 +553,61 @@ describe Github::ReRun::Comment do
         ]
       end
 
-      let(:fake_check_suite) { create(:check_suite, pull_request: pull_request) }
+      let(:fake_check_suite) { create(:check_suite) }
       let(:check_suite_rerun) { CheckSuite.find_by(commit_sha_ref: commit_sha, re_run: true) }
 
       it 'must returns success' do
         expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suite_rerun).not_to be_nil
+      end
+    end
+
+    context 'when can not save check_suite' do
+      let(:commit_sha) { Faker::Internet.uuid }
+
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => {
+            'body' => 'CI:rerun 000000'
+          },
+          'repository' => { 'full_name' => 'unit_test' },
+          'issue' => { 'number' => '10' }
+        }
+      end
+
+      let(:pull_request_info) do
+        {
+          head: {
+            ref: 'master'
+          },
+          base: {
+            ref: 'test',
+            sha: commit_sha
+          }
+        }
+      end
+
+      let(:pull_request_commits) do
+        [
+          { sha: commit_sha, date: Time.now }
+        ]
+      end
+
+      let(:bamboo_jobs) do
+        [
+          { name: 'test', job_ref: 'checkout-01', stage: fake_translation.bamboo_stage_name }
+        ]
+      end
+
+      let(:fake_check_suite) { create(:check_suite) }
+
+      before do
+        create(:plan, github_repo_name: 'unit_test')
+      end
+
+      it 'must returns success' do
+        expect(rerun.start).to eq([404, 'Failed to create a check suite'])
       end
     end
   end

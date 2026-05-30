@@ -10,7 +10,6 @@
 
 describe Slack::Subscribe do
   let(:subscribe) { described_class.new }
-  let!(:pull_request) { create(:pull_request, :with_check_suite, id: 1) }
 
   context 'when subscribe with valid parameters' do
     let(:payload) do
@@ -52,7 +51,7 @@ describe Slack::Subscribe do
   end
 
   context 'when update a subscription' do
-    let(:create_request) do
+    let(:create) do
       {
         'rule' => 'notify',
         'target' => 1,
@@ -73,7 +72,7 @@ describe Slack::Subscribe do
     let(:sub) { PullRequestSubscription.find_by(slack_user_id: update['slack_user_id']) }
 
     before do
-      subscribe.call(create_request)
+      subscribe.call(create)
     end
 
     it 'must update a subscription' do
