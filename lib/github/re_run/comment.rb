@@ -15,31 +15,42 @@ require_relative 'base'
 module Github
   module ReRun
     class Comment < Base
-      TIMER = 1 # seconds
-
       def initialize(payload, logger_level: Logger::INFO)
         super(payload, logger_level: logger_level)
 
         @logger_manager << GithubLogger.instance.create('github_rerun_comment.log', logger_level)
-        @logger_manager << Logger.new($stdout)
       end
 
       def start
         return [422, 'Payload can not be blank'] if @payload.nil? or @payload.empty?
         return [404, 'Action not found'] unless action?
 
-        fetch_pull_request
+        logger(Logger::DEBUG, ">>> Github::ReRun::Comment - sha256: #{sha256.inspect}, payload: #{@payload.inspect}")
 
-        confirm_and_start
+        check_suite = sha256_or_comment?
+
+        logger(Logger::DEBUG, ">>> Check suite: #{check_suite.inspect}")
+
+        return [404, 'Failed to create a check suite'] if check_suite.nil?
+
+        github_reaction_feedback(comment_id)
+
+        stop_previous_execution
+
+        bamboo_plan = start_new_execution(check_suite)
+
+        ci_jobs(check_suite, bamboo_plan)
+
+        [201, 'Starting re-run (comment)']
       end
 
       private
 
-      def confirm_and_start
-        return [404, 'Pull Request not found'] if @pull_request.nil?
-        return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
+      def sha256_or_comment?
+        fetch_old_check_suite
 
-        github_reaction_feedback(comment_id)
+        @old_check_suite.nil? ? comment_flow : sha256_flow
+      end
 
       def comment_flow
         commit = fetch_last_commit_or_sha256
@@ -119,13 +130,37 @@ module Github
       def github_reaction_feedback(comment_id)
         return if comment_id.nil?
 
-        github_check = Github::Check.new(@pull_request.check_suites.last)
-
-        github_check.comment_reaction_thumb_up(repo, comment_id)
+        @github_check.comment_reaction_thumb_up(repo, comment_id)
       end
 
-      def fetch_pull_request
-        @pull_request = PullRequest.find_by(github_pr_id: pr_id)
+      def fetch_old_check_suite(sha = sha256)
+        return if sha.nil?
+
+        logger(Logger::DEBUG, ">>> fetch_old_check_suite SHA: #{sha}")
+
+        @old_check_suite =
+          CheckSuite
+          .joins(:pull_request)
+          .where('commit_sha_ref ILIKE ? AND pull_requests.repository = ?', "#{sha}%", repo)
+          .last
+      end
+
+      def create_new_check_suite
+        CheckSuite.create(
+          pull_request: @old_check_suite.pull_request,
+          author: @old_check_suite.author,
+          commit_sha_ref: @old_check_suite.commit_sha_ref,
+          work_branch: @old_check_suite.work_branch,
+          base_sha_ref: @old_check_suite.base_sha_ref,
+          merge_branch: @old_check_suite.merge_branch,
+          re_run: true
+        )
+      end
+
+      def sha256
+        return nil unless action.downcase.match? 'ci:rerun #'
+
+        action.downcase.split('#').last
       end
 
       def action?

@@ -14,7 +14,7 @@ FactoryBot.define do
     github_pr_id { 1 }
     branch_name { Faker::App.name }
     repository { 'Unit/Test' }
-    plans { [create(:plan)] }
+    plan { Faker::Alphanumeric.alpha(number: 10) }
 
     trait :with_check_suite do
       after(:create) do |pr|

@@ -23,6 +23,7 @@ module Github
     def initialize(payload, logger_level: Logger::INFO)
       @logger = Logger.new($stdout)
       @logger.level = logger_level
+      @has_previous_exec = false
 
       @payload = payload
 
@@ -42,7 +43,28 @@ module Github
       @logger.info 'Fetching / Creating a pull request'
       fetch_pull_request
 
-      Github::Build::PlanRun.new(@pull_request, @payload).build
+      # Fetch last Check Suite
+      fetch_last_check_suite
+
+      # Create a Check Suite
+      create_check_suite
+
+      # Check if could save the Check Suite at database
+      unless @check_suite.persisted?
+        @logger.error "Failed to save CheckSuite: #{@check_suite.errors.inspect}"
+        return [422, 'Failed to save Check Suite']
+      end
+
+      # Stop a previous execution - Avoiding CI spam
+      stop_previous_execution
+
+      # Starting a new CI run
+      status = start_new_execution
+
+      return [status, 'Failed to create CI Plan'] if status != 200
+
+      # Creating CiJobs at database
+      ci_jobs
     end
 
     private
@@ -52,9 +74,9 @@ module Github
 
       return create_pull_request if @pull_request.nil?
 
-      @pull_request.update(branch_name: @payload.dig('pull_request', 'head', 'ref'))
+      @logger.info "Updating plan: #{fetch_plan}"
 
-      add_plans(@pull_request)
+      @pull_request.update(plan: fetch_plan, branch_name: @payload.dig('pull_request', 'head', 'ref'))
     end
 
     def github_pr
@@ -67,10 +89,9 @@ module Github
           author: @payload.dig('pull_request', 'user', 'login'),
           github_pr_id: github_pr,
           branch_name: @payload.dig('pull_request', 'head', 'ref'),
-          repository: @payload.dig('repository', 'full_name')
+          repository: @payload.dig('repository', 'full_name'),
+          plan: fetch_plan
         )
-
-      add_plans(@pull_request)
 
       Github::UserInfo.new(@payload.dig('pull_request', 'user', 'id'), pull_request: @pull_request)
     end
