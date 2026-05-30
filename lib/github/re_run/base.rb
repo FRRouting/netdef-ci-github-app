@@ -91,6 +91,8 @@ module Github
       def start_new_execution(check_suite, plan)
         cleanup(check_suite)
 
+        PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'full' })
+
         bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
         bamboo_plan_run.ci_variables = ci_vars
         bamboo_plan_run.start_plan
