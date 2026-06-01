@@ -142,8 +142,8 @@ class CreateExecutionByPlan
   def fetch_last_check_suite(plan)
     @last_check_suite =
       CheckSuite
-      .joins(pull_request: :plans)
-      .where(pull_request: { id: @pull_request.id, plans: { name: plan.name } })
+      .where(pull_request: @pull_request)
+      .where(plan: [plan, nil])
       .last
   end
 
