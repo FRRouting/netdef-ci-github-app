@@ -21,11 +21,15 @@ module BambooCi
     include GitHubApp::Request
 
     def fetch_executions(plan)
-      get_request(URI("https://127.0.0.1/rest/api/latest/search/jobs/#{plan}"))
+      PrometheusMetrics.track_bamboo('fetch_executions') do
+        get_request(URI("https://127.0.0.1/rest/api/latest/search/jobs/#{plan}"))
+      end
     end
 
     def get_status(id)
-      get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
+      PrometheusMetrics.track_bamboo('get_status') do
+        get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
+      end
     end
 
     def submit_pr_to_ci(check_suite, plan, ci_variables)
@@ -39,8 +43,9 @@ module BambooCi
 
       logger(Logger::DEBUG, "Submission URL:\n  #{url}")
 
-      # Fetch Request
-      post_request(URI(url.delete(' ')))
+      PrometheusMetrics.track_bamboo('submit_plan') do
+        post_request(URI(url.delete(' ')))
+      end
     end
 
     def custom_variables(check_suite)
@@ -57,8 +62,9 @@ module BambooCi
 
       logger(Logger::DEBUG, "Comment Submission URL:\n  #{url}")
 
-      # Fetch Request
-      post_request(URI(url.delete(' ')), body: "<comment><content>#{comment}</content></comment>")
+      PrometheusMetrics.track_bamboo('add_comment') do
+        post_request(URI(url.delete(' ')), body: "<comment><content>#{comment}</content></comment>")
+      end
     end
 
     def logger(severity, message)

@@ -60,6 +60,8 @@ module Github
       def normal_flow
         @check_suite.update(retry: @check_suite.retry + 1)
 
+        PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'partial' })
+
         create_ci_jobs(@check_suite)
 
         BambooCi::Retry.restart(@check_suite.bamboo_ci_ref)

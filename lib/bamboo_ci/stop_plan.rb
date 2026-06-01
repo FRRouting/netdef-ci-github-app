@@ -18,11 +18,15 @@ module BambooCi
 
     def self.stop(job_key)
       @logger = Logger.new($stdout)
-      delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{job_key}"))
+      PrometheusMetrics.track_bamboo('stop_job') do
+        delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{job_key}"))
+      end
     end
 
     def self.build(bamboo_ci_ref)
-      get_request(URI("https://127.0.0.1/build/admin/stopPlan.action?planResultKey=#{bamboo_ci_ref}"))
+      PrometheusMetrics.track_bamboo('stop_plan') do
+        get_request(URI("https://127.0.0.1/build/admin/stopPlan.action?planResultKey=#{bamboo_ci_ref}"))
+      end
     end
 
     def self.comment(check_suite, new_check_suite)

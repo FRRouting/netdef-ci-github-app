@@ -56,6 +56,48 @@ describe Stage do
         expect(stage.previous_stage).to be_nil
       end
     end
+
+    context 'when suffix is nil (name has no content after split)' do
+      let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
+
+      before { allow(stage).to receive(:suffix).and_return(nil) }
+
+      it 'returns nil immediately' do
+        expect(stage.previous_stage).to be_nil
+      end
+    end
+  end
+
+  describe '#update_execution_time' do
+    let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
+
+    context 'when stage started and finished' do
+      before do
+        stage.in_progress(github)
+        stage.success(github)
+      end
+
+      it 'updates execution_time without raising' do
+        expect { stage.update_execution_time }.not_to raise_error
+      end
+    end
+
+    context 'when no in_progress audit status exists' do
+      it 'returns early without updating' do
+        expect(stage).not_to receive(:update)
+        stage.update_execution_time
+      end
+    end
+
+    context 'when no success/failure audit status exists' do
+      before { stage.in_progress(github) }
+
+      it 'returns early without updating' do
+        original_execution_time = stage.execution_time
+        stage.update_execution_time
+        expect(stage.reload.execution_time).to eq(original_execution_time)
+      end
+    end
   end
 
   describe '#enqueue' do
@@ -83,6 +125,15 @@ describe Stage do
       it 'must update status' do
         stage.in_progress(github)
         expect(stage.reload.status).to eq('in_progress')
+      end
+    end
+
+    context 'when stage is already in_progress' do
+      let(:stage) { create(:stage, :with_check_suite, status: :in_progress) }
+
+      it 'returns immediately without calling github' do
+        expect(github).not_to receive(:in_progress)
+        stage.in_progress(github)
       end
     end
   end
