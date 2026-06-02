@@ -79,5 +79,29 @@ describe CreateExecutionByPlan do
         expect(described_class.create(pull_request.id, payload, 999)).to eq([422, 'Plan not found'])
       end
     end
+
+    context 'when the pull request has a legacy check suite with no plan_id' do
+      let(:legacy_pr) { create(:pull_request, plans: []) }
+      let(:plan) { create(:plan) }
+      let!(:legacy_check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: legacy_pr) }
+
+      before do
+        allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::StopPlan).to receive(:comment)
+        allow(fake_github_check).to receive(:cancelled)
+      end
+
+      it 'finds the legacy check suite and stops it' do
+        described_class.create(legacy_pr.id, payload, plan.id)
+        expect(legacy_check_suite.ci_jobs.reload.map(&:status)).to all(eq('cancelled'))
+      end
+
+      it 'creates a new check suite associated with the plan' do
+        described_class.create(legacy_pr.id, payload, plan.id)
+        new_suite = legacy_pr.check_suites.reload.last
+        expect(new_suite).not_to eq(legacy_check_suite)
+        expect(new_suite.plan).to eq(plan)
+      end
+    end
   end
 end
