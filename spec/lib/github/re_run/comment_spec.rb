@@ -312,7 +312,8 @@ describe Github::ReRun::Comment do
       let(:payload) do
         {
           'action' => 'created',
-          'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1, 'user' => { 'login' => 'John' } },
+          'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1,
+                         'user' => { 'login' => 'John' } },
           'repository' => { 'full_name' => 'test' },
           'issue' => { 'number' => pull_request.github_pr_id }
         }
