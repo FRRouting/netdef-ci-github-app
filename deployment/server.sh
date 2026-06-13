@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 
 #
 #  SPDX-License-Identifier: BSD-2-Clause
@@ -12,8 +12,10 @@
 #  frozen_string_literal: true
 #
 
+source /home/githubchecks/.rvm/scripts/rvm
+
 echo ">> Running migration"
-rake db:migrate
+RAILS_ENV=production RACK_ENV=production bundle exec rake db:migrate
 
 echo ">> Running server"
-RAILS_ENV=production RACK_ENV=production rackup -o 0.0.0.0 -p 4667 config.ru
+RAILS_ENV=production RACK_ENV=production bundle exec rackup -o 0.0.0.0 -p 4667 config.ru
