@@ -28,7 +28,6 @@ module Github
       # @param [CheckSuite] check_suite The CheckSuite to handle.
       # @param [Github::Check] github The Github::Check instance to use.
       # @param [Array] jobs The jobs to create for the CheckSuite.
-      # @param [String] Stage Plan name.
       # @param [Integer] logger_level The logging level to use (default: Logger::INFO).
       def initialize(check_suite, github, jobs, name, logger_level: Logger::INFO)
         @check_suite = check_suite
@@ -120,7 +119,7 @@ module Github
 
         return if stage_config.nil?
 
-        stage = Stage.find_by(check_suite: @check_suite, name: "#{stage_config.github_check_run_name} - #{@name}")
+        stage = Stage.find_by(check_suite: @check_suite, name: stage_name(stage_config))
 
         logger(Logger::INFO, "create_jobs - #{job.inspect} -> #{stage.inspect}")
 
@@ -133,7 +132,7 @@ module Github
       # @param [StageConfiguration] stage_config The stage configuration.
       def create_check_run_stage(stage_config)
         logger(Logger::INFO, "create_check_run_stage - #{stage_config.github_check_run_name} - #{@name}")
-        stage = Stage.find_by(name: "#{stage_config.github_check_run_name} - #{@name}", check_suite_id: @check_suite.id)
+        stage = Stage.find_by(name: stage_name(stage_config), check_suite_id: @check_suite.id)
 
         return create_stage(stage_config) if stage.nil?
         return unless stage.configuration.can_retry?
@@ -149,7 +148,7 @@ module Github
       # @param [StageConfiguration] stage_config The stage configuration.
       # @return [Stage] The created stage.
       def create_stage(stage_config)
-        name = "#{stage_config.github_check_run_name} - #{@name}"
+        name = stage_name(stage_config)
 
         stage =
           Stage.create(check_suite: @check_suite,
@@ -179,6 +178,12 @@ module Github
         output[:summary] = "Details at [#{url}](#{url})"
 
         output
+      end
+
+      def stage_name(stage_config)
+        return stage_config.github_check_run_name if @check_suite.pull_request.plans.count == 1
+
+        "#{stage_config.github_check_run_name} - #{@name}"
       end
 
       ##
