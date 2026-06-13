@@ -135,6 +135,73 @@ describe Github::BuildPlan do
     end
   end
 
+  describe 'Legacy single-plan migration' do
+    let!(:plan) { create(:plan, github_repo_name: repo) }
+    let(:pr_number) { rand(1_000_000) }
+    let(:repo) { 'UnitTest/legacy' }
+    let(:author) { 'Legacy User' }
+    let(:action) { 'synchronize' }
+    let(:fake_translation) { create(:stage_configuration) }
+    let(:ci_jobs) do
+      [{ name: 'Build', job_ref: 'BUILD-1', stage: fake_translation.bamboo_stage_name }]
+    end
+
+    let(:pull_request) { create(:pull_request, github_pr_id: pr_number, repository: repo, author: author, plans: []) }
+    let!(:legacy_check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
+
+    let(:payload) do
+      {
+        'action' => action,
+        'number' => pr_number,
+        'pull_request' => {
+          'user' => { 'login' => author },
+          'head' => { 'ref' => 'legacy-branch', 'sha' => Digest::SHA2.hexdigest('legacy') },
+          'base' => { 'ref' => 'master', 'sha' => Digest::SHA2.hexdigest('base') }
+        },
+        'repository' => { 'full_name' => repo }
+      }
+    end
+
+    before do
+      allow(Octokit::Client).to receive(:new).and_return(fake_client)
+      allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+      allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+      allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+      allow(fake_plan_run).to receive(:start_plan).and_return(200)
+      allow(fake_plan_run).to receive(:bamboo_reference).and_return('BUILD-1')
+
+      allow(Github::Check).to receive(:new).and_return(fake_github_check)
+      allow(fake_github_check).to receive(:create).and_return(fake_check_run)
+      allow(fake_github_check).to receive(:in_progress).and_return(fake_check_run)
+      allow(fake_github_check).to receive(:queued).and_return(fake_check_run)
+      allow(fake_github_check).to receive(:cancelled)
+      allow(fake_github_check).to receive(:fetch_username).and_return({})
+      allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
+
+      allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
+      allow(BambooCi::StopPlan).to receive(:build)
+      allow(BambooCi::StopPlan).to receive(:comment)
+    end
+
+    it 'migrates the PR to the multiple-plan model and schedules a new execution' do
+      expect(build_plan.create).to eq([200, 'Scheduled Plan Runs'])
+      expect(pull_request.reload.plans).to include(plan)
+    end
+
+    it 'stops the in-progress legacy check suite' do
+      build_plan.create
+      expect(legacy_check_suite.ci_jobs.reload.map(&:status)).to all(eq('cancelled'))
+    end
+
+    it 'creates a new check suite associated with the plan' do
+      build_plan.create
+      new_suite = pull_request.check_suites.reload.last
+      expect(new_suite).not_to eq(legacy_check_suite)
+      expect(new_suite.plan).to eq(plan)
+    end
+  end
+
   describe 'Invalid commands' do
     let!(:plan) { create(:plan, github_repo_name: repo) }
 

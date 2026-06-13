@@ -20,9 +20,12 @@ class PullRequest < ActiveRecord::Base
   has_many :pull_request_subscriptions, dependent: :delete_all
   has_many :plans
   def finished?
-    return true if check_suites.nil? or check_suites.empty?
+    last_suite = check_suites.last
+    return true if check_suites.blank? or last_suite.blank?
 
-    current_execution_by_plan(plan).finished?
+    return plans.all? { |p| current_execution_by_plan(p)&.finished? } if plans.any?
+
+    last_suite.finished?
   end
 
   def current_execution?(check_suite)
