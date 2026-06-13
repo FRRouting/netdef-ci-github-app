@@ -13,7 +13,7 @@ describe Github::Build::Action do
   let(:fake_client) { Octokit::Client.new }
   let(:fake_github_check) { Github::Check.new(nil) }
   let(:check_suite) { create(:check_suite) }
-  let(:stage) { create(:stage, name: 'Build - Tato', check_suite: check_suite) }
+  let(:stage) { create(:stage, name: 'Build', check_suite: check_suite) }
   let(:jobs) do
     [
       {
