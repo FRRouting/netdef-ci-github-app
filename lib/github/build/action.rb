@@ -181,7 +181,7 @@ module Github
       end
 
       def stage_name(stage_config)
-        return stage_config.github_check_run_name if @check_suite.pull_request.plans.count == 1
+        return stage_config.github_check_run_name if @check_suite.pull_request.plans.count == 1 or @name.blank?
 
         "#{stage_config.github_check_run_name} - #{@name}"
       end
