@@ -62,13 +62,19 @@ module Github
       end
 
       def must_update_previous_stage(current_stage)
-        previous_stage = current_stage.previous_stage
+        current_position = current_stage.configuration&.position.to_i
 
-        return if previous_stage.nil? or !(previous_stage.in_progress? or previous_stage.queued?)
+        Stage
+          .joins(:configuration)
+          .where(check_suite: @check_suite)
+          .where(configuration: { position: (0...current_position) })
+          .where(status: %i[in_progress queued])
+          .each do |stage|
+            next if stage.running?
 
-        logger(Logger::INFO, "must_update_previous_stage: #{previous_stage.inspect}")
-
-        finished_stage_summary(previous_stage)
+            logger(Logger::INFO, "must_update_previous_stage: #{stage.inspect}")
+            finished_stage_summary(stage)
+          end
       end
 
       def must_cancel_next_stages(current_stage)
