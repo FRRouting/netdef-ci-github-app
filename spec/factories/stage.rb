@@ -16,12 +16,20 @@ FactoryBot.define do
 
     configuration { create(:stage_configuration, github_check_run_name: name.split(' - ').first) }
 
+    trait :in_progress do
+      status { :in_progress }
+    end
+
     trait :failure do
       status { :failure }
     end
 
     trait :success do
       status { :success }
+    end
+
+    trait :cancelled do
+      status { :cancelled }
     end
 
     trait :build do
