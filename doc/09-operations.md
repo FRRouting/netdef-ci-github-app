@@ -10,6 +10,56 @@
 | `netdef-ci-pr-sync.timer` / `.service`              | `python -m netdef_ci pr-bamboo-sync` (optional)                |
 | `netdef-ci.target`                                  | groups everything: `systemctl restart netdef-ci.target`        |
 
+## Background job schedule
+
+Defaults below; the environment variable (see `04`) or Ansible variable that changes each value is in parentheses.
+
+### Worker loop (`jobs/queue.py`)
+
+| What                  | Interval                                                                                                          |
+|-----------------------|-------------------------------------------------------------------------------------------------------------------|
+| Idle polling          | a worker that finds no ready job (`run_at <= now`) waits **5 s** before polling again (`JOB_SLEEP_DELAY_SECONDS`) |
+| Busy loop             | after running a job the worker polls again immediately, so a backlog drains without waiting                       |
+| Run time limit / lock | **300 s** (`JOB_MAX_RUN_TIME_SECONDS`): `SIGALRM` fails the job; a lock older than that is taken over             |
+| Retry back-off        | `run_at = now + 5 + attempts⁴` s, up to **5** attempts (`JOB_MAX_ATTEMPTS`), then the job is removed              |
+
+Back-off with the defaults: 1st failure → +6 s, 2nd → +21 s, 3rd → +86 s, 4th → +261 s (≈ 4.4 min), 5th → removed
+(≈ 6.2 min between the first run and the removal, plus run times). Jobs enqueued with `max_attempts=1` (the
+`create_execution_by_*` jobs, which start a Bamboo plan) are removed at the first failure and never retried.
+
+### Delayed jobs (enqueued with a `run_at` in the future)
+
+| Handler (queue)                                                           | Enqueued by                          | Runs                                                                                                                                                                                                                                          |
+|---------------------------------------------------------------------------|--------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `create_execution_by_plan` (same name)                                    | PR webhook (`opened`/`synchronize`)  | **+5 s** (`CREATE_EXECUTION_DELAY_SECONDS`), one job per plan                                                                                                                                                                                 |
+| `create_execution_by_comment`, `create_execution_by_command` (same names) | `ci:rerun` comment / suite re-run    | **+1 s** (`RERUN_DELAY_SECONDS`), one job per plan                                                                                                                                                                                            |
+| `ci_job_status` (`github_pr_id % 10`)                                     | Bamboo callback `/update/status`     | **+30 s** (`STATUS_DEBOUNCE_SECONDS`); a new callback for the same suite replaces the pending job, so the summary is rebuilt 30 s after the **last** callback of a burst                                                                      |
+| `timeout_execution` (same name)                                           | execution start                      | **+10 min** (`TIMEOUT_CHECK_MINUTES`), then re-enqueues itself every 10 min while the suite is unfinished; a suite without updates for **2 h** (`TIMEOUT_HANG_HOURS`) is finished as *hanged* (detected 2 h–2 h 10 min after the last update) |
+| `fetch_topotest_failures` (same name)                                     | failed job callback without failures | **+5 min** (fixed); while Bamboo returns no failures it re-enqueues itself at +10 min, +15 min and +20 min (`5 × count` min). The 4th attempt (count 4, ≈ 50 min after the callback) only queries Bamboo and stops without storing            |
+
+`slack_username_to_id` has a handler but nothing enqueues it today (the `console` CLI runs the task directly).
+
+### Periodic tasks (systemd timers, `netdef_ci_timers`)
+
+| Timer                        | Command          | Default calendar                  | Notes                                                                                     |
+|------------------------------|------------------|-----------------------------------|-------------------------------------------------------------------------------------------|
+| `netdef-ci-watchdog.timer`   | `watch-dog`      | `*:0/15` (every 15 min), enabled  | reconciles every suite with `queued`/`in_progress` stages via `Finished`                  |
+| `netdef-ci-pr-sync.timer`    | `pr-bamboo-sync` | `hourly`, **disabled**            | compares suites created between 24 h and 2 h ago with Bamboo and fixes the stale ones     |
+
+Both timers use `Persistent=true` (a run missed while the host was down happens at boot) and `RandomizedDelaySec=30`
+(each run starts up to 30 s late). `single-sync <PLAN-123>` has no timer: it is run by hand.
+
+### Waits inside a job
+
+These sleep inside the running job and count towards the 300 s limit:
+
+| Where                                      | Wait                                                                                               |
+|--------------------------------------------|----------------------------------------------------------------------------------------------------|
+| Running plan lookup (`services/common.py`) | polls every **3 s** (`RUNNING_PLAN_POLL_SECONDS`) for up to **60 s** (`RUNNING_PLAN_WAIT_SECONDS`) |
+| Bamboo build log (`clients/bamboo.py`)     | up to 4 downloads, **5 s** apart                                                                   |
+| GitHub check run completion                | up to 3 retries after 5 s, 10 s and 15 s when the check run is not visible or not updated yet      |
+| HTTP retries (`clients/http.py`)           | `min(2^attempt, 10)` s, or the server's `Retry-After` on rate limits                               |
+
 ## Logs
 
 - Default: stdout → journald (`journalctl -u 'netdef-ci-*' -f`, `-u netdef-ci-web`).

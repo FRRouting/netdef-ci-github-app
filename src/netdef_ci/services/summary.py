@@ -72,8 +72,15 @@ class Summary:
             for job in stage.jobs_with(Status.QUEUED, Status.IN_PROGRESS)
         ]
         if not open_jobs:
+            self.log.info("sync_previous_stages: no open jobs before position %s", position)
             return
+        self.log.info(
+            "sync_previous_stages: asking Bamboo about %s",
+            [(job.job_ref, job.state.value) for job in open_jobs],
+        )
         result = container.bamboo().get_status(self.check_suite.bamboo_ci_ref or "")
+        if result is None:
+            self.log.warning("sync_previous_stages: Bamboo returned no result for %s", self.check_suite.bamboo_ci_ref)
         stages = ((result or {}).get("stages") or {}).get("stage") or []
         outcomes = {
             item.get("buildResultKey"): item
@@ -83,6 +90,13 @@ class Summary:
         for job in open_jobs:
             item = outcomes.get(job.job_ref)
             if item is None or item.get("lifeCycleState") != "Finished":
+                self.log.warning(
+                    "sync_previous_stages: job %s not finished in Bamboo (found=%s, lifeCycleState=%s, known keys=%s)",
+                    job.job_ref,
+                    item is not None,
+                    (item or {}).get("lifeCycleState"),
+                    sorted(outcomes),
+                )
                 continue  # still running (or unknown to Bamboo): leave it alone
             state = item.get("state")
             self.log.info("Previous stage job %s finished in Bamboo as %s; updating it", job.job_ref, state)
