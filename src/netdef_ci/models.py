@@ -23,11 +23,12 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    MetaData,
     String,
     Table,
     Text,
-    func,
     TypeDecorator,
+    func,
     select,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, object_session, relationship
@@ -43,7 +44,8 @@ BigId = BigInteger().with_variant(Integer, "sqlite")
 
 
 class Base(DeclarativeBase):
-    pass
+    # Rails-style index names ("index_<table>_on_<column>") so the ORM metadata matches the Ruby-created schema.
+    metadata = MetaData(naming_convention={"ix": "index_%(table_name)s_on_%(column_0_name)s"})
 
 
 class StatusType(TypeDecorator[Status]):
@@ -157,14 +159,20 @@ class PullRequest(Base):
     )
 
     def last_check_suite(self) -> CheckSuite | None:
-        return _session(self).scalars(
-            select(CheckSuite).where(CheckSuite.pull_request_id == self.id).order_by(CheckSuite.id.desc()).limit(1)
-        ).first()
+        return (
+            _session(self)
+            .scalars(
+                select(CheckSuite).where(CheckSuite.pull_request_id == self.id).order_by(CheckSuite.id.desc()).limit(1)
+            )
+            .first()
+        )
 
     def current_execution_by_plan(self, plan: Plan | None) -> CheckSuite | None:
         stmt = select(CheckSuite).where(CheckSuite.pull_request_id == self.id)
-        stmt = stmt.where(CheckSuite.plan_id == (plan.id if plan is not None else None)) if plan else stmt.where(
-            CheckSuite.plan_id.is_(None)
+        stmt = (
+            stmt.where(CheckSuite.plan_id == (plan.id if plan is not None else None))
+            if plan
+            else stmt.where(CheckSuite.plan_id.is_(None))
         )
         return _session(self).scalars(stmt.order_by(CheckSuite.id.desc()).limit(1)).first()
 
@@ -240,9 +248,9 @@ class CheckSuite(Base):
     def is_running(self) -> bool:
         return (
             _session(self).scalar(
-                select(func.count()).select_from(Stage).where(
-                    Stage.check_suite_id == self.id, Stage.status.in_(list(RUNNING_STATUSES))
-                )
+                select(func.count())
+                .select_from(Stage)
+                .where(Stage.check_suite_id == self.id, Stage.status.in_(list(RUNNING_STATUSES)))
             )
             or 0
         ) > 0
@@ -288,16 +296,12 @@ class Stage(Base):
     created_at: Mapped[datetime] = _ts()
     updated_at: Mapped[datetime] = _ts_updated()
     check_suite_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("check_suites.id"), index=True)
-    stage_configuration_id: Mapped[int | None] = mapped_column(
-        BigId, ForeignKey("stage_configurations.id"), index=True
-    )
+    stage_configuration_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("stage_configurations.id"), index=True)
     execution_time: Mapped[int | None] = mapped_column(Integer)
 
     check_suite: Mapped[CheckSuite | None] = relationship(back_populates="stages", foreign_keys=[check_suite_id])
     configuration: Mapped[StageConfiguration | None] = relationship(foreign_keys=[stage_configuration_id])
-    jobs: Mapped[list[CiJob]] = relationship(
-        back_populates="stage", order_by="CiJob.id", foreign_keys="CiJob.stage_id"
-    )
+    jobs: Mapped[list[CiJob]] = relationship(back_populates="stage", order_by="CiJob.id", foreign_keys="CiJob.stage_id")
 
     # --- state helpers ----------------------------------------------------------------------
     @property
@@ -355,6 +359,7 @@ class Stage(Base):
         if output is None:
             output = self.output_in_progress()
         self._create_github_check(github)
+        assert self.check_ref is not None
         github.in_progress(self.check_ref, output)
         self._record(Status.IN_PROGRESS, agent)
         from netdef_ci import container
@@ -362,6 +367,7 @@ class Stage(Base):
         container.slack().stage_in_progress_notification(self)
 
     def update_output(self, github: GithubCheck, output: Output | None = None) -> None:
+        assert self.check_ref is not None
         github.in_progress(self.check_ref, self.output_in_progress() if output is None else output)
 
     def cancelled(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
@@ -430,9 +436,7 @@ class CiJob(Base):
     check_suite: Mapped[CheckSuite | None] = relationship(back_populates="ci_jobs", foreign_keys=[check_suite_id])
     stage: Mapped[Stage | None] = relationship(back_populates="jobs", foreign_keys=[stage_id])
     topotest_failures: Mapped[list[TopotestFailure]] = relationship(order_by="TopotestFailure.id")
-    audit_retries: Mapped[list[AuditRetry]] = relationship(
-        secondary=audit_retries_ci_jobs, back_populates="ci_jobs"
-    )
+    audit_retries: Mapped[list[AuditRetry]] = relationship(secondary=audit_retries_ci_jobs, back_populates="ci_jobs")
 
     @property
     def state(self) -> Status:
@@ -450,7 +454,7 @@ class CiJob(Base):
         _session(self).commit()
         from netdef_ci import metrics
 
-        stage_name = (self.stage.configuration.bamboo_stage_name if self.stage and self.stage.configuration else None)
+        stage_name = self.stage.configuration.bamboo_stage_name if self.stage and self.stage.configuration else None
         metrics.CI_JOB_DURATION.labels(stage=stage_name or "unknown", status=self.state.label).observe(duration)
 
     def create_check_run(self, agent: str = "Github") -> None:
@@ -490,7 +494,9 @@ class CiJob(Base):
 def _audit_pair(obj: CiJob | Stage, kind: str) -> tuple[AuditStatus | None, AuditStatus | None]:
     session = _session(obj)
     base = select(AuditStatus).where(AuditStatus.auditable_type == kind, AuditStatus.auditable_id == obj.id)
-    started = session.scalars(base.where(AuditStatus.status == Status.IN_PROGRESS).order_by(AuditStatus.id).limit(1)).first()
+    started = session.scalars(
+        base.where(AuditStatus.status == Status.IN_PROGRESS).order_by(AuditStatus.id).limit(1)
+    ).first()
     finished = session.scalars(
         base.where(AuditStatus.status.in_([Status.SUCCESS, Status.FAILURE])).order_by(AuditStatus.id).limit(1)
     ).first()
@@ -520,7 +526,9 @@ class TopotestFailure(Base):
 
 class AuditStatus(Base):
     __tablename__ = "audit_statuses"
-    __table_args__ = (Index("index_audit_statuses_on_auditable_type_and_auditable_id", "auditable_type", "auditable_id"),)
+    __table_args__ = (
+        Index("index_audit_statuses_on_auditable_type_and_auditable_id", "auditable_type", "auditable_id"),
+    )
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     status: Mapped[Status] = mapped_column(StatusType, nullable=False, default=Status.QUEUED)

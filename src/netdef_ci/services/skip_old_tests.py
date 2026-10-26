@@ -39,7 +39,10 @@ class SkipOldTests:
         repo = self.check_suite.pull_request.repository
         seen: set[int] = set()
         for status in self.STATUSES:
-            runs = self.github.check_runs_for_ref(repo, self.check_suite.commit_sha_ref, status=status).get("check_runs") or []
+            runs = (
+                self.github.check_runs_for_ref(repo, self.check_suite.commit_sha_ref, status=status).get("check_runs")
+                or []
+            )
             for check_run in runs:
                 if check_run["id"] in seen:
                     continue

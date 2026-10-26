@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import httpx
 from sqlalchemy.orm import object_session
 
 from netdef_ci import container
@@ -24,7 +25,7 @@ class PlanRun:
         self.plan = plan
         self.ci_variables: list[dict[str, str]] = []
         self.ci_key: str | None = None
-        self.response = None
+        self.response: httpx.Response | None = None
         self.log = Log("github_plan_run", check_suite.pull_request.github_pr_id)
         self.log.info("BambooCi::PlanRun - CheckSuite: %s", check_suite.id)
 

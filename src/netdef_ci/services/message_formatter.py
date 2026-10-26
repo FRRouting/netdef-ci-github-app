@@ -58,7 +58,11 @@ class MessageFormatter:
         others = [j for j in jobs if j.state not in (Status.IN_PROGRESS, Status.QUEUED, Status.SUCCESS)]
         success = [j for j in jobs if j.state == Status.SUCCESS]
         sections = (
-            (":heavy_multiplication_x: Jobs Failure", "\n".join(self.generate_message(name, j) for j in others), len(others)),
+            (
+                ":heavy_multiplication_x: Jobs Failure",
+                "\n".join(self.generate_message(name, j) for j in others),
+                len(others),
+            ),
             (":heavy_check_mark: Jobs Success", "\n".join(self._link(j) for j in success), len(success)),
         )
         header = ""

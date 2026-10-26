@@ -1,0 +1,22 @@
+---
+# Non-secret settings of the DEVELOPMENT environment. Secrets live in vault.yml (see vault.yml.example).
+netdef_ci_env: development
+netdef_ci_version: main                      # branch, tag or commit; override with -e netdef_ci_version=<ref>
+netdef_ci_repo_url: REPLACE_WITH_REPOSITORY_URL
+
+netdef_ci_listen_host: 0.0.0.0
+netdef_ci_listen_port: 9292                  # the Ruby development server used 9292
+netdef_ci_web_workers: 2
+netdef_ci_keep_releases: 3
+
+netdef_ci_settings:
+  DEBUG: "true"
+  CI_URL: REPLACE_WITH_BAMBOO_HOST           # e.g. host used in https://<host>/browse/<KEY> links
+  BAMBOO_BASE_URL: https://127.0.0.1
+  BAMBOO_VERIFY_TLS: "false"
+  MULTI_PLAN: "false"
+  GITHUB_APP_NAME: NetDEF CI Hook
+
+netdef_ci_timers:
+  watchdog: {enabled: true, on_calendar: "*:0/15"}
+  pr_sync: {enabled: false, on_calendar: "hourly"}

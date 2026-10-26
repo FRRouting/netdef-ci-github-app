@@ -1,0 +1,16 @@
+---
+python_runtime_packages:
+  - build-essential
+  - ca-certificates
+  - curl
+  - xz-utils
+  - libssl-dev
+  - zlib1g-dev
+  - libffi-dev
+  - libsqlite3-dev
+  - libbz2-dev
+  - liblzma-dev
+  - libreadline-dev
+  - libncurses-dev
+  - uuid-dev
+  - libzstd-dev

@@ -1,0 +1,18 @@
+---
+# Not exercised by the project's validation (the existing infrastructure is Debian/Ubuntu based).
+python_runtime_packages:
+  - gcc
+  - make
+  - ca-certificates
+  - curl
+  - xz
+  - openssl-devel
+  - zlib-devel
+  - libffi-devel
+  - sqlite-devel
+  - bzip2-devel
+  - xz-devel
+  - readline-devel
+  - ncurses-devel
+  - libuuid-devel
+  - libzstd-devel

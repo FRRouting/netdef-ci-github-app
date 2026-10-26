@@ -54,7 +54,7 @@ def request_with_retries(
     while True:
         try:
             response = client.request(method, url, **kwargs)  # type: ignore[arg-type]
-        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, httpx.RemoteProtocolError):
+        except httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, httpx.RemoteProtocolError:
             if method.upper() not in IDEMPOTENT_METHODS or attempt >= max_retries:
                 raise
             attempt += 1

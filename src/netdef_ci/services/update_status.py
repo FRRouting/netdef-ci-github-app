@@ -32,12 +32,16 @@ class UpdateStatus:
         self.reference = payload.get("bamboo_ref") or "invalid_reference"
         self.job: CiJob | None = None
         if payload.get("bamboo_ref"):
-            self.job = session.scalars(select(CiJob).where(CiJob.job_ref == payload["bamboo_ref"]).order_by(CiJob.id).limit(1)).first()
+            self.job = session.scalars(
+                select(CiJob).where(CiJob.job_ref == payload["bamboo_ref"]).order_by(CiJob.id).limit(1)
+            ).first()
         self.check_suite = self.job.check_suite if self.job else None
         self.failures = payload.get("failures") or []
         output = payload.get("output")
         self.summary = (output.get("summary") if isinstance(output, dict) else None) if "output" in payload else ""
-        pr_id = self.check_suite.pull_request.github_pr_id if self.check_suite and self.check_suite.pull_request else None
+        pr_id = (
+            self.check_suite.pull_request.github_pr_id if self.check_suite and self.check_suite.pull_request else None
+        )
         self.log = Log("github_update_status", pr_id)
 
     def update(self) -> Response:
@@ -73,7 +77,7 @@ class UpdateStatus:
                 return 200, "Success"
             self._insert_new_job()
             return 200, "Success"
-        except Exception as error:  # noqa: BLE001 - the Ruby handler answered 500 for any StandardError
+        except Exception as error:
             self.session.rollback()
             self.log.error("%s %s", type(error).__name__, error)
             return 500, "Internal Server Error"
@@ -107,5 +111,10 @@ class UpdateStatus:
         self.log.info("Inserting new job for queue %s to update job %s (%s)", queue, job.id, ref)
         # Debounce: only the last callback within STATUS_DEBOUNCE_SECONDS rebuilds the stage summary.
         jobs_queue.replace_pending(
-            self.session, "ci_job_status", ref, [ref, job.id], queue=queue, delay_seconds=get_settings().status_debounce_seconds
+            self.session,
+            "ci_job_status",
+            ref,
+            [ref, job.id],
+            queue=queue,
+            delay_seconds=get_settings().status_debounce_seconds,
         )

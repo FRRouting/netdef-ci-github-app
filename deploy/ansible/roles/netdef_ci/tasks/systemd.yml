@@ -1,0 +1,71 @@
+---
+- name: Install the web service
+  ansible.builtin.template:
+    src: netdef-ci-web.service.j2
+    dest: /etc/systemd/system/netdef-ci-web.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: [Reload systemd, Restart netdef-ci]
+
+- name: Install the job worker services
+  ansible.builtin.template:
+    src: netdef-ci-worker.service.j2
+    dest: "/etc/systemd/system/netdef-ci-worker-{{ item.name }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ netdef_ci_job_workers }}"
+  loop_control:
+    label: "{{ item.name }}"
+  notify: [Reload systemd, Restart netdef-ci]
+
+- name: Install the target that groups the services
+  ansible.builtin.template:
+    src: netdef-ci.target.j2
+    dest: /etc/systemd/system/netdef-ci.target
+    owner: root
+    group: root
+    mode: "0644"
+  notify: [Reload systemd, Restart netdef-ci]
+
+- name: Install the services of the periodic tasks
+  ansible.builtin.template:
+    src: netdef-ci-task.service.j2
+    dest: "/etc/systemd/system/netdef-ci-{{ item.key | replace('_', '-') }}.service"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ netdef_ci_timers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Install the timers of the periodic tasks
+  ansible.builtin.template:
+    src: netdef-ci-task.timer.j2
+    dest: "/etc/systemd/system/netdef-ci-{{ item.key | replace('_', '-') }}.timer"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ netdef_ci_timers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Reload the systemd manager configuration
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Enable the services and the target
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+  loop: "{{ ['netdef-ci.target'] + (netdef_ci_service_names | map('regex_replace', '$', '.service') | list) }}"
+
+- name: Enable or disable the timers
+  ansible.builtin.systemd_service:
+    name: "netdef-ci-{{ item.key | replace('_', '-') }}.timer"
+    enabled: "{{ item.value.enabled }}"
+    state: "{{ 'started' if item.value.enabled else 'stopped' }}"
+  loop: "{{ netdef_ci_timers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"

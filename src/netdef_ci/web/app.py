@@ -38,11 +38,18 @@ STARTED = time.time()
 def _text(status: int, body: str, media_type: str = "text/plain") -> Response:
     if status in (204, 304):  # Rack drops the body of these statuses
         return Response(status_code=status)
-    return Response(content=body, status_code=status, media_type=media_type, headers={"content-type": f"{media_type}; charset=utf-8"})
+    return Response(
+        content=body,
+        status_code=status,
+        media_type=media_type,
+        headers={"content-type": f"{media_type}; charset=utf-8"},
+    )
 
 
 def _json_error() -> Response:
-    return Response(content=json.dumps({"error": "Internal Server Error"}), status_code=500, media_type="application/json")
+    return Response(
+        content=json.dumps({"error": "Internal Server Error"}), status_code=500, media_type="application/json"
+    )
 
 
 def create_app(*, init_database: bool = True) -> FastAPI:
@@ -58,7 +65,14 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         metrics.cleanup_stale_metric_files()
         yield
 
-    app = FastAPI(title="NetDEF CI GitHub App", version=__version__, docs_url=None, redoc_url=None, openapi_url=None, lifespan=lifespan)
+    app = FastAPI(
+        title="NetDEF CI GitHub App",
+        version=__version__,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+    )
 
     @app.middleware("http")
     async def observe(request: Request, call_next: Callable[[Request], Any]) -> Response:
@@ -66,7 +80,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         event = request.headers.get("x-github-event")
         response: Response = await call_next(request)
         route = request.scope.get("route")
-        path = "/*" if getattr(route, "path", "") == "/{full_path:path}" else getattr(route, "path", request.url.path)
+        path = "/*" if getattr(route, "path", "") == "/{full_path:path}" else getattr(route, "path", "unmatched")
         metrics.HTTP_REQUESTS.labels(method=request.method, path=path, status=str(response.status_code)).inc()
         metrics.HTTP_REQUEST_DURATION.labels(path=path).observe(time.monotonic() - start)
         if event:
@@ -80,9 +94,11 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         async def wrapper(request: Request) -> Response:
             try:
                 return await handler(request)  # type: ignore[no-any-return]
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 first = [p for p in request.url.path.split("/") if p]
-                metrics.APP_EXCEPTIONS.labels(class_=type(error).__name__, handler=first[0] if first else "root").inc()
+                metrics.APP_EXCEPTIONS.labels(
+                    **{"class": type(error).__name__, "handler": first[0] if first else "root"}
+                ).inc()
                 log.error("Unhandled %s on %s: %s", type(error).__name__, request.url.path, error)
                 return _json_error()
 
@@ -108,8 +124,10 @@ def create_app(*, init_database: bool = True) -> FastAPI:
 
         try:
             checks = await run_in_threadpool(check)
-        except Exception as error:  # noqa: BLE001
-            return _text(503, json.dumps({"status": "unavailable", "database": type(error).__name__}), "application/json")
+        except Exception as error:
+            return _text(
+                503, json.dumps({"status": "unavailable", "database": type(error).__name__}), "application/json"
+            )
         return _text(200, json.dumps({"status": "ready", **checks}), "application/json")
 
     @app.get("/telemetry")
@@ -140,7 +158,8 @@ def create_app(*, init_database: bool = True) -> FastAPI:
     async def update_status(request: Request) -> Response:
         raw = await request.body()
         auth = verify_hmac(
-            settings.webhook_secret.get_secret_value(), raw,
+            settings.webhook_secret.get_secret_value(),
+            raw,
             request.headers.get("signature") or request.headers.get("x-hub-signature-256"),
         )
         if not auth.ok:
@@ -201,7 +220,8 @@ def create_app(*, init_database: bool = True) -> FastAPI:
     async def github_webhook(request: Request) -> Response:
         raw = await request.body()
         auth = verify_hmac(
-            settings.webhook_secret.get_secret_value(), raw,
+            settings.webhook_secret.get_secret_value(),
+            raw,
             request.headers.get("signature") or request.headers.get("x-hub-signature-256"),
         )
         if not auth.ok:
@@ -229,7 +249,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
 def _parse_object(raw: bytes) -> dict[str, Any] | None:
     try:
         data = json.loads(raw)
-    except (ValueError, UnicodeDecodeError):
+    except ValueError, UnicodeDecodeError:
         return None
     return data if isinstance(data, dict) else None
 

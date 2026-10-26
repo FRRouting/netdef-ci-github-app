@@ -53,7 +53,10 @@ def payload_pr_id(payload: dict[str, Any]) -> int | None:
 
 def _last_in_progress_stage(session: Session, check_suite: CheckSuite) -> Stage | None:
     return session.scalars(
-        select(Stage).where(Stage.check_suite_id == check_suite.id, Stage.status == Status.IN_PROGRESS).order_by(Stage.id.desc()).limit(1)
+        select(Stage)
+        .where(Stage.check_suite_id == check_suite.id, Stage.status == Status.IN_PROGRESS)
+        .order_by(Stage.id.desc())
+        .limit(1)
     ).first()
 
 
@@ -86,7 +89,9 @@ class CreateExecutionByPlan:
         instance = cls(session, pull_request_id, payload, plan_id)
         with pull_request_lock(pull_request_id):
             instance.execute()
-        instance.log.info("Plan '%s' for Pull Request ID %s finished with status %s", plan.name, pull_request_id, instance.status)
+        instance.log.info(
+            "Plan '%s' for Pull Request ID %s finished with status %s", plan.name, pull_request_id, instance.status
+        )
         return instance.status
 
     def execute(self) -> None:
@@ -95,7 +100,10 @@ class CreateExecutionByPlan:
         self.log.info("Starting Plan: %s", plan.name)
         self.last_check_suite = self.session.scalars(
             select(CheckSuite)
-            .where(CheckSuite.pull_request_id == self.pull_request.id, or_(CheckSuite.plan_id == plan.id, CheckSuite.plan_id.is_(None)))
+            .where(
+                CheckSuite.pull_request_id == self.pull_request.id,
+                or_(CheckSuite.plan_id == plan.id, CheckSuite.plan_id.is_(None)),
+            )
             .order_by(CheckSuite.id.desc())
             .limit(1)
         ).first()
@@ -251,7 +259,13 @@ class RerunBase:
         self.session.commit()
         jobs = container.bamboo().running_plan(check_suite.bamboo_ci_ref)
         Action(check_suite, self.github, jobs, plan.name).create_summary(rerun=True)
-        for suite in list(self.session.scalars(select(CheckSuite).where(CheckSuite.commit_sha_ref == check_suite.commit_sha_ref).order_by(CheckSuite.id))):
+        for suite in list(
+            self.session.scalars(
+                select(CheckSuite)
+                .where(CheckSuite.commit_sha_ref == check_suite.commit_sha_ref)
+                .order_by(CheckSuite.id)
+            )
+        ):
             UnavailableJobs(suite).update(new_check_suite=check_suite)
 
     def copy_check_suite(self, source: CheckSuite, pull_request: PullRequest | None = None) -> CheckSuite:
@@ -382,4 +396,4 @@ class CreateExecutionByComment(RerunBase):
         return check_suite
 
 
-__all__ = ["CreateExecutionByPlan", "CreateExecutionByComment", "CreateExecutionByCommand", "find_pull_request"]
+__all__ = ["CreateExecutionByCommand", "CreateExecutionByComment", "CreateExecutionByPlan", "find_pull_request"]

@@ -138,8 +138,23 @@ def _alembic_config() -> object:
 
 def _migrate(_: argparse.Namespace) -> int:
     from alembic import command
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+    from sqlalchemy import create_engine
 
-    command.upgrade(_alembic_config(), "head")  # type: ignore[arg-type]
+    config = _alembic_config()
+    head = ScriptDirectory.from_config(config).get_current_head()  # type: ignore[arg-type]
+    engine = create_engine(get_settings().database_url)
+    try:
+        with engine.connect() as connection:
+            before = MigrationContext.configure(connection).get_current_revision()
+    finally:
+        engine.dispose()
+    if before == head:
+        print(f"database already at revision {head}")
+        return 0
+    command.upgrade(config, "head")  # type: ignore[arg-type]
+    print(f"database upgraded from {before or 'empty'} to {head}")
     return 0
 
 
@@ -159,7 +174,7 @@ def _purge_jobs(_: argparse.Namespace) -> int:
     with session_scope() as session:
         result = session.execute(delete(Job))
         session.commit()
-        print(f"Removed {result.rowcount} job(s)")  # noqa: T201
+        print(f"Removed {getattr(result, 'rowcount', 0)} job(s)")
     return 0
 
 
@@ -172,7 +187,7 @@ def _check_config(_: argparse.Namespace) -> int:
         problems.append("WEBHOOK_SECRET is empty")
     try:
         apps = settings.github_apps()
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         apps = []
         problems.append(f"GITHUB_APPS_FILE unreadable: {error}")
     if not apps:
@@ -183,16 +198,16 @@ def _check_config(_: argparse.Namespace) -> int:
     if settings.bamboo_credentials() is None:
         problems.append("Bamboo credentials not found (BAMBOO_USERNAME/PASSWORD or ~/.netrc)")
     if not settings.slack_bot_url:
-        print("warning: SLACK_BOT_URL not set; Slack notifications are disabled")  # noqa: T201
+        print("warning: SLACK_BOT_URL not set; Slack notifications are disabled")
     try:
         init_engine()
         with session_scope() as session:
             session.execute(text("SELECT 1"))
-    except Exception as error:  # noqa: BLE001
+    except Exception as error:
         problems.append(f"database unreachable: {type(error).__name__}")
     for problem in problems:
-        print(f"error: {problem}", file=sys.stderr)  # noqa: T201
-    print("configuration OK" if not problems else f"{len(problems)} problem(s) found")  # noqa: T201
+        print(f"error: {problem}", file=sys.stderr)
+    print("configuration OK" if not problems else f"{len(problems)} problem(s) found")
     return 1 if problems else 0
 
 
@@ -202,22 +217,26 @@ def _org(args: argparse.Namespace) -> int:
     with session_scope() as session:
         found = session.scalars(select(Organization).where(Organization.name == args.name)).first()
         if args.action == "find":
-            print(f"> {found!r}" if found else "Organization not found")  # noqa: T201
+            print(f"> {found!r}" if found else "Organization not found")
             return 0 if found else 1
-        fields = {k: v for k, v in (("contact_email", args.contact_email), ("contact_name", args.contact_name), ("url", args.url)) if v is not None}
+        fields = {
+            k: v
+            for k, v in (("contact_email", args.contact_email), ("contact_name", args.contact_name), ("url", args.url))
+            if v is not None
+        }
         if args.action == "create":
             organization = Organization(name=args.name, **fields)
             session.add(organization)
             session.commit()
-            print(f"Organization created: {organization!r}")  # noqa: T201
+            print(f"Organization created: {organization!r}")
             return 0
         if found is None:
-            print("Organization not found")  # noqa: T201
+            print("Organization not found")
             return 1
         for key, value in fields.items():
             setattr(found, key, value)
         session.commit()
-        print(f"Organization updated: {found!r}")  # noqa: T201
+        print(f"Organization updated: {found!r}")
     return 0
 
 
@@ -226,27 +245,29 @@ def _user(args: argparse.Namespace) -> int:
     with session_scope() as session:
         user = session.scalars(select(GithubUser).where(GithubUser.github_login == args.login)).first()
         if user is None:
-            print("Github user not found")  # noqa: T201
+            print("Github user not found")
             return 1
         if args.action == "find":
-            print(f"> GithubUser id: {user.id}, login: {user.github_login}, organization_id: {user.organization_id}, slack_id: {user.slack_id}")  # noqa: T201
+            print(
+                f"> GithubUser id: {user.id}, login: {user.github_login}, organization_id: {user.organization_id}, slack_id: {user.slack_id}"
+            )
         elif args.action == "add-to-org":
             organization = session.scalars(select(Organization).where(Organization.name == args.organization)).first()
             if organization is None:
-                print("Organization not found")  # noqa: T201
+                print("Organization not found")
                 return 1
             user.organization_id = organization.id
             session.commit()
-            print(f"Github user linked to organization: {user.github_login} -> {organization.name}")  # noqa: T201
+            print(f"Github user linked to organization: {user.github_login} -> {organization.name}")
         elif args.action == "remove-from-org":
             user.organization_id = None
             session.commit()
-            print(f"Github user removed from organization: {user.github_login}")  # noqa: T201
+            print(f"Github user removed from organization: {user.github_login}")
         elif args.action == "link-slack":
             from netdef_ci.services import tasks
 
             user.slack_username = args.slack_user
             session.commit()
             tasks.slack_username_to_id(session, args.login, args.slack_user)
-            print(f"Slack user linked to github user: {user.github_login} -> {args.slack_user}")  # noqa: T201
+            print(f"Slack user linked to github user: {user.github_login} -> {args.slack_user}")
     return 0

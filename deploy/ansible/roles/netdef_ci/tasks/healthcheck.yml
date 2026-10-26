@@ -1,0 +1,26 @@
+---
+- name: Wait until the application reports it is ready (database reachable)
+  ansible.builtin.uri:
+    url: "{{ netdef_ci_health_url }}/readyz"
+    status_code: 200
+    return_content: true
+  register: netdef_ci_ready
+  retries: "{{ netdef_ci_health_retries }}"
+  delay: "{{ netdef_ci_health_delay }}"
+  until: netdef_ci_ready.status == 200
+  changed_when: false
+
+- name: Check the liveness endpoints
+  ansible.builtin.uri:
+    url: "{{ netdef_ci_health_url }}{{ item }}"
+    status_code: 200
+  loop: [/healthz, /ping]
+  changed_when: false
+
+- name: Query the state of the services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}.service"
+  loop: "{{ netdef_ci_service_names }}"
+  register: netdef_ci_active
+  changed_when: false
+  failed_when: netdef_ci_active.status.ActiveState != 'active'

@@ -47,12 +47,18 @@ class BuildRetry:
             if not config.can_retry:
                 continue
             stage = self.session.scalars(
-                select(Stage).where(Stage.check_suite_id == self.check_suite.id, Stage.name == config.github_check_run_name).order_by(Stage.id).limit(1)
+                select(Stage)
+                .where(Stage.check_suite_id == self.check_suite.id, Stage.name == config.github_check_run_name)
+                .order_by(Stage.id)
+                .limit(1)
             ).first()
             if stage is None or stage.state == Status.SUCCESS:
                 continue
             url = settings.browse_url(self.check_suite.bamboo_ci_ref)
-            stage.enqueue(self.github, output={"title": f"{stage.name} summary", "summary": f"Uninitialized stage\nDetails at [{url}]({url})"})
+            stage.enqueue(
+                self.github,
+                output={"title": f"{stage.name} summary", "summary": f"Uninitialized stage\nDetails at [{url}]({url})"},
+            )
 
     def enqueued_failure_tests(self) -> None:
         for ci_job in [j for j in self.check_suite.ci_jobs if j.state != Status.SUCCESS]:
@@ -96,7 +102,7 @@ class RetryBase:
             github = container.github(self.check_suite)
             repo = self.check_suite.pull_request.repository
             (github.comment_reaction_thumb_up if up else github.comment_reaction_thumb_down)(repo, comment_id)
-        except Exception as error:  # noqa: BLE001 - cosmetic feedback only
+        except Exception as error:
             self.log.warning("Could not add reaction to comment %s: %s", comment_id, error)
 
     def _normal_flow(self) -> Response:
@@ -134,7 +140,7 @@ class RetryBase:
     def _enqueued(self) -> Response:
         assert self.stage is not None and self.stage.check_suite is not None
         github = container.github(self.stage.check_suite)
-        previous = github.get_check_run(self.stage.check_ref)
+        previous = github.get_check_run(self.stage.check_ref) if self.stage.check_ref else {}
         reason = self._slack_notification()
         output = {
             "title": str(dig(previous, "output", "title") or ""),
@@ -145,7 +151,11 @@ class RetryBase:
         return 406, reason or ""
 
     def _slack_notification(self) -> str | None:
-        assert self.stage is not None and self.stage.check_suite is not None and self.stage.check_suite.pull_request is not None
+        assert (
+            self.stage is not None
+            and self.stage.check_suite is not None
+            and self.stage.check_suite.pull_request is not None
+        )
         slack = container.slack()
         reason = slack.invalid_rerun_group(self.stage)
         self.log.warning(">>> stage %s %s", self.stage.id, reason)
@@ -169,7 +179,9 @@ class RetryCommand(RetryBase):
         super().__init__(session, payload)
         check_ref = dig(payload, "check_run", "id")
         if check_ref is not None:
-            self.stage = session.scalars(select(Stage).where(Stage.check_ref == str(check_ref)).order_by(Stage.id.desc()).limit(1)).first()
+            self.stage = session.scalars(
+                select(Stage).where(Stage.check_ref == str(check_ref)).order_by(Stage.id.desc()).limit(1)
+            ).first()
 
 
 class RetryComment(RetryBase):
@@ -177,7 +189,9 @@ class RetryComment(RetryBase):
 
     def __init__(self, session: Session, payload: dict[str, Any]) -> None:
         super().__init__(session, payload)
-        pull_request = find_pull_request(session, dig(payload, "issue", "number"), dig(payload, "repository", "full_name"))
+        pull_request = find_pull_request(
+            session, dig(payload, "issue", "number"), dig(payload, "repository", "full_name")
+        )
         if pull_request is not None:
             self.check_suite = pull_request.last_check_suite()
             if self.check_suite is not None:
@@ -192,4 +206,4 @@ class RetryComment(RetryBase):
         return output
 
 
-__all__ = ["RetryCommand", "RetryComment", "CiJob"]
+__all__ = ["CiJob", "RetryCommand", "RetryComment"]

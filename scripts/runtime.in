@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg[binary]
+alembic
+httpx
+pyjwt[crypto]
+pydantic-settings
+prometheus-client

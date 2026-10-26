@@ -1,0 +1,11 @@
+---
+# CPython built from the official python.org source tarball and installed side by side (`make altinstall`),
+# so the system Python is never touched. Version/checksum chosen on 2026-10-26: latest stable release (3.15.2).
+python_runtime_version: "3.15.2"
+python_runtime_sha256: "8b5536d280142ecf6cdfe15d12a21ba1c65e300bbf7b28a8d0cdb849575797de"
+python_runtime_url: "https://www.python.org/ftp/python/{{ python_runtime_version }}/Python-{{ python_runtime_version }}.tar.xz"
+python_runtime_prefix: "/opt/python/{{ python_runtime_version }}"
+python_runtime_src_dir: /usr/local/src
+# Profile-guided optimisation makes the build much longer; enable it when build time does not matter.
+python_runtime_optimizations: false
+python_runtime_build_jobs: "{{ ansible_facts['processor_vcpus'] | default(2) }}"

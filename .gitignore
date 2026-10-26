@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 .venv/
+.venv-podman/
 venv/
 .pytest_cache/
 .mypy_cache/
@@ -30,3 +31,4 @@ deploy/ansible/inventories/*/group_vars/*/vault.yml
 
 # IDE
 .idea/
+.dev-stack/

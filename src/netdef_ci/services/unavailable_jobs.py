@@ -29,9 +29,14 @@ class UnavailableJobs:
             return
         session = object_session(self.check_suite)
         assert session is not None
+        assert self.github is not None
         self.log.warning(">>> Check Unavailable Jobs")
         running = [j["job_ref"] for j in container.bamboo().running_plan(self.check_suite.bamboo_ci_ref)]
-        stmt = select(CiJob).where(CiJob.check_suite_id == self.check_suite.id, CiJob.job_ref.not_in(running)).order_by(CiJob.id)
+        stmt = (
+            select(CiJob)
+            .where(CiJob.check_suite_id == self.check_suite.id, CiJob.job_ref.not_in(running))
+            .order_by(CiJob.id)
+        )
         for job in list(session.scalars(stmt)):
             job.skipped(
                 self.github,

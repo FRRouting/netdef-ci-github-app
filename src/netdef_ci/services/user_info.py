@@ -29,8 +29,12 @@ def sync_user_info(
     log = Log("github_user_info")
     if github_id is None:
         return None
-    info = container.github(check_suite).fetch_username(int(github_id))
     log.info("Fetching user info for github_id: %s", github_id)
+    try:
+        info = container.github(check_suite).fetch_username(int(github_id))
+    except Exception as error:
+        log.error("GitHub user %s could not be fetched (%s: %s)", github_id, type(error).__name__, error)
+        info = None
     user = session.scalars(select(GithubUser).where(GithubUser.github_id == int(github_id))).first()
     if user is None:
         user = GithubUser(github_id=int(github_id))

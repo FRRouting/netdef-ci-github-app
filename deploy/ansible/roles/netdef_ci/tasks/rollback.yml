@@ -1,0 +1,50 @@
+---
+- name: Read the deployment history
+  ansible.builtin.slurp:
+    src: "{{ netdef_ci_history_file }}"
+  register: netdef_ci_history_raw
+
+- name: Compute the rollback target
+  ansible.builtin.set_fact:
+    netdef_ci_history: "{{ (netdef_ci_history_raw.content | b64decode).split() }}"
+
+- name: Select the release to restore
+  ansible.builtin.set_fact:
+    netdef_ci_release: "{{ netdef_ci_rollback_to if netdef_ci_rollback_to | length > 0 else netdef_ci_history[-2] | default('') }}"
+
+- name: Check that the target release exists on the host
+  ansible.builtin.stat:
+    path: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}/venv/bin/python"
+  register: netdef_ci_target
+  failed_when: netdef_ci_release | length == 0 or not netdef_ci_target.stat.exists
+
+- name: Point the current release link to the target release
+  ansible.builtin.file:
+    src: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}"
+    dest: "{{ netdef_ci_current_link }}"
+    state: link
+    owner: root
+    group: root
+    force: true
+  register: netdef_ci_switch
+  notify: Restart netdef-ci
+
+- name: Update the deployment history (drops the releases that were rolled back)  # noqa: no-handler
+  ansible.builtin.copy:
+    content: "{{ (netdef_ci_kept_history | join('\n')) }}\n"
+    dest: "{{ netdef_ci_history_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+  vars:
+    netdef_ci_reversed_history: "{{ netdef_ci_history | reverse | list }}"
+    netdef_ci_kept_history: >-
+      {{ netdef_ci_history[:netdef_ci_history | length - netdef_ci_reversed_history.index(netdef_ci_release)]
+         if netdef_ci_release in netdef_ci_history else netdef_ci_history + [netdef_ci_release] }}
+  when: netdef_ci_switch.changed
+
+- name: Restart the services now when something changed
+  ansible.builtin.meta: flush_handlers
+
+- name: Verify the restored version
+  ansible.builtin.include_tasks: healthcheck.yml

@@ -1,0 +1,20 @@
+---
+# Copy to vault.yml, fill in and encrypt:   ansible-vault encrypt inventories/dev/group_vars/all/vault.yml
+# Every value below is a FICTITIOUS placeholder.
+vault_netdef_ci_database_url: "postgresql+psycopg://netdef_ci:CHANGE_ME@localhost:5432/githubruns-dev"
+vault_netdef_ci_webhook_secret: "CHANGE_ME_long_random_value"
+vault_netdef_ci_metrics_username: "prometheus"
+vault_netdef_ci_metrics_password: "CHANGE_ME"
+vault_netdef_ci_bamboo_username: "ci-bot"
+vault_netdef_ci_bamboo_password: "CHANGE_ME"
+vault_netdef_ci_slack_bot_url: "https://slack-bot.example.invalid"
+vault_netdef_ci_slack_bot_username: "slack-bot"
+vault_netdef_ci_slack_bot_password: "CHANGE_ME"
+# One entry per GitHub App; private_key is the PEM text (use a YAML block scalar).
+vault_netdef_ci_github_apps:
+  - login: "1234567"
+    repo: "example-org/example-repo"
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      REPLACE_WITH_THE_APP_PRIVATE_KEY
+      -----END RSA PRIVATE KEY-----

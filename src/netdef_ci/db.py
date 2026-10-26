@@ -39,8 +39,13 @@ def build_engine(url: str | None = None, **kwargs: Any) -> Engine:
     return create_engine(url, **options)
 
 
-def init_engine(url: str | None = None, **kwargs: Any) -> Engine:
+def init_engine(url: str | None = None, *, force: bool = False, **kwargs: Any) -> Engine:
+    """Create the process-wide engine once (idempotent); `force=True` replaces it and disposes the previous one."""
     global _engine, _factory
+    if _engine is not None and not force and url is None:
+        return _engine
+    if _engine is not None:
+        _engine.dispose()
     _engine = build_engine(url, **kwargs)
     _factory = sessionmaker(bind=_engine, expire_on_commit=False, future=True)
     from netdef_ci import metrics
@@ -88,4 +93,4 @@ def dispose_engine() -> None:
     _factory = None
 
 
-__all__ = ["event", "utcnow", "init_engine", "get_engine", "session_factory", "new_session", "session_scope"]
+__all__ = ["event", "get_engine", "init_engine", "new_session", "session_factory", "session_scope", "utcnow"]

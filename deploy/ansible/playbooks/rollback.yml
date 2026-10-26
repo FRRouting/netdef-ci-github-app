@@ -1,0 +1,14 @@
+---
+# Restore the previous release (or a specific one with -e netdef_ci_rollback_to=<release id>).
+# Database migrations are additive, so the previous code works with the migrated schema; nothing is downgraded.
+#   ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass
+- name: Roll back NetDEF CI GitHub App
+  hosts: netdef_ci_servers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Restore the release
+      ansible.builtin.include_role:
+        name: netdef_ci
+        tasks_from: rollback.yml
