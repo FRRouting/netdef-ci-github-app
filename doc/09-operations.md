@@ -45,4 +45,4 @@
 | Slack silent                                                               | `SLACK_BOT_URL` and credentials; `slack_notifications_total{status="error"}`; `SLACK_BOT_VERIFY_TLS`                                          |
 | Metrics reset to zero after deploy                                         | `PROMETHEUS_MULTIPROC_DIR` must be local and writable by all processes                                                                        |
 
-Useful commands: `python -m netdef_ci purge-jobs` (equivalent to `rake jobs:clear`), `python -m netdef_ci org|user …` (console), `python -m netdef_ci migrate`.
+Useful commands: `python -m netdef_ci purge-jobs`, `python -m netdef_ci org|user …` (console), `python -m netdef_ci migrate`.

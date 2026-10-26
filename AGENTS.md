@@ -6,7 +6,7 @@ connects Pull Requests to Bamboo CI). Design notes and deliberate behaviours are
 
 ## Language rule
 
-**Everything written in this repository is in English**: documentation (`README.md`, `doc/`, `PLAN.md`), code comments,
+**Everything written in this repository is in English**: documentation (`README.md`, `doc/`), code comments,
 docstrings, log/error/user-facing messages, commit messages, Ansible task names and comments, test names. Follow the
 project skill `.claude/skills/document-in-english/SKILL.md`.
 

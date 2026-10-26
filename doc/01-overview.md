@@ -139,7 +139,7 @@ flowchart TD
 
 ```
 netdef-ci-github-app-python/
-├── README.md  AGENTS.md  PLAN.md  Makefile
+├── README.md  AGENTS.md  Makefile
 ├── requirements.txt  requirements-dev.txt        # pinned dependencies
 ├── .env.example  github_apps.example.toml        # dummy configuration
 ├── alembic.ini  migrations/versions/             # 0001 initial schema, 0002 jobs and webhook tables
