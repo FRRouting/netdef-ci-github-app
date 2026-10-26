@@ -18,7 +18,7 @@ import time
 from collections.abc import Callable, Iterable
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, TypeVar
+from typing import Any
 
 from netdef_ci.config import get_settings
 
@@ -29,8 +29,6 @@ Path(os.environ["PROMETHEUS_MULTIPROC_DIR"]).mkdir(parents=True, exist_ok=True)
 from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest  # noqa: E402
 from prometheus_client.core import GaugeMetricFamily  # noqa: E402
 from prometheus_client.multiprocess import MultiProcessCollector  # noqa: E402
-
-T = TypeVar("T")
 
 HTTP_REQUESTS = Counter(
     "http_requests_total",
@@ -46,14 +44,16 @@ GITHUB_WEBHOOK_EVENTS = Counter(
     ["event", "result"],
 )
 BAMBOO_REQUESTS = Counter(
-    "bamboo_api_requests_total", "HTTP requests made to the Bamboo CI API, by operation and outcome",
+    "bamboo_api_requests_total",
+    "HTTP requests made to the Bamboo CI API, by operation and outcome",
     ["operation", "status"],
 )
 BAMBOO_DURATION = Histogram(
     "bamboo_api_request_duration_seconds", "Duration of Bamboo CI API requests in seconds, by operation", ["operation"]
 )
 CI_JOB_DURATION = Histogram(
-    "ci_job_execution_seconds", "CI job execution duration in seconds, by stage name and final status",
+    "ci_job_execution_seconds",
+    "CI job execution duration in seconds, by stage name and final status",
     ["stage", "status"],
 )
 CI_JOB_RETRIES = Counter("ci_job_retry_total", "CI job retries triggered, by reason (partial or full)", ["reason"])
@@ -61,22 +61,26 @@ CI_TIMEOUTS = Counter(
     "ci_job_timeout_total", "Check suites marked as hanged by the timeout watchdog (no update for >2h)"
 )
 APP_EXCEPTIONS = Counter(
-    "app_exceptions_total", "Unhandled exceptions caught by the web app, by exception class and handler",
-    ["class_", "handler"],
+    "app_exceptions_total",
+    "Unhandled exceptions caught by the web app, by exception class and handler",
+    ["class", "handler"],
 )
 SLACK_NOTIFICATIONS = Counter(
-    "slack_notifications_total", "Slack notifications sent by the app, by notification type and delivery status",
+    "slack_notifications_total",
+    "Slack notifications sent by the app, by notification type and delivery status",
     ["type", "status"],
 )
 GITHUB_API_REQUESTS = Counter(
     "github_api_requests_total", "Requests made to the GitHub API, by method and status class", ["method", "status"]
 )
 AR_QUERIES = Counter(
-    "activerecord_queries_total", "Total number of SQL queries executed, by operation type and table",
+    "activerecord_queries_total",
+    "Total number of SQL queries executed, by operation type and table",
     ["operation", "table"],
 )
 AR_QUERY_DURATION = Histogram(
-    "activerecord_query_duration_seconds", "Duration of SQL queries in seconds, by operation type and table",
+    "activerecord_query_duration_seconds",
+    "Duration of SQL queries in seconds, by operation type and table",
     ["operation", "table"],
 )
 
@@ -84,7 +88,7 @@ _SQL_OPS = {"SELECT", "INSERT", "UPDATE", "DELETE"}
 _TABLE_RE = re.compile(r'(?:FROM|INTO|UPDATE)\s+"?([A-Za-z_][A-Za-z0-9_]*)"?', re.I)
 
 
-def track_bamboo(operation: str, call: Callable[[], T]) -> T | None:
+def track_bamboo[T](operation: str, call: Callable[[], T]) -> T | None:
     """Time a Bamboo call; exceptions are counted and swallowed (returns None), like the Ruby helper."""
     start = time.monotonic()
     try:
@@ -102,7 +106,7 @@ def track_bamboo(operation: str, call: Callable[[], T]) -> T | None:
     return result
 
 
-def track_slack(kind: str, call: Callable[[], T]) -> T | None:
+def track_slack[T](kind: str, call: Callable[[], T]) -> T | None:
     try:
         result = call()
     except Exception:
@@ -180,7 +184,9 @@ class DatabaseCollector:
             families[name] = GaugeMetricFamily(name, doc, labels=labels)
             return families[name]
 
-        pending = gauge("delayed_jobs_pending", "Jobs waiting to run (run_at <= now, not locked, not failed)", ["queue"])
+        pending = gauge(
+            "delayed_jobs_pending", "Jobs waiting to run (run_at <= now, not locked, not failed)", ["queue"]
+        )
         running = gauge("delayed_jobs_running", "Jobs currently locked by a worker", ["queue"])
         scheduled = gauge("delayed_jobs_scheduled", "Jobs scheduled to run in the future (run_at > now)", ["queue"])
         failed = gauge("delayed_jobs_failed", "Jobs that have permanently failed (failed_at IS NOT NULL)", ["queue"])
@@ -189,32 +195,30 @@ class DatabaseCollector:
             "delayed_jobs_locked_too_long", "Jobs locked longer than max_run_time, indicating a stuck worker", ["queue"]
         )
         table = gauge(
-            "delayed_jobs_table", "Unix timestamp of each scheduled job",
+            "delayed_jobs_table",
+            "Unix timestamp of each scheduled job",
             ["job_id", "queue", "job_class", "job_args", "run_at"],
         )
         ci_jobs = gauge("ci_jobs_total", "CI jobs grouped by status", ["status"])
         ci_stages = gauge("ci_stages_total", "CI stages grouped by status", ["status"])
 
         with self._session_factory() as session:
+
             def per_queue(*conditions: Any) -> dict[str, int]:
                 stmt = select(Job.queue, func.count()).where(*conditions).group_by(Job.queue)
                 return {str(q): int(c) for q, c in session.execute(stmt)}
 
             lock_limit = now - timedelta(seconds=settings.job_max_run_time_seconds)
-            counts = {
-                pending: per_queue(Job.run_at <= now, Job.locked_at.is_(None), Job.failed_at.is_(None)),
-                running: per_queue(Job.locked_at.is_not(None), Job.failed_at.is_(None)),
-                scheduled: per_queue(Job.run_at > now, Job.locked_at.is_(None), Job.failed_at.is_(None)),
-                failed: per_queue(Job.failed_at.is_not(None)),
-                maxed: per_queue(Job.attempts >= Job.max_attempts, Job.failed_at.is_(None)),
-                stuck: per_queue(
-                    Job.locked_at.is_not(None),
-                    Job.locked_at < lock_limit,
-                    Job.failed_at.is_(None),
-                ),
-            }
-            queues = {q for values in counts.values() for q in values}
-            for family, values in counts.items():
+            counts = [
+                (pending, per_queue(Job.run_at <= now, Job.locked_at.is_(None), Job.failed_at.is_(None))),
+                (running, per_queue(Job.locked_at.is_not(None), Job.failed_at.is_(None))),
+                (scheduled, per_queue(Job.run_at > now, Job.locked_at.is_(None), Job.failed_at.is_(None))),
+                (failed, per_queue(Job.failed_at.is_not(None))),
+                (maxed, per_queue(Job.attempts >= Job.max_attempts, Job.failed_at.is_(None))),
+                (stuck, per_queue(Job.locked_at.is_not(None), Job.locked_at < lock_limit, Job.failed_at.is_(None))),
+            ]
+            queues = {q for _family, values in counts for q in values}
+            for family, values in counts:
                 for queue in sorted(queues):
                     family.add_metric([queue], values.get(queue, 0))
             for job in session.scalars(
@@ -243,7 +247,11 @@ class DatabaseCollector:
             checkedin = pool.checkedin()
             for name, doc, value in (
                 ("activerecord_connection_pool_size", "Maximum number of connections allowed in the pool", size),
-                ("activerecord_connection_pool_connections", "Current number of connections in the pool", busy + checkedin),
+                (
+                    "activerecord_connection_pool_connections",
+                    "Current number of connections in the pool",
+                    busy + checkedin,
+                ),
                 ("activerecord_connection_pool_busy", "Connections currently checked out by a thread", busy),
                 ("activerecord_connection_pool_idle", "Connections available for checkout", checkedin),
             ):
@@ -257,8 +265,5 @@ def render(session_factory: Callable[[], Any] | None = None, engine: Any = None)
     registry = CollectorRegistry()
     MultiProcessCollector(registry)
     if session_factory is not None:
-        try:
-            registry.register(DatabaseCollector(session_factory, engine))  # type: ignore[arg-type]
-        except Exception:  # pragma: no cover - never fail a scrape because of a gauge
-            pass
+        registry.register(DatabaseCollector(session_factory, engine))  # type: ignore[arg-type]
     return generate_latest(registry)

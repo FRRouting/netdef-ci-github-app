@@ -105,5 +105,5 @@ class ReRunComment:
             return
         try:
             container.github(pull_request.last_check_suite()).comment_reaction_thumb_up(repo, comment_id)
-        except Exception as error:  # noqa: BLE001 - cosmetic feedback must not block the re-run
+        except Exception as error:
             self.log.warning("Could not add reaction to comment %s: %s", comment_id, error)

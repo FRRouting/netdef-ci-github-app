@@ -36,8 +36,12 @@ def running(session: Session, payload: dict[str, Any]) -> str:
     pull_requests = list(session.scalars(stmt))
     if not pull_requests:
         return "No running PR"
-    header = "|     PR ID     |                              URL                               | Tests Running or Queued |\n"
-    header += "| ------------- | -------------------------------------------------------------- | ----------------------- |\n"
+    header = (
+        "|     PR ID     |                              URL                               | Tests Running or Queued |\n"
+    )
+    header += (
+        "| ------------- | -------------------------------------------------------------- | ----------------------- |\n"
+    )
     rows = []
     for pr in pull_requests:
         pr_id = f"{' ' * 6}{pr.github_pr_id}"
@@ -107,7 +111,9 @@ def _invalid_github_user(session: Session, payload: dict[str, Any]) -> bool:
     if "notify" in str(payload.get("rule") or ""):
         return False
     for repo in PullRequest.unique_repository_names(session):
-        pr = session.scalars(select(PullRequest).where(PullRequest.repository == repo).order_by(PullRequest.id.desc())).first()
+        pr = session.scalars(
+            select(PullRequest).where(PullRequest.repository == repo).order_by(PullRequest.id.desc())
+        ).first()
         github = container.github(pr.last_check_suite() if pr else None)
         if github.fetch_username(str(payload.get("target"))):
             return False

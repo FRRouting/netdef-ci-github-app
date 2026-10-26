@@ -1,0 +1,6 @@
+all:
+  children:
+    netdef_ci_servers:
+      hosts:
+        converge:
+          ansible_connection: local

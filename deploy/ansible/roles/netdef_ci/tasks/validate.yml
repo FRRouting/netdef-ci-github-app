@@ -1,0 +1,30 @@
+---
+- name: Check that mandatory variables were provided
+  ansible.builtin.assert:
+    that:
+      - netdef_ci_env in ['development', 'production']
+      - netdef_ci_source_strategy in ['git', 'archive']
+      - netdef_ci_webhook_secret | length >= 16
+      - netdef_ci_database_url | length > 0
+      - netdef_ci_github_apps | length > 0
+      - netdef_ci_github_apps | map(attribute='login') | map('string') | select('match', '^[0-9A-Za-z_-]+$') | list | length == netdef_ci_github_apps | length
+      - "'REPLACE' not in netdef_ci_version"
+      - "'REPLACE' not in netdef_ci_repo_url"
+      - (netdef_ci_source_strategy == 'archive') or (netdef_ci_version | length > 0 and netdef_ci_repo_url | length > 0)
+      - (netdef_ci_source_strategy == 'git') or (netdef_ci_source_archive | length > 0 and netdef_ci_release_id | length > 0)
+    fail_msg: >-
+      Missing or placeholder values. Fill the inventory (netdef_ci_repo_url, netdef_ci_version) and the vault file
+      (database URL, webhook secret >= 16 characters, GitHub Apps); see doc/10-ansible-deploy.md.
+    quiet: true
+  no_log: true
+
+- name: Check the interpreter built by the python_runtime role
+  ansible.builtin.stat:
+    path: "{{ netdef_ci_python_bin }}"
+  register: netdef_ci_python_stat
+
+- name: Fail when the interpreter is missing
+  ansible.builtin.assert:
+    that: netdef_ci_python_stat.stat.exists
+    fail_msg: "{{ netdef_ci_python_bin }} not found; run the python_runtime role first (playbooks/deploy.yml does)."
+    quiet: true

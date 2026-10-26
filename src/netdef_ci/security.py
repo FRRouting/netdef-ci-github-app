@@ -49,7 +49,7 @@ def parse_basic(header: str | None) -> tuple[str, str] | None:
         return None
     try:
         decoded = base64.b64decode(header[6:], validate=False).decode("utf-8")
-    except (binascii.Error, UnicodeDecodeError):
+    except binascii.Error, UnicodeDecodeError:
         return None
     user, sep, password = decoded.partition(":")
     return (user, password) if sep else None

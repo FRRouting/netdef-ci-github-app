@@ -159,7 +159,7 @@ class Worker:
                     handler(*args)
             else:
                 handler(*args)
-        except BaseException as error:  # noqa: BLE001 - includes JobTimeoutError; re-raised for KeyboardInterrupt
+        except BaseException as error:
             self._failed(job_id, handler_name, error)
             if isinstance(error, KeyboardInterrupt | SystemExit):
                 raise
@@ -191,7 +191,7 @@ class Worker:
         while not self.stop_event.is_set():
             try:
                 worked = self.run_once()
-            except Exception as error:  # noqa: BLE001 - keep the worker alive on database hiccups
+            except Exception as error:
                 self.log.error("Worker loop error: %s: %s", type(error).__name__, error)
                 worked = False
             if not worked:

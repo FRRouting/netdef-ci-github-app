@@ -1,0 +1,13 @@
+# GitHub Apps used by the CI (same keys as `github_apps` in the Ruby config.yml).
+# `cert` is the path of the App's PEM private key (keep it outside the repository, mode 0600).
+# `repo` selects the App for that repository; the first App that authenticates is the fallback.
+
+[[github_apps]]
+login = "1234567"                      # GitHub App ID (placeholder)
+cert = "/etc/netdef-ci/keys/app-main.pem"
+repo = "example-org/example-repo"
+
+[[github_apps]]
+login = "7654321"                      # another App / repository (placeholder)
+cert = "/etc/netdef-ci/keys/app-other.pem"
+repo = "example-org/another-repo"

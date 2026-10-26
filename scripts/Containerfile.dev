@@ -1,0 +1,16 @@
+# Python 3.15.2 build environment used to run the tests/lint in a reproducible way (python.org source tarball).
+#   podman build -t netdef-py315 -f scripts/Containerfile.dev scripts
+FROM docker.io/library/debian:trixie-slim
+ARG PY_VERSION=3.15.2
+ARG PY_SHA256=8b5536d280142ecf6cdfe15d12a21ba1c65e300bbf7b28a8d0cdb849575797de
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential curl ca-certificates xz-utils libssl-dev zlib1g-dev libffi-dev libsqlite3-dev \
+    libbz2-dev liblzma-dev libreadline-dev libncurses-dev uuid-dev libzstd-dev libpq-dev git \
+    && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSLO https://www.python.org/ftp/python/${PY_VERSION}/Python-${PY_VERSION}.tar.xz \
+    && echo "${PY_SHA256}  Python-${PY_VERSION}.tar.xz" | sha256sum -c - \
+    && tar xf Python-${PY_VERSION}.tar.xz && cd Python-${PY_VERSION} \
+    && ./configure --prefix=/usr/local --with-ensurepip=install >/dev/null \
+    && make -j"$(nproc)" >/dev/null 2>&1 && make install >/dev/null 2>&1 \
+    && cd / && rm -rf Python-${PY_VERSION}*
+RUN python3.15 --version

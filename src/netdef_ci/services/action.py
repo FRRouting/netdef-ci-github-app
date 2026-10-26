@@ -22,7 +22,7 @@ from netdef_ci.services.skip_old_tests import SkipOldTests
 
 
 class Action:
-    def __init__(self, check_suite: CheckSuite, github, jobs: list[dict], name: str | None) -> None:  # noqa: ANN001
+    def __init__(self, check_suite: CheckSuite, github, jobs: list[dict], name: str | None) -> None:
         self.check_suite = check_suite
         self.github = github
         self.jobs = jobs
@@ -78,15 +78,21 @@ class Action:
 
     def _create_ci_job(self, job: dict) -> CiJob | None:
         config = self.session.scalars(
-            select(StageConfiguration).where(StageConfiguration.bamboo_stage_name == job.get("stage")).order_by(StageConfiguration.id)
+            select(StageConfiguration)
+            .where(StageConfiguration.bamboo_stage_name == job.get("stage"))
+            .order_by(StageConfiguration.id)
         ).first()
         if config is None:
             return None
         stage = self.session.scalars(
-            select(Stage).where(Stage.check_suite_id == self.check_suite.id, Stage.name == self._stage_name(config)).order_by(Stage.id)
+            select(Stage)
+            .where(Stage.check_suite_id == self.check_suite.id, Stage.name == self._stage_name(config))
+            .order_by(Stage.id)
         ).first()
         self.log.info("create_jobs - %s -> stage %s", job, stage.id if stage else None)
-        ci_job = CiJob(check_suite_id=self.check_suite.id, name=job.get("name"), job_ref=job.get("job_ref"), stage=stage)
+        ci_job = CiJob(
+            check_suite_id=self.check_suite.id, name=job.get("name"), job_ref=job.get("job_ref"), stage=stage
+        )
         if not ci_job.name or not ci_job.job_ref:
             self.log.error("Job without name/job_ref ignored: %s", job)  # model validations in the Ruby app
             return None
@@ -97,7 +103,9 @@ class Action:
     def _create_check_run_stage(self, stage_config: StageConfiguration) -> None:
         self.log.info("create_check_run_stage - %s - %s", stage_config.github_check_run_name, self.name)
         stage = self.session.scalars(
-            select(Stage).where(Stage.name == self._stage_name(stage_config), Stage.check_suite_id == self.check_suite.id).order_by(Stage.id)
+            select(Stage)
+            .where(Stage.name == self._stage_name(stage_config), Stage.check_suite_id == self.check_suite.id)
+            .order_by(Stage.id)
         ).first()
         if stage is None:
             self._create_stage(stage_config)
@@ -133,4 +141,3 @@ class Action:
         if not self.settings.multi_plan:
             return stage_config.github_check_run_name
         return f"{stage_config.github_check_run_name} - {self.name}"
-

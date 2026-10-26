@@ -37,15 +37,15 @@ class Credentials:
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", extra="ignore", populate_by_name=True
-    )
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", populate_by_name=True)
 
     env: Literal["development", "production", "test"] = Field("development", alias="NETDEF_ENV")
     debug: bool = Field(False, alias="DEBUG")
     log_dir: str | None = Field(None, alias="LOG_DIR")
 
-    database_url: str = Field("postgresql+psycopg://postgres:postgres@localhost:5432/githubruns-dev", alias="DATABASE_URL")
+    database_url: str = Field(
+        "postgresql+psycopg://postgres:postgres@localhost:5432/githubruns-dev", alias="DATABASE_URL"
+    )
     db_pool_size: int = Field(10, alias="DB_POOL_SIZE")
 
     # --- webhook / callback authentication -------------------------------------------------
@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     timeout_hang_hours: int = Field(2, alias="TIMEOUT_HANG_HOURS", ge=1)
 
     # --- metrics ------------------------------------------------------------------------------
-    prometheus_multiproc_dir: str = Field("/tmp/prometheus_metrics", alias="PROMETHEUS_MULTIPROC_DIR")
+    prometheus_multiproc_dir: str = Field("/tmp/prometheus_metrics", alias="PROMETHEUS_MULTIPROC_DIR")  # noqa: S108
     ci_metrics_window_hours: int = Field(24, alias="CI_METRICS_WINDOW_HOURS", ge=1)
 
     @field_validator("ci_url")
@@ -99,7 +99,7 @@ class Settings(BaseSettings):
         # The Ruby code builds "https://#{ci_url}/browse/..."; accept both "host" and "https://host".
         for prefix in ("https://", "http://"):
             if value.startswith(prefix):
-                value = value[len(prefix):]
+                value = value[len(prefix) :]
         return value.rstrip("/")
 
     # ------------------------------------------------------------------------------------------
@@ -128,7 +128,7 @@ def _credentials(username: str | None, password: SecretStr | None, machine: str)
         return Credentials(username, password.get_secret_value())
     try:
         entry = netrc.netrc().authenticators(machine)
-    except (FileNotFoundError, netrc.NetrcParseError, OSError):
+    except FileNotFoundError, netrc.NetrcParseError, OSError:
         return None
     if entry is None:
         return None

@@ -25,7 +25,9 @@ JsonDict = dict[str, Any]
 
 
 class BambooClient:
-    def __init__(self, settings: Settings, *, transport: httpx.BaseTransport | None = None, sleep: Sleeper = time.sleep) -> None:
+    def __init__(
+        self, settings: Settings, *, transport: httpx.BaseTransport | None = None, sleep: Sleeper = time.sleep
+    ) -> None:
         self.settings = settings
         self._sleep = sleep
         credentials = settings.bamboo_credentials()
@@ -49,12 +51,14 @@ class BambooClient:
         try:
             response = self._send("GET", url, params=params, headers={"Accept": "application/json"})
             data = response.json()
-        except Exception as error:  # noqa: BLE001 - the Ruby client swallowed every error here too
+        except Exception as error:
             self.log.error("HTTP GET Request failed (%s: %s) for %s", type(error).__name__, error, url)
             return None
         return data if isinstance(data, dict) else None
 
-    def _write(self, method: str, url: str, body: str | None = None, params: dict[str, str] | None = None) -> httpx.Response | None:
+    def _write(
+        self, method: str, url: str, body: str | None = None, params: dict[str, str] | None = None
+    ) -> httpx.Response | None:
         headers = {"Accept": "application/json"}
         content = None
         if body is not None:
@@ -64,7 +68,7 @@ class BambooClient:
             headers["Content-Type"] = "application/xml"
         try:
             return self._send(method, url, params=params, headers=headers, content=content)
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             self.log.error("HTTP %s Request failed (%s: %s) for %s", method, type(error).__name__, error, url)
             return None
 
@@ -101,7 +105,9 @@ class BambooClient:
 
     def add_comment_to_ci(self, key: str | None, comment: str) -> httpx.Response | None:
         body = f"<comment><content>{escape(comment)}</content></comment>"
-        return metrics.track_bamboo("add_comment", lambda: self._write("POST", f"/rest/api/latest/result/{key}/comment", body))
+        return metrics.track_bamboo(
+            "add_comment", lambda: self._write("POST", f"/rest/api/latest/result/{key}/comment", body)
+        )
 
     # ---------------------------------------------------------------- running plan / result / retry / stop / download
     def running_plan(self, plan_key: str | None) -> list[dict[str, str | None]]:
@@ -113,7 +119,13 @@ class BambooClient:
         jobs: list[dict[str, str | None]] = []
         for stage in stages:
             for job in (stage.get("results") or {}).get("result") or []:
-                jobs.append({"name": (job.get("plan") or {}).get("shortName"), "job_ref": job.get("key"), "stage": job.get("stage")})
+                jobs.append(
+                    {
+                        "name": (job.get("plan") or {}).get("shortName"),
+                        "job_ref": job.get("key"),
+                        "stage": job.get("stage"),
+                    }
+                )
         return jobs
 
     def result(self, job_key: str, expand: str = "testResults.failedTests.testResult.errors") -> JsonDict | None:
@@ -121,14 +133,17 @@ class BambooClient:
 
     def restart(self, plan_key: str | None) -> httpx.Response | None:
         return metrics.track_bamboo(
-            "retry_plan", lambda: self._write("PUT", f"/rest/api/latest/queue/{plan_key}", params={"executeAllStages": "true"})
+            "retry_plan",
+            lambda: self._write("PUT", f"/rest/api/latest/queue/{plan_key}", params={"executeAllStages": "true"}),
         )
 
     def rerun(self, plan_key: str | None) -> str | None:
         resp = metrics.track_bamboo(
             "rerun_plan",
             lambda: self._write(
-                "PUT", f"/rest/api/latest/queue/{plan_key}", params={"executeAllStages": "true", "orphanRemoval": "true"}
+                "PUT",
+                f"/rest/api/latest/queue/{plan_key}",
+                params={"executeAllStages": "true", "orphanRemoval": "true"},
             ),
         )
         return resp.text if resp is not None else None
@@ -145,7 +160,7 @@ class BambooClient:
                     params={"planResultKey": str(bamboo_ci_ref)},
                     headers={"Accept": "application/json"},
                 )
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 self.log.error("stop_plan failed (%s: %s) for %s", type(error).__name__, error, bamboo_ci_ref)
                 return None
 
@@ -159,7 +174,7 @@ class BambooClient:
     def download(self, url: str) -> str | None:
         try:
             return self._send("GET", url).text
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             self.log.error("Download failed (%s: %s) for %s", type(error).__name__, error, url)
             return None
 

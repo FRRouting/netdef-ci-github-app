@@ -33,7 +33,7 @@ class Summary:
         self.github = container.github(self.check_suite)
         self.agent = agent
         self.settings = get_settings()
-        self.log = Log("github_build_summary", self.check_suite.pull_request.github_pr_id)
+        self.log = Log("github_build_summary", job.check_suite.pull_request.github_pr_id)
         self.formatter = MessageFormatter()
 
     def build_summary(self) -> None:
@@ -48,7 +48,7 @@ class Summary:
         self._must_update_previous_stage(current)
 
     # ------------------------------------------------------------------
-    def _stages_by_position(self, *conditions) -> list[Stage]:  # noqa: ANN002
+    def _stages_by_position(self, *conditions) -> list[Stage]:
         stmt = (
             select(Stage)
             .join(StageConfiguration, Stage.stage_configuration_id == StageConfiguration.id)
@@ -130,10 +130,14 @@ class Summary:
         if info is None:
             raise LookupError(f"job {self.job.name!r} not found in running plan {self.check_suite.bamboo_ci_ref}")
         config = self.session.scalars(
-            select(StageConfiguration).where(StageConfiguration.bamboo_stage_name == info["stage"]).order_by(StageConfiguration.id)
+            select(StageConfiguration)
+            .where(StageConfiguration.bamboo_stage_name == info["stage"])
+            .order_by(StageConfiguration.id)
         ).first()
         stage = self.session.scalars(
-            select(Stage).where(Stage.check_suite_id == self.check_suite.id, Stage.name == info["stage"]).order_by(Stage.id)
+            select(Stage)
+            .where(Stage.check_suite_id == self.check_suite.id, Stage.name == info["stage"])
+            .order_by(Stage.id)
         ).first()
         if stage is None:
             stage = Stage(

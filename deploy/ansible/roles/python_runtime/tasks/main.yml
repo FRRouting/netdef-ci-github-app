@@ -1,0 +1,56 @@
+---
+- name: Load OS specific build dependencies
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+- name: Install build dependencies
+  ansible.builtin.package:
+    name: "{{ python_runtime_packages }}"
+    state: present
+
+- name: Check whether the interpreter is already installed (version below)
+  ansible.builtin.stat:
+    path: "{{ python_runtime_prefix }}/bin/python{{ python_runtime_version.split('.')[:2] | join('.') }}"
+  register: python_runtime_binary
+
+- name: Build and install Python {{ python_runtime_version }}
+  when: not python_runtime_binary.stat.exists
+  block:
+    - name: Download the source tarball (checksum pinned)
+      ansible.builtin.get_url:
+        url: "{{ python_runtime_url }}"
+        dest: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}.tar.xz"
+        checksum: "sha256:{{ python_runtime_sha256 }}"
+        mode: "0644"
+
+    - name: Unpack the source tarball
+      ansible.builtin.unarchive:
+        src: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}.tar.xz"
+        dest: "{{ python_runtime_src_dir }}"
+        remote_src: true
+        creates: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}/configure"
+
+    - name: Configure
+      ansible.builtin.command:
+        cmd: >-
+          ./configure --prefix={{ python_runtime_prefix }} --with-ensurepip=install
+          {{ '--enable-optimizations' if python_runtime_optimizations else '' }}
+        chdir: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}"
+        creates: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}/Makefile"
+
+    - name: Compile
+      ansible.builtin.command:
+        cmd: "make -j{{ python_runtime_build_jobs }}"
+        chdir: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}"
+        creates: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}/python"
+
+    - name: Install side by side (altinstall)
+      ansible.builtin.command:
+        cmd: make altinstall
+        chdir: "{{ python_runtime_src_dir }}/Python-{{ python_runtime_version }}"
+        creates: "{{ python_runtime_prefix }}/bin/python{{ python_runtime_version.split('.')[:2] | join('.') }}"
+
+- name: Verify the interpreter version
+  ansible.builtin.command: "{{ python_runtime_prefix }}/bin/python{{ python_runtime_version.split('.')[:2] | join('.') }} --version"
+  register: python_runtime_reported
+  changed_when: false
+  failed_when: python_runtime_version not in python_runtime_reported.stdout

@@ -6,14 +6,14 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Logging: stdout (journald) + optional rotating files per component and per pull request, with secret redaction."""
+"""Logging: stdout (journald) + optional files (main log and one per pull request), with secret redaction."""
 
 from __future__ import annotations
 
 import logging
 import re
 import sys
-from logging.handlers import RotatingFileHandler
+from logging.handlers import WatchedFileHandler
 from pathlib import Path
 
 from netdef_ci.config import get_settings
@@ -22,7 +22,7 @@ ROOT = "netdef_ci"
 _REDACTIONS = [
     (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._\-]+"), r"\1[REDACTED]"),
     (re.compile(r"(?i)(signature_secret=)[^&\s\"']+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)((?:password|secret|token)\"?\s*[:=]\s*\"?)[^\"',\s&}]+"), r"\1[REDACTED]"),
+    (re.compile(r"(?i)((?:password|secret|token)['\"]?\s*[:=]\s*['\"]?)[^\"',\s&}]+"), r"\1[REDACTED]"),
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), "[REDACTED]"),
     (re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S), "[REDACTED KEY]"),
     (re.compile(r"(?i)(sha256=)[0-9a-f]{16,}"), r"\1[REDACTED]"),
@@ -71,7 +71,9 @@ def _file_handler(filename: str, fmt: logging.Formatter | None = None) -> loggin
         return _file_handlers[filename]
     directory = Path(settings.log_dir or ".")
     directory.mkdir(parents=True, exist_ok=True)
-    handler = RotatingFileHandler(directory / filename, maxBytes=50_000_000, backupCount=2, encoding="utf-8")
+    # Several processes (web workers, job workers) append to the same files: rotation is delegated to logrotate and
+    # WatchedFileHandler reopens the file when it is rotated.
+    handler = WatchedFileHandler(directory / filename, encoding="utf-8")
     handler.setFormatter(fmt or logging.Formatter("%(asctime)s %(levelname)s [%(name)s] %(message)s"))
     handler.addFilter(RedactingFilter())
     _file_handlers[filename] = handler

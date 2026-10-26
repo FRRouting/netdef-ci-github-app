@@ -61,7 +61,10 @@ def timeout_execution(session: Session, check_suite_id: int) -> bool:
         return True
     log.info("Rescheduling check_suite_id: %s", check_suite_id)
     jobs_queue.enqueue(
-        session, "timeout_execution", [check_suite_id], queue="timeout_execution",
+        session,
+        "timeout_execution",
+        [check_suite_id],
+        queue="timeout_execution",
         delay_seconds=settings.timeout_check_minutes * 60,
     )
     return False
@@ -76,7 +79,7 @@ def retrieve_failures(job: CiJob) -> list[dict[str, Any]]:
         errors = (result.get("errors") or {}).get("error") or []
         try:
             duration = int(float(result.get("durationInSeconds") or 0))
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             duration = 0
         failures.append(
             {
@@ -99,7 +102,11 @@ def fetch_topotest_failures(session: Session, ci_job_id: int, count: int) -> Non
     if not failures:
         count += 1
         jobs_queue.enqueue(
-            session, "fetch_topotest_failures", [job.id, count], queue="fetch_topotest_failures", delay_seconds=5 * count * 60
+            session,
+            "fetch_topotest_failures",
+            [job.id, count],
+            queue="fetch_topotest_failures",
+            delay_seconds=5 * count * 60,
         )
         return
     for failure in failures:
@@ -145,7 +152,7 @@ def watch_dog(session: Session) -> int:
         log.info(">>> Updating suite: %s", suite.id)
         try:
             Finished(session, {"bamboo_ref": suite.bamboo_ci_ref, "check_suite_id": suite.id}).finished()
-        except Exception as error:  # noqa: BLE001 - one broken suite must not stop the others
+        except Exception as error:
             session.rollback()
             log.error("WatchDog failed for suite %s: %s: %s", suite.id, type(error).__name__, error)
     log.info(">>> Stopping watchdog")
@@ -166,7 +173,7 @@ def bamboo_finished(status: dict[str, Any] | None) -> bool:
         return True
     try:
         return float((status.get("progress") or {}).get("percentageCompleted") or 0) >= 2.0
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
 
 
@@ -187,13 +194,16 @@ def pr_bamboo_sync(session: Session, out: Any = print) -> dict[str, list[dict[st
     results: list[dict[str, Any]] = []
     for repo in PullRequest.unique_repository_names(session):
         suite = session.scalars(
-            select(CheckSuite).join(PullRequest, CheckSuite.pull_request_id == PullRequest.id)
-            .where(PullRequest.repository == repo).order_by(CheckSuite.id.desc()).limit(1)
+            select(CheckSuite)
+            .join(PullRequest, CheckSuite.pull_request_id == PullRequest.id)
+            .where(PullRequest.repository == repo)
+            .order_by(CheckSuite.id.desc())
+            .limit(1)
         ).first()
         try:
             github = container.github(suite)
             pulls = github.pull_requests(repo)
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             log.error("Cannot process %s: %s", repo, error)
             continue
         for pr in pulls:
@@ -205,19 +215,29 @@ def pr_bamboo_sync(session: Session, out: Any = print) -> dict[str, list[dict[st
                 runs = (github.check_runs_for_ref(repo, sha, status="in_progress").get("check_runs") or []) + (
                     github.check_runs_for_ref(repo, sha, status="queued").get("check_runs") or []
                 )
-            except Exception as error:  # noqa: BLE001
+            except Exception as error:
                 log.error("Failed fetching GitHub runs for %s: %s", sha[:8], error)
                 continue
             if not runs:
                 continue
             for check_suite in session.scalars(
-                select(CheckSuite).join(PullRequest, CheckSuite.pull_request_id == PullRequest.id)
-                .where(PullRequest.github_pr_id == pr["number"], PullRequest.repository == repo, CheckSuite.commit_sha_ref == sha)
+                select(CheckSuite)
+                .join(PullRequest, CheckSuite.pull_request_id == PullRequest.id)
+                .where(
+                    PullRequest.github_pr_id == pr["number"],
+                    PullRequest.repository == repo,
+                    CheckSuite.commit_sha_ref == sha,
+                )
             ):
                 status = container.bamboo().build_status(check_suite.bamboo_ci_ref or "")
                 results.append(
-                    {"pr_id": pr["number"], "repository": repo, "bamboo_ref": check_suite.bamboo_ci_ref,
-                     "status": classify(status), "check_suite": check_suite}
+                    {
+                        "pr_id": pr["number"],
+                        "repository": repo,
+                        "bamboo_ref": check_suite.bamboo_ci_ref,
+                        "status": classify(status),
+                        "check_suite": check_suite,
+                    }
                 )
     grouped: dict[str, list[dict[str, Any]]] = {"ok_running": [], "unreachable": [], "stale": []}
     for item in results:
@@ -228,7 +248,7 @@ def pr_bamboo_sync(session: Session, out: Any = print) -> dict[str, list[dict[st
         out(f"  => PR #{item['pr_id']} ({item['repository']}) {item['bamboo_ref']}")
         try:
             Finished(session, {"bamboo_ref": item["bamboo_ref"], "hanged": True}).finished()
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             session.rollback()
             log.error("Sync failed for %s: %s", item["bamboo_ref"], error)
     for item in grouped["unreachable"]:
@@ -248,16 +268,23 @@ def single_sync(session: Session, bamboo_ci: str, out: Any = print) -> bool:
     for stage in (result.get("stages") or {}).get("stage") or []:
         for item in (stage.get("results") or {}).get("result") or []:
             ref = item.get("buildResultKey")
-            ci_job = session.scalars(select(CiJob).where(CiJob.job_ref == ref, CiJob.check_suite_id == check_suite.id).limit(1)).first()
+            ci_job = session.scalars(
+                select(CiJob).where(CiJob.job_ref == ref, CiJob.check_suite_id == check_suite.id).limit(1)
+            ).first()
             if ci_job is None:
-                ci_job = CiJob(check_suite_id=check_suite.id, name=(item.get("plan") or {}).get("shortName"), job_ref=ref)
+                ci_job = CiJob(
+                    check_suite_id=check_suite.id, name=(item.get("plan") or {}).get("shortName"), job_ref=ref
+                )
                 session.add(ci_job)
                 session.commit()
                 out(f">>> Creating CiJob {ci_job.id}, status: {item.get('state')}")
             elif ci_job.is_finished():
                 continue
             url = settings.browse_url(ci_job.job_ref)
-            output = {"title": ci_job.name, "summary": f"Details at [{url}]({url})\nUnfortunately we were unable to access the execution results."}
+            output = {
+                "title": ci_job.name,
+                "summary": f"Details at [{url}]({url})\nUnfortunately we were unable to access the execution results.",
+            }
             state = item.get("state")
             if state == "Unknown":
                 ci_job.cancelled(github, output)

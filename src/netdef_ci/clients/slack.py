@@ -30,7 +30,10 @@ class SlackBot:
         credentials = settings.slack_credentials()
         self._auth = (credentials.username, credentials.password) if credentials else None
         self._client = httpx.Client(
-            verify=settings.slack_bot_verify_tls, timeout=settings.http_timeout_seconds, transport=transport
+            verify=settings.slack_bot_verify_tls,
+            timeout=settings.http_timeout_seconds,
+            transport=transport,
+            auth=self._auth,
         )
 
     # ------------------------------------------------------------------ transport
@@ -45,10 +48,11 @@ class SlackBot:
         try:
             # The Slack bot contract: JSON/plain body sent with `Content-Type: application/xml` (kept from the Ruby client).
             return self._client.post(
-                f"{base}{path}", content=body.encode(), auth=self._auth,
+                f"{base}{path}",
+                content=body.encode(),
                 headers={"Content-Type": "application/xml", "Accept": "application/json"},
             )
-        except Exception as error:  # noqa: BLE001
+        except Exception as error:
             self.log.error("Slack POST failed (%s: %s) for %s", type(error).__name__, error, path)
             return None
 
@@ -57,8 +61,8 @@ class SlackBot:
         if base is None:
             return None
         try:
-            return self._client.get(f"{base}/github/translate/{username}", auth=self._auth).text
-        except Exception as error:  # noqa: BLE001
+            return self._client.get(f"{base}/github/translate/{username}").text
+        except Exception as error:
             self.log.error("Slack GET failed (%s: %s)", type(error).__name__, error)
             return None
 
@@ -71,7 +75,9 @@ class SlackBot:
         return check_suite.id >= (last.id if last is not None else 0)
 
     @staticmethod
-    def _subscriptions(pull_request: PullRequest, notifications: tuple[str, ...] | None = None) -> list[PullRequestSubscription]:
+    def _subscriptions(
+        pull_request: PullRequest, notifications: tuple[str, ...] | None = None
+    ) -> list[PullRequestSubscription]:
         session = object_session(pull_request)
         assert session is not None
         stmt = select(PullRequestSubscription).where(
@@ -171,6 +177,8 @@ class SlackBot:
             return
         pr = stage.check_suite.pull_request
         link = self.settings.browse_url(stage.check_suite.bamboo_ci_ref)
-        message = f"PR <{self._pr_url(pr)}|#{pr.github_pr_id}>. Stage: <{link}|[CI] {stage.name} - {stage.state.label}> "
+        message = (
+            f"PR <{self._pr_url(pr)}|#{pr.github_pr_id}>. Stage: <{link}|[CI] {stage.name} - {stage.state.label}> "
+        )
         for subscription in self._subscriptions(pr):
             self._send_user("stage", message, subscription.slack_user_id)

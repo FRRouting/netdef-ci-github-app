@@ -74,7 +74,7 @@ class Finished:
             return True
         try:
             return float((status.get("progress") or {}).get("percentageCompleted") or 0) >= 2.0
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return False
 
     def _in_progress(self, status: dict[str, Any]) -> bool:
@@ -96,7 +96,10 @@ class Finished:
         )
         if not stages:
             return
-        last_stage = max(stages, key=lambda s: s.configuration.position if s.configuration and s.configuration.position is not None else -1)
+        last_stage = max(
+            stages,
+            key=lambda s: s.configuration.position if s.configuration and s.configuration.position is not None else -1,
+        )
         jobs = last_stage.all_jobs()
         if not jobs:
             return
@@ -117,7 +120,9 @@ class Finished:
         for stage in (result.get("stages") or {}).get("stage") or []:
             for item in (stage.get("results") or {}).get("result") or []:
                 ci_job = self.session.scalars(
-                    select(CiJob).where(CiJob.job_ref == item.get("buildResultKey"), CiJob.check_suite_id == self.check_suite.id).limit(1)
+                    select(CiJob)
+                    .where(CiJob.job_ref == item.get("buildResultKey"), CiJob.check_suite_id == self.check_suite.id)
+                    .limit(1)
                 ).first()
                 self._update_stage_status(ci_job, item, github)
 

@@ -1,0 +1,29 @@
+---
+- name: Point the current release link to the new release
+  ansible.builtin.file:
+    src: "{{ netdef_ci_release_dir }}"
+    dest: "{{ netdef_ci_current_link }}"
+    state: link
+    owner: root
+    group: root
+    force: true
+  register: netdef_ci_switch
+  notify: Restart netdef-ci
+
+- name: Record the release in the deployment history (used by the rollback playbook)  # noqa: no-handler
+  ansible.builtin.lineinfile:
+    path: "{{ netdef_ci_history_file }}"
+    line: "{{ netdef_ci_release }}"
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  when: netdef_ci_switch.changed
+
+- name: Restart the services now when something changed
+  ansible.builtin.meta: flush_handlers
+
+- name: Make sure the services are running
+  ansible.builtin.systemd_service:
+    name: netdef-ci.target
+    state: started

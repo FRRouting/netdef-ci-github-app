@@ -1,0 +1,11 @@
+---
+# Post-deploy / operations check: readiness, liveness and systemd state of every unit.
+#   ansible-playbook -i inventories/prod/hosts.yml playbooks/healthcheck.yml --ask-vault-pass
+- name: Check NetDEF CI GitHub App
+  hosts: netdef_ci_servers
+  become: true
+  tasks:
+    - name: Run the health checks
+      ansible.builtin.include_role:
+        name: netdef_ci
+        tasks_from: healthcheck.yml

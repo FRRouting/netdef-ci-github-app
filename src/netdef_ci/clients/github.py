@@ -52,7 +52,9 @@ class GithubUpdateMismatch(Exception):
 class AppAuth:
     """Authenticates one GitHub App: signs the JWT and keeps the installation access token fresh."""
 
-    def __init__(self, config: GitHubAppConfig, settings: Settings, client: httpx.Client, sleep: Sleeper = time.sleep) -> None:
+    def __init__(
+        self, config: GitHubAppConfig, settings: Settings, client: httpx.Client, sleep: Sleeper = time.sleep
+    ) -> None:
         self.config = config
         self.settings = settings
         self._client = client
@@ -74,8 +76,13 @@ class AppAuth:
     def _call(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         headers = {"Authorization": f"Bearer {self.app_jwt()}", **_base_headers()}
         return request_with_retries(
-            self._client, method, f"{self.settings.github_api_url}{path}", max_retries=self.settings.github_max_retries,
-            sleep=self._sleep, headers=headers, **kwargs,
+            self._client,
+            method,
+            f"{self.settings.github_api_url}{path}",
+            max_retries=self.settings.github_max_retries,
+            sleep=self._sleep,
+            headers=headers,
+            **kwargs,
         )
 
     def installation_id(self) -> int:
@@ -99,7 +106,11 @@ class AppAuth:
             _raise_for_status(response)
             data = response.json()
             self._token = data["token"]
-            self._expires_at = datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00")) if data.get("expires_at") else now + timedelta(minutes=55)
+            self._expires_at = (
+                datetime.fromisoformat(data["expires_at"].replace("Z", "+00:00"))
+                if data.get("expires_at")
+                else now + timedelta(minutes=55)
+            )
             return self._token
 
     def invalidate(self) -> None:
@@ -113,7 +124,9 @@ _registry: dict[tuple[str, str], AppAuth] = {}
 _registry_lock = threading.Lock()
 
 
-def get_app_auth(config: GitHubAppConfig, settings: Settings, client: httpx.Client, sleep: Sleeper = time.sleep) -> AppAuth:
+def get_app_auth(
+    config: GitHubAppConfig, settings: Settings, client: httpx.Client, sleep: Sleeper = time.sleep
+) -> AppAuth:
     key = (config.login, config.cert)
     with _registry_lock:
         if key not in _registry:
@@ -179,8 +192,10 @@ class GithubCheck:
                 if auth.token() is not None:
                     self._auth = auth
                     return
-            except Exception as error:  # noqa: BLE001
-                self.log.error("GitHub App %s could not authenticate: %s: %s", config.login, type(error).__name__, error)
+            except Exception as error:
+                self.log.error(
+                    "GitHub App %s could not authenticate: %s: %s", config.login, type(error).__name__, error
+                )
         raise GithubAuthError("Github Authentication Failed")
 
     # ------------------------------------------------------------------ transport
@@ -190,8 +205,13 @@ class GithubCheck:
             token = self._auth.token()
             headers = {"Authorization": f"Bearer {token}", **_base_headers()}
             response = request_with_retries(
-                self._client, method, f"{self.settings.github_api_url}{path}",
-                max_retries=self.settings.github_max_retries, sleep=self._sleep, headers=headers, **kwargs,
+                self._client,
+                method,
+                f"{self.settings.github_api_url}{path}",
+                max_retries=self.settings.github_max_retries,
+                sleep=self._sleep,
+                headers=headers,
+                **kwargs,
             )
             if response.status_code == 401 and attempt == 0:
                 self._auth.invalidate()  # expired/revoked installation token: renew once
@@ -228,7 +248,7 @@ class GithubCheck:
             # Octokit semantics: integers are account ids (`/user/:id`), strings are logins (`/users/:login`).
             path = f"/user/{github_id}" if isinstance(github_id, int) else f"/users/{github_id}"
             return self._request("GET", path)
-        except Exception:  # noqa: BLE001 - mirrors `rescue StandardError; false`
+        except Exception:
             return None
 
     def installation_id(self) -> int:
@@ -249,8 +269,12 @@ class GithubCheck:
         return self._request("POST", f"/repos/{repo}/issues/comments/{comment_id}/reactions", json={"content": "-1"})
 
     def create(self, name: str) -> Json:
+        if self.check_suite is None:
+            raise GithubError(0, "cannot create a check run without a check suite")
         return self._request(
-            "POST", f"/repos/{self._repo()}/check-runs", json={"name": name, "head_sha": self.check_suite.commit_sha_ref}
+            "POST",
+            f"/repos/{self._repo()}/check-runs",
+            json={"name": name, "head_sha": self.check_suite.commit_sha_ref},
         )
 
     def queued(self, check_ref: str | int, output: dict[str, str] | None = None) -> Json:
@@ -312,7 +336,7 @@ class GithubCheck:
                     raise GithubUpdateMismatch("GitHub failed to update status")
                 self.log.info("completed: %s, conclusion: %s", check_ref, conclusion)
                 return response
-            except (GithubNotFound, GithubUpdateMismatch):
+            except GithubNotFound, GithubUpdateMismatch:
                 # The check run may not be visible yet (eventual consistency): bounded retries, 5 s steps.
                 retries += 1
                 self._sleep(retries * 5)
