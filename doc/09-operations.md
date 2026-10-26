@@ -46,3 +46,7 @@
 | Metrics reset to zero after deploy                                         | `PROMETHEUS_MULTIPROC_DIR` must be local and writable by all processes                                                                        |
 
 Useful commands: `python -m netdef_ci purge-jobs`, `python -m netdef_ci org|user …` (console), `python -m netdef_ci migrate`.
+
+## Checking the Bamboo connection from code
+
+`python -m netdef_ci check-bamboo [--plan PROJ-PLAN] [--result PROJ-PLAN-123]` uses the service's own Bamboo client (same `BAMBOO_BASE_URL`, credentials and TLS setting) and issues read-only GET requests: server info, optionally a plan and an execution (with its status and job count). It prints `ok`/`FAIL` per call with the HTTP status or the connection error and exits non-zero on any failure. Run it with the service environment, e.g. `sudo -u netdef-ci bash -c 'set -a; . /etc/netdef-ci/netdef-ci.env; set +a; cd /opt/netdef-ci/current && PYTHONPATH=src venv/bin/python -m netdef_ci check-bamboo --result PROJ-PLAN-123'`.
