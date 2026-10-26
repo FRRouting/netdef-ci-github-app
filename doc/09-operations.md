@@ -28,7 +28,7 @@
 
 ## Metrics and alerts
 
-`GET /metrics` (Basic Auth). Suggestions: `jobs_pending` growing, `jobs_locked_too_long > 0`, `jobs_max_attempts_reached > 0`, `app_exceptions_total`, `ci_job_timeout_total`, `bamboo_api_requests_total{status="error"}`, `github_api_requests_total{status="5xx"}`, `ci_stages_total{status="in_progress"}` stuck.
+`GET /metrics` (Basic Auth). Suggestions: `delayed_jobs_pending` growing, `delayed_jobs_locked_too_long > 0`, `delayed_jobs_max_attempts_reached > 0`, `app_exceptions_total`, `ci_job_timeout_total`, `bamboo_api_requests_total{status="error"}`, `github_api_requests_total{status="5xx"}`, `ci_stages_total{status="in_progress"}` stuck.
 
 ## Troubleshooting
 

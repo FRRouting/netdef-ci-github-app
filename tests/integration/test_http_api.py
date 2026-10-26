@@ -27,6 +27,13 @@ def test_ping(api) -> None:
     assert (response.status_code, response.text) == (200, "Pong")
 
 
+def test_double_leading_slash_from_a_proxy_is_normalized(api) -> None:
+    # nginx `location /prefix { proxy_pass http://app/; }` turns /prefix/ping into //ping
+    assert api.http.get("http://testserver//ping").text == "Pong"
+    assert api.http.get("http://testserver//healthz").status_code == 200
+    assert api.github("ping", {}, path="http://testserver//some/hook").text == "PONG!"
+
+
 def test_health_and_readiness(api) -> None:
     assert api.http.get("/healthz").json()["status"] == "ok"
     ready = api.http.get("/readyz")
@@ -68,12 +75,21 @@ def test_metrics_expose_the_expected_metric_names(api) -> None:
         'http_requests_total{method="GET",path="/ping",status="200"}',
         'github_webhook_events_total{event="ping",result="processed"}',
         "http_request_duration_seconds_bucket",
-        "jobs_pending",
-        "jobs_scheduled",
+        "delayed_jobs_pending",
+        "delayed_jobs_scheduled",
         "ci_jobs_total",
         "ci_stages_total",
-        "db_connection_pool_size",
-        "db_queries_total",
+        "activerecord_connection_pool_size",
+        "activerecord_queries_total",
+        "http_server_requests_total",
+        "http_server_request_duration_seconds",
+        "puma_workers_total",
+        "puma_booted_workers",
+        "puma_running_threads",
+        "puma_pool_capacity",
+        "puma_max_threads",
+        "puma_backlog",
+        "activerecord_connection_pool_waiting",
         "bamboo_api_requests_total",
     ):
         assert name in text, name

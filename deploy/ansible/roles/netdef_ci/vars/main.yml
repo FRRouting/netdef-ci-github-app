@@ -10,6 +10,7 @@ netdef_ci_env_base:
   PROMETHEUS_MULTIPROC_DIR: "/run/{{ netdef_ci_runtime_dir_name }}/prometheus"
   PYTHONPATH: "{{ netdef_ci_current_link }}/src"
   PYTHONDONTWRITEBYTECODE: "1"
+  WEB_WORKERS: "{{ netdef_ci_web_workers }}"
 
 netdef_ci_env_logging: "{{ {'LOG_DIR': netdef_ci_log_dir} if netdef_ci_file_logging else {} }}"
 

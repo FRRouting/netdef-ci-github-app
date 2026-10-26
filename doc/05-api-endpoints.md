@@ -81,5 +81,7 @@ curl -sS https://ci.example.invalid/update/status -H "Signature: $SIG" --data-bi
 
 `http_requests_total`, `http_request_duration_seconds`, `github_webhook_events_total`, `app_exceptions_total{class,handler}`,
 `bamboo_api_requests_total`, `bamboo_api_request_duration_seconds`, `slack_notifications_total`, `ci_job_execution_seconds`, `ci_job_retry_total`,
-`ci_job_timeout_total`, `db_queries_total`, `db_query_duration_seconds`, gauges `jobs_*` (computed over the `jobs` table; `jobs_table` is the detail gauge),
-`ci_jobs_total`, `ci_stages_total`, `db_connection_pool_*`, `github_api_requests_total`.
+`ci_job_timeout_total`, `activerecord_queries_total`, `activerecord_query_duration_seconds`, gauges `delayed_jobs_*` (computed over the `jobs` table),
+`ci_jobs_total`, `ci_stages_total`, `activerecord_connection_pool_*` (including `_waiting`, always 0), `http_server_requests_total`,
+`http_server_request_duration_seconds`, `http_server_exceptions_total`, the web-worker gauges `puma_workers_total`, `puma_booted_workers`,
+`puma_running_threads`, `puma_pool_capacity`, `puma_max_threads`, `puma_backlog` (simplified, see `07-design-notes.md`) and `github_api_requests_total`.

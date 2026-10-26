@@ -62,6 +62,7 @@ def main() -> int:
         "PROMETHEUS_MULTIPROC_DIR": str(tmp / "prom"),
         "LOG_DIR": str(tmp / "logs"),
         "JOB_SLEEP_DELAY_SECONDS": "0.5",
+        "WEB_WORKERS": "2",
     }
     py = sys.executable
     subprocess.run([py, "-m", "netdef_ci", "migrate"], env=env, check=True)
@@ -128,7 +129,9 @@ def main() -> int:
             if x.startswith('http_requests_total{method="GET",path="/ping",status="200"}')
         )
         check(float(line.split()[-1]) >= 8, f"metrics aggregate the web workers ({line})")
-        check("jobs_pending" in metrics, "database gauges present in /metrics")
+        check("delayed_jobs_pending" in metrics, "database gauges present in /metrics")
+        booted = next(x for x in metrics.splitlines() if x.startswith("puma_booted_workers"))
+        check(booted.split()[-1] == "2.0", f"both web workers are reported ({booted})")
     finally:
         for proc in (web, worker):
             proc.send_signal(signal.SIGTERM)
