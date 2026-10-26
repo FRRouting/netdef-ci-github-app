@@ -269,3 +269,49 @@ def test_rerun_command_copies_the_suite_without_linking_the_plan(session, ready,
 
 def test_rerun_command_with_unknown_suite(session, ready) -> None:
     assert CreateExecutionByCommand.run(session, 1, 9999, {})[0] == 404
+
+
+def test_rerun_does_not_create_stages_when_bamboo_rejects_the_plan(session, ready, bamboo, github) -> None:
+    w = f.World(session)
+    github.commits = [[{"sha": "c" * 40}]]
+    bamboo.submit_status, bamboo.submit_text = 404, "Plan not found"
+    stages_before = len(session.scalars(select(Stage)).all())
+    status = CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    assert status == (404, "Failed to create CI Plan")
+    assert len(session.scalars(select(Stage)).all()) == stages_before
+    cmd = CreateExecutionByCommand.run(
+        session, w.plan.id, w.suite.id, payloads.check_suite(w.suite.commit_sha_ref, number=w.pr.github_pr_id)
+    )
+    assert cmd == (404, "Failed to create CI Plan")
+    assert len(session.scalars(select(Stage)).all()) == stages_before
+
+
+def test_jobs_are_awaited_while_bamboo_expands_the_plan(clients, bamboo, settings, monkeypatch) -> None:
+    from netdef_ci.services.common import wait_for_running_jobs
+
+    monkeypatch.setattr(settings, "running_plan_wait_seconds", 60)
+    answers = iter([[], [], JOBS])
+    bamboo.running_plan = lambda _ref: next(answers)
+    sleeps: list[float] = []
+    assert wait_for_running_jobs("PROJ-PLAN-1", sleep=sleeps.append) == JOBS
+    assert sleeps == [settings.running_plan_poll_seconds] * 2
+
+
+def test_waiting_for_jobs_is_bounded(clients, bamboo, settings) -> None:
+    from netdef_ci.services.common import wait_for_running_jobs
+
+    bamboo.default_jobs = []
+    assert wait_for_running_jobs("PROJ-PLAN-1", sleep=lambda _s: None) == []  # wait is 0 s in the tests
+
+
+def test_rerun_without_listed_jobs_creates_no_stages(session, ready, bamboo, github) -> None:
+    w = f.World(session)
+    github.commits = [[{"sha": "c" * 40}]]
+    bamboo.default_jobs = []
+    before = len(session.scalars(select(Stage)).all())
+    CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    assert len(session.scalars(select(Stage)).all()) == before

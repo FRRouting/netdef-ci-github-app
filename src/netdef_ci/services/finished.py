@@ -47,8 +47,16 @@ class Finished:
         if self.check_suite is None:
             return 404, "Check Suite not found"
         self.log.info(">>> Check Suite: %s (%s)", self.check_suite.id, self.check_suite.bamboo_ci_ref)
-        self.result = container.bamboo().get_status(self.check_suite.bamboo_ci_ref or "")
-        build_status = self.fetch_build_status()
+        if not self.check_suite.bamboo_ci_ref:
+            # The Bamboo plan was never started for this suite: there is nothing to ask Bamboo, treat it as stopped.
+            self.log.warning(
+                "Check Suite %s has no Bamboo reference; closing it without calling Bamboo", self.check_suite.id
+            )
+            self.result = None
+            build_status: dict[str, Any] | None = {"message": "No Bamboo execution for this check suite"}
+        else:
+            self.result = container.bamboo().get_status(self.check_suite.bamboo_ci_ref)
+            build_status = self.fetch_build_status()
         if build_status is None:
             self.log.error("Bamboo status unavailable for %s; nothing changed", self.check_suite.bamboo_ci_ref)
             return 503, "Bamboo unavailable"
