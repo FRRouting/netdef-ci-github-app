@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""HTTP contract of the Sinatra app (spec/app/github_app_spec.rb parity)."""
+"""HTTP contract of the service."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def test_metrics_require_basic_auth(api) -> None:
     assert ok.status_code == 200 and ok.headers["content-type"].startswith("text/plain; version=0.0.4")
 
 
-def test_metrics_expose_the_ruby_metric_names(api) -> None:
+def test_metrics_expose_the_expected_metric_names(api) -> None:
     from netdef_ci import metrics
 
     metrics.track_bamboo("probe", lambda: None)
@@ -68,12 +68,12 @@ def test_metrics_expose_the_ruby_metric_names(api) -> None:
         'http_requests_total{method="GET",path="/ping",status="200"}',
         'github_webhook_events_total{event="ping",result="processed"}',
         "http_request_duration_seconds_bucket",
-        "delayed_jobs_pending",
-        "delayed_jobs_scheduled",
+        "jobs_pending",
+        "jobs_scheduled",
         "ci_jobs_total",
         "ci_stages_total",
-        "activerecord_connection_pool_size",
-        "activerecord_queries_total",
+        "db_connection_pool_size",
+        "db_queries_total",
         "bamboo_api_requests_total",
     ):
         assert name in text, name
@@ -236,7 +236,7 @@ def test_duplicate_deliveries_are_ignored_only_when_enabled(api, session, settin
     headers = {"X-GitHub-Delivery": "abc-123"}
     api.github("pull_request", payloads.pull_request(), **headers)
     api.github("pull_request", payloads.pull_request(), **headers)
-    assert len(session.scalars(select(Job)).all()) == 2  # default (parity with Ruby): no de-duplication
+    assert len(session.scalars(select(Job)).all()) == 2  # default: no de-duplication
     monkeypatch.setattr(settings, "webhook_dedupe_ttl_seconds", 600)
     session.query(Job).delete()
     session.commit()

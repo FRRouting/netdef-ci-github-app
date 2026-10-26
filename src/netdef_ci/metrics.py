@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Prometheus metrics. Names/labels match the Ruby app (grafana_dashboard.json keeps working); counters and
+"""Prometheus metrics. Counters and
 histograms are shared by all processes (web + workers) through prometheus_client's multiprocess mode, while
 database-derived gauges are produced at scrape time by `DatabaseCollector`."""
 
@@ -74,12 +74,12 @@ GITHUB_API_REQUESTS = Counter(
     "github_api_requests_total", "Requests made to the GitHub API, by method and status class", ["method", "status"]
 )
 AR_QUERIES = Counter(
-    "activerecord_queries_total",
+    "db_queries_total",
     "Total number of SQL queries executed, by operation type and table",
     ["operation", "table"],
 )
 AR_QUERY_DURATION = Histogram(
-    "activerecord_query_duration_seconds",
+    "db_query_duration_seconds",
     "Duration of SQL queries in seconds, by operation type and table",
     ["operation", "table"],
 )
@@ -89,7 +89,7 @@ _TABLE_RE = re.compile(r'(?:FROM|INTO|UPDATE)\s+"?([A-Za-z_][A-Za-z0-9_]*)"?', r
 
 
 def track_bamboo[T](operation: str, call: Callable[[], T]) -> T | None:
-    """Time a Bamboo call; exceptions are counted and swallowed (returns None), like the Ruby helper."""
+    """Time a Bamboo call; exceptions are counted and swallowed (returns None)."""
     start = time.monotonic()
     try:
         result = call()
@@ -141,7 +141,7 @@ def instrument_engine(engine: Any) -> None:
 
 
 def cleanup_stale_metric_files() -> None:
-    """Remove files of dead processes (the Ruby app did the same at boot)."""
+    """Remove files of dead processes."""
     directory = Path(os.environ["PROMETHEUS_MULTIPROC_DIR"])
     for path in directory.glob("*_*.db"):
         match = re.search(r"_(\d+)\.db$", path.name)
@@ -184,18 +184,16 @@ class DatabaseCollector:
             families[name] = GaugeMetricFamily(name, doc, labels=labels)
             return families[name]
 
-        pending = gauge(
-            "delayed_jobs_pending", "Jobs waiting to run (run_at <= now, not locked, not failed)", ["queue"]
-        )
-        running = gauge("delayed_jobs_running", "Jobs currently locked by a worker", ["queue"])
-        scheduled = gauge("delayed_jobs_scheduled", "Jobs scheduled to run in the future (run_at > now)", ["queue"])
-        failed = gauge("delayed_jobs_failed", "Jobs that have permanently failed (failed_at IS NOT NULL)", ["queue"])
-        maxed = gauge("delayed_jobs_max_attempts_reached", "Jobs that have exhausted all retry attempts", ["queue"])
+        pending = gauge("jobs_pending", "Jobs waiting to run (run_at <= now, not locked, not failed)", ["queue"])
+        running = gauge("jobs_running", "Jobs currently locked by a worker", ["queue"])
+        scheduled = gauge("jobs_scheduled", "Jobs scheduled to run in the future (run_at > now)", ["queue"])
+        failed = gauge("jobs_failed", "Jobs that have permanently failed (failed_at IS NOT NULL)", ["queue"])
+        maxed = gauge("jobs_max_attempts_reached", "Jobs that have exhausted all retry attempts", ["queue"])
         stuck = gauge(
-            "delayed_jobs_locked_too_long", "Jobs locked longer than max_run_time, indicating a stuck worker", ["queue"]
+            "jobs_locked_too_long", "Jobs locked longer than max_run_time, indicating a stuck worker", ["queue"]
         )
         table = gauge(
-            "delayed_jobs_table",
+            "jobs_table",
             "Unix timestamp of each scheduled job",
             ["job_id", "queue", "job_class", "job_args", "run_at"],
         )
@@ -246,14 +244,14 @@ class DatabaseCollector:
             busy = pool.checkedout()
             checkedin = pool.checkedin()
             for name, doc, value in (
-                ("activerecord_connection_pool_size", "Maximum number of connections allowed in the pool", size),
+                ("db_connection_pool_size", "Maximum number of connections allowed in the pool", size),
                 (
-                    "activerecord_connection_pool_connections",
+                    "db_connection_pool_connections",
                     "Current number of connections in the pool",
                     busy + checkedin,
                 ),
-                ("activerecord_connection_pool_busy", "Connections currently checked out by a thread", busy),
-                ("activerecord_connection_pool_idle", "Connections available for checkout", checkedin),
+                ("db_connection_pool_busy", "Connections currently checked out by a thread", busy),
+                ("db_connection_pool_idle", "Connections available for checkout", checkedin),
             ):
                 family = GaugeMetricFamily(name, doc)
                 family.add_metric([], value)

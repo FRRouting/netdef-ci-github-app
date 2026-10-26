@@ -25,7 +25,7 @@ The applicable AGENTS.md is the one from the Ruby project (Ruby style/structure 
 | Secrets/config            | `config.yml` (`auth_signature.password`, `github_apps[]` login/cert/repo, `metrics_auth`, `slack_bot_url`, `debug`, `multi_plan?`, `ci.url`), `database.yml`, `~/.netrc`, `.pem` keys                                                                   |
 | Dev × production          | `RACK_ENV`; dev on port 9292 (`rackup`), production on 4667 via `deployment/server.sh` (migrates and starts) and `github_server.service` (user `githubchecks`, `/home/githubchecks/server`)                                                             |
 
-Code × documentation divergences and questionable behaviors are in [`07-divergences-and-improvements.md`](07-divergences-and-improvements.md).
+Code × documentation divergences and questionable behaviors are in [`07-design-notes.md`](07-design-notes.md).
 
 ## Migration and parity matrix
 

@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Job handler registry: background jobs are plain functions looked up by name (like the Ruby `.delay` workers)."""
+"""Job handler registry: background jobs are plain functions looked up by name."""
 
 from __future__ import annotations
 

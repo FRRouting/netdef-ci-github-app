@@ -5,7 +5,7 @@ netdef_ci_version: main                      # branch, tag or commit; override w
 netdef_ci_repo_url: REPLACE_WITH_REPOSITORY_URL
 
 netdef_ci_listen_host: 0.0.0.0
-netdef_ci_listen_port: 9292                  # the Ruby development server used 9292
+netdef_ci_listen_port: 9292                  # development port
 netdef_ci_web_workers: 2
 netdef_ci_keep_releases: 3
 

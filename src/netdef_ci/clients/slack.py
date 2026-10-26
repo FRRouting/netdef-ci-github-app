@@ -46,7 +46,7 @@ class SlackBot:
             self.log.warning("SLACK_BOT_URL is not configured; notification dropped")
             return None
         try:
-            # The Slack bot contract: JSON/plain body sent with `Content-Type: application/xml` (kept from the Ruby client).
+            # The Slack bot contract: JSON/plain body sent with `Content-Type: application/xml` (required by the Slack bot).
             return self._client.post(
                 f"{base}{path}",
                 content=body.encode(),

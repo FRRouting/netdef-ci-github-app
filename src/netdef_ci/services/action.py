@@ -94,7 +94,7 @@ class Action:
             check_suite_id=self.check_suite.id, name=job.get("name"), job_ref=job.get("job_ref"), stage=stage
         )
         if not ci_job.name or not ci_job.job_ref:
-            self.log.error("Job without name/job_ref ignored: %s", job)  # model validations in the Ruby app
+            self.log.error("Job without name/job_ref ignored: %s", job)  # required fields
             return None
         self.session.add(ci_job)
         self.session.commit()

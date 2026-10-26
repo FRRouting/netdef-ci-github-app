@@ -117,14 +117,14 @@ def test_database_gauges_reflect_queue_and_ci_state(session, clients) -> None:
     def value(line: str) -> float:
         return float(next(x for x in text.splitlines() if x.startswith(line)).split()[-1])
 
-    assert value('delayed_jobs_pending{queue="1"}') == 1
-    assert value('delayed_jobs_scheduled{queue="1"}') == 1
-    assert value('delayed_jobs_locked_too_long{queue="2"}') == 1
-    assert value('delayed_jobs_running{queue="2"}') == 2
-    assert value('delayed_jobs_max_attempts_reached{queue="3"}') == 1
+    assert value('jobs_pending{queue="1"}') == 1
+    assert value('jobs_scheduled{queue="1"}') == 1
+    assert value('jobs_locked_too_long{queue="2"}') == 1
+    assert value('jobs_running{queue="2"}') == 2
+    assert value('jobs_max_attempts_reached{queue="3"}') == 1
     assert value('ci_jobs_total{status="success"}') == 1 and value('ci_jobs_total{status="in_progress"}') == 1
     assert value('ci_stages_total{status="success"}') == 1
-    assert "delayed_jobs_table{" in text and 'job_class="x"' in text
+    assert "jobs_table{" in text and 'job_class="x"' in text
 
 
 def test_bamboo_and_slack_trackers_count_outcomes() -> None:

@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Status enumerations shared by CiJob, Stage and AuditStatus (same integers as the Ruby schema)."""
+"""Status enumerations shared by CiJob, Stage and AuditStatus (stable integer values stored in the database)."""
 
 from __future__ import annotations
 
@@ -28,5 +28,5 @@ class Status(enum.IntEnum):
 
 
 RUNNING_STATUSES = (Status.QUEUED, Status.IN_PROGRESS)
-# CiJob.failure scope in the Ruby code: anything that did not succeed and is not running.
+# Anything that did not succeed and is not running.
 FAILED_STATUSES = (Status.FAILURE, Status.CANCELLED, Status.SKIPPED)

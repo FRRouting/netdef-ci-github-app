@@ -81,7 +81,7 @@ cat <<INFO
 
 Stack is up. Try:
   curl http://127.0.0.1:$PORT/ping
-  curl -u $METRICS_USERNAME:$METRICS_PASSWORD http://127.0.0.1:$PORT/metrics | grep -E 'delayed_jobs|http_requests'
+  curl -u $METRICS_USERNAME:$METRICS_PASSWORD http://127.0.0.1:$PORT/metrics | grep -E 'jobs_|http_requests'
   BODY='{}'; SIG="sha256=\$(printf %s "\$BODY" | openssl dgst -sha256 -hmac '$WEBHOOK_SECRET' | sed 's/^.* //')"
   curl -X POST http://127.0.0.1:$PORT/ -H 'X-GitHub-Event: ping' -H "X-Hub-Signature-256: \$SIG" -d "\$BODY"
   tail -f $RUN_DIR/logs/*.out        # logs per process ($RUN_DIR/logs/pr<N>.log per pull request)

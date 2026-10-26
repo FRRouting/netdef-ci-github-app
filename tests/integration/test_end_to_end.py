@@ -135,7 +135,7 @@ def test_new_commit_cancels_the_running_execution(session, system, run_jobs, bam
     assert bamboo.stopped == ["PROJ-PLAN-1"] and bamboo.cancel_comments == [("PROJ-PLAN-1", "PROJ-PLAN-2")]
     first_jobs = session.scalars(select(CiJob).where(CiJob.check_suite_id == first.id)).all()
     assert all(j.state == Status.CANCELLED for j in first_jobs)
-    # a late callback of the cancelled execution is still recorded (as in the Ruby app) but schedules no summary
+    # a late callback of the cancelled execution is still recorded but schedules no summary
     session.query(Job).filter(Job.handler == "ci_job_status").delete()
     session.commit()
     assert callback(system, BLD, "success") == (200, "Success")

@@ -1,14 +1,14 @@
 """Tables used only by the Python implementation: background `jobs` queue and `webhook_deliveries`.
 
 Revision ID: 0002_python_tables
-Revises: 0001_ruby_baseline
+Revises: 0001_initial_schema
 """
 
 import sqlalchemy as sa
 from alembic import op
 
 revision = "0002_python_tables"
-down_revision = "0001_ruby_baseline"
+down_revision = "0001_initial_schema"
 branch_labels = None
 depends_on = None
 

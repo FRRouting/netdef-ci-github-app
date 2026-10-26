@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""FastAPI application: same routes, authentication and responses as the Sinatra `GithubApp`."""
+"""FastAPI application: routes, authentication and responses of the service."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         return response
 
     def guarded(handler: Callable[[Request], Any]) -> Callable[[Request], Any]:
-        """Equivalent of Sinatra's `error StandardError`: count the exception and answer a generic 500."""
+        """Count the exception and answer a generic 500."""
 
         async def wrapper(request: Request) -> Response:
             try:
@@ -214,7 +214,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
 
         return _text(200, await run_in_threadpool(work), "text/html")
 
-    # ------------------------------------------------------------------ GitHub webhooks (catch-all, like Sinatra's `post '/*'`)
+    # ------------------------------------------------------------------ GitHub webhooks (catch-all)
     @app.post("/{full_path:path}")
     @guarded
     async def github_webhook(request: Request) -> Response:

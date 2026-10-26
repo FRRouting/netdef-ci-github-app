@@ -29,7 +29,7 @@ def test_job_transitions_write_audit_and_skip_github_without_check_ref(session, 
         )
     )
     assert [Status(a.status) for a in audits] == [Status.IN_PROGRESS, Status.SUCCESS]
-    assert github.calls == []  # jobs never own a GitHub check run in the Ruby app
+    assert github.calls == []  # jobs never own a GitHub check run
 
 
 def test_job_with_check_ref_updates_github(session, clients, github) -> None:
@@ -48,7 +48,7 @@ def test_job_execution_time_uses_first_in_progress_and_success_or_failure(sessio
     finished.created_at = started.created_at + timedelta(seconds=75, milliseconds=900)
     session.commit()
     w.build_job.update_execution_time()
-    assert w.build_job.execution_time == 75  # truncated like Rails' integer cast
+    assert w.build_job.execution_time == 75  # truncated to an integer
 
 
 def test_stage_enqueue_creates_check_run_and_stores_reference(session, clients, github) -> None:
@@ -69,7 +69,7 @@ def test_stage_in_progress_is_idempotent_and_notifies(session, clients, github, 
     assert slack.names() == ["stage_in_progress"]
 
 
-def test_stage_finish_creates_a_fresh_check_run_like_ruby(session, clients, github, slack) -> None:
+def test_stage_finish_creates_a_fresh_check_run(session, clients, github, slack) -> None:
     w = f.World(session)
     old_ref = w.build_stage.check_ref
     w.build_stage.success(github, output={"title": "t", "summary": "s"})

@@ -18,7 +18,7 @@ from netdef_ci.models import PullRequest
 
 def find_pull_request(session: Session, github_pr_id: int | None, repository: str | None = None) -> PullRequest | None:
     """`PullRequest.find_by(github_pr_id:)`; the repository filter (when known) avoids matching a PR with the same
-    number in another repository, which the Ruby lookup could do."""
+    number in another repository."""
     if github_pr_id is None:
         return None
     stmt = select(PullRequest).where(PullRequest.github_pr_id == github_pr_id)

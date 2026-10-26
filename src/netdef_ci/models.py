@@ -6,8 +6,8 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""SQLAlchemy models. Tables/columns are identical to the Ruby ActiveRecord schema (db/schema.rb 2025_08_22_071834),
-plus the new `jobs` (background queue) and `webhook_deliveries` tables created by the Python migrations."""
+"""SQLAlchemy models. Tables and columns follow the baseline migration `0001_initial_schema`,
+plus the `jobs` (background queue) and `webhook_deliveries` tables created by the Python migrations."""
 
 from __future__ import annotations
 
@@ -44,12 +44,12 @@ BigId = BigInteger().with_variant(Integer, "sqlite")
 
 
 class Base(DeclarativeBase):
-    # Rails-style index names ("index_<table>_on_<column>") so the ORM metadata matches the Ruby-created schema.
+    # Index names ("index_<table>_on_<column>") so the ORM metadata matches the baseline migration.
     metadata = MetaData(naming_convention={"ix": "index_%(table_name)s_on_%(column_0_name)s"})
 
 
 class StatusType(TypeDecorator[Status]):
-    """Integer column exposed as `Status` (same integers as the Rails enum)."""
+    """Integer column exposed as `Status` (stable integer values)."""
 
     impl = Integer
     cache_ok = True
@@ -151,7 +151,7 @@ class PullRequest(Base):
     updated_at: Mapped[datetime] = _ts_updated()
     github_user_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("github_users.id"), index=True)
 
-    # NOTE: like the Ruby `has_many :plans`, a Plan row belongs to ONE pull request at a time
+    # NOTE: a Plan row belongs to ONE pull request at a time
     # (`plans.pull_request_id`); assigning plans to a PR steals them from the previous one.
     plans: Mapped[list[Plan]] = relationship(back_populates="pull_request", foreign_keys="Plan.pull_request_id")
     check_suites: Mapped[list[CheckSuite]] = relationship(
@@ -380,7 +380,7 @@ class Stage(Base):
         self._finish(github, Status.SUCCESS, github.success, output, agent)
 
     def _finish(self, github: GithubCheck, status: Status, call: Any, output: Output | None, agent: str) -> None:
-        # Like the Ruby code, finishing a stage creates a fresh check run and completes it.
+        # Finishing a stage creates a fresh check run and completes it.
         check_run = github.create(self.full_name())
         call(check_run["id"], output or {})
         self._record(status, agent, check_ref=str(check_run["id"]))
@@ -569,7 +569,7 @@ class PullRequestSubscription(Base):
 
 
 class Job(Base):
-    """Background job (replaces Delayed Job's `delayed_jobs`; the Ruby table is left untouched)."""
+    """Background job (PostgreSQL-backed queue)."""
 
     __tablename__ = "jobs"
     __table_args__ = (

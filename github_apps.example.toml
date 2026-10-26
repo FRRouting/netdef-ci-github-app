@@ -1,4 +1,4 @@
-# GitHub Apps used by the CI (same keys as `github_apps` in the Ruby config.yml).
+# GitHub Apps used by the CI (`login`, `cert`, `repo`).
 # `cert` is the path of the App's PEM private key (keep it outside the repository, mode 0600).
 # `repo` selects the App for that repository; the first App that authenticates is the fallback.
 

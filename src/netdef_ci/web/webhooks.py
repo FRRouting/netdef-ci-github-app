@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Routing of GitHub webhook events to the services (the `POST /*` route of the Ruby app)."""
+"""Routing of GitHub webhook events to the services (the catch-all `POST` route)."""
 
 from __future__ import annotations
 

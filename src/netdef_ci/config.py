@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Environment-driven configuration (replaces config.yml, database.yml and ~/.netrc of the Ruby app)."""
+"""Environment-driven configuration (variables, `.env` and an optional `~/.netrc` fallback for credentials)."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 @dataclass(frozen=True)
 class GitHubAppConfig:
-    """One entry of the `github_apps` list (same keys as the Ruby config.yml)."""
+    """One entry of the `github_apps` list (`login`, `cert`, `repo`)."""
 
     login: str
     cert: str
@@ -79,7 +79,7 @@ class Settings(BaseSettings):
     # --- HTTP clients -------------------------------------------------------------------------
     http_timeout_seconds: float = Field(30.0, alias="HTTP_TIMEOUT_SECONDS", gt=0)
 
-    # --- background jobs (Delayed Job parity: 5 attempts, 5 min lock, 5 s polling) ------------
+    # --- background jobs (5 attempts, 5 min lock, 5 s polling) ------------
     job_max_attempts: int = Field(5, alias="JOB_MAX_ATTEMPTS", ge=1)
     job_max_run_time_seconds: int = Field(300, alias="JOB_MAX_RUN_TIME_SECONDS", ge=1)
     job_sleep_delay_seconds: float = Field(5.0, alias="JOB_SLEEP_DELAY_SECONDS", gt=0)
@@ -96,7 +96,7 @@ class Settings(BaseSettings):
     @field_validator("ci_url")
     @classmethod
     def _strip_scheme(cls, value: str) -> str:
-        # The Ruby code builds "https://#{ci_url}/browse/..."; accept both "host" and "https://host".
+        # Links are built as "https://<ci_url>/browse/..."; accept both "host" and "https://host".
         for prefix in ("https://", "http://"):
             if value.startswith(prefix):
                 value = value[len(prefix) :]

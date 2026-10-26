@@ -25,7 +25,7 @@ def test_ci_url_accepts_bare_host_and_url() -> None:
     assert make(CI_URL="ci1.netdef.org").browse_url("PROJ-1") == "https://ci1.netdef.org/browse/PROJ-1"
 
 
-def test_github_apps_file_has_the_same_keys_as_the_ruby_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_github_apps_file_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GITHUB_APPS_FILE", raising=False)
     file = tmp_path / "apps.toml"
     file.write_text(

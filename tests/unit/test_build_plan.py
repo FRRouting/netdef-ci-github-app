@@ -63,7 +63,7 @@ def test_existing_pr_is_updated_and_plans_move_to_the_latest_pr(session, clients
     BuildPlan(session, payload).create()
     first, second = session.scalars(select(PullRequest).order_by(PullRequest.id)).all()
     session.refresh(plan)
-    assert plan.pull_request_id == second.id  # same quirk as the Ruby `has_many :plans`
+    assert plan.pull_request_id == second.id  # a plan belongs to one PR at a time
     payload = payloads.pull_request(number=7)
     payload["pull_request"]["head"]["ref"] = "renamed"
     code, _ = BuildPlan(session, payload).create()

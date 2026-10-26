@@ -20,7 +20,7 @@ from netdef_ci.models import CheckSuite, StageConfiguration
 
 
 class SkipOldTests:
-    # The Ruby code listed ["queued", "in_progress", "success", "failure", "queued"], but only queued, in_progress and
+    # Only queued, in_progress and
     # completed are valid values of the check-runs `status` filter.
     STATUSES = ("queued", "in_progress", "completed")
 
