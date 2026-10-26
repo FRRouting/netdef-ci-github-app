@@ -121,3 +121,53 @@ def test_job_missing_from_running_plan_raises(session, clients, bamboo) -> None:
     session.refresh(orphan)
     with pytest.raises(LookupError):
         Summary(orphan).build_summary()
+
+
+def bamboo_result(*items) -> dict:
+    return {
+        "stages": {
+            "stage": [
+                {
+                    "results": {
+                        "result": [
+                            {"buildResultKey": ref, "state": state, "lifeCycleState": life}
+                            for ref, state, life in items
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+
+
+def test_previous_stage_is_closed_from_bamboo_when_the_next_one_runs(session, clients, bamboo, github) -> None:
+    # Verify Source (position 1) lost its success callback; the Build stage (position 2) is running
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.IN_PROGRESS))
+    bamboo.results["PROJ-PLAN-77"] = bamboo_result(("PROJ-PLAN-77-BLD", "Successful", "Finished"))
+    build(session, w.tests_job)
+    assert w.build_job.state == Status.SUCCESS
+    assert w.build_stage.state == Status.SUCCESS
+    assert github.check_runs[int(w.build_stage.check_ref)]["conclusion"] == "success"
+    assert w.tests_stage.state == Status.IN_PROGRESS  # the running stage is untouched
+
+
+def test_failed_previous_job_fails_its_stage(session, clients, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.IN_PROGRESS))
+    bamboo.results["PROJ-PLAN-77"] = bamboo_result(("PROJ-PLAN-77-BLD", "Failed", "Finished"))
+    build(session, w.tests_job)
+    assert w.build_job.state == Status.FAILURE and w.build_stage.state == Status.FAILURE
+
+
+def test_previous_job_still_running_in_bamboo_is_left_alone(session, clients, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.IN_PROGRESS))
+    # an unfinished job also reports state "Unknown": it must not be cancelled
+    bamboo.results["PROJ-PLAN-77"] = bamboo_result(("PROJ-PLAN-77-BLD", "Unknown", "InProgress"))
+    build(session, w.tests_job)
+    assert w.build_job.state == Status.IN_PROGRESS and w.build_stage.state == Status.IN_PROGRESS
+
+
+def test_bamboo_unavailable_leaves_previous_stage_as_is(session, clients, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.IN_PROGRESS))
+    bamboo.results["PROJ-PLAN-77"] = None
+    build(session, w.tests_job)
+    assert w.build_job.state == Status.IN_PROGRESS

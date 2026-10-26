@@ -45,6 +45,7 @@ class Summary:
         self._finished_summary(current)
         self._must_cancel_next_stages(current)
         self._must_continue_next_stage(current)
+        self._sync_previous_stages_with_bamboo(current)
         self._must_update_previous_stage(current)
 
     # ------------------------------------------------------------------
@@ -56,6 +57,41 @@ class Summary:
             .order_by(Stage.id)
         )
         return list(self.session.scalars(stmt))
+
+    def _sync_previous_stages_with_bamboo(self, current: Stage) -> None:
+        """A later stage is running, so the earlier ones are over: ask Bamboo for the outcome of their jobs that are
+        still open in the database (a callback may have been lost or arrived out of order)."""
+        position = int(current.configuration.position or 0) if current.configuration else 0
+        open_jobs = [
+            job
+            for stage in self._stages_by_position(
+                StageConfiguration.position >= 0,
+                StageConfiguration.position < position,
+                Stage.status.in_([Status.IN_PROGRESS, Status.QUEUED]),
+            )
+            for job in stage.jobs_with(Status.QUEUED, Status.IN_PROGRESS)
+        ]
+        if not open_jobs:
+            return
+        result = container.bamboo().get_status(self.check_suite.bamboo_ci_ref or "")
+        stages = ((result or {}).get("stages") or {}).get("stage") or []
+        outcomes = {
+            item.get("buildResultKey"): item
+            for stage in stages
+            for item in (stage.get("results") or {}).get("result") or []
+        }
+        for job in open_jobs:
+            item = outcomes.get(job.job_ref)
+            if item is None or item.get("lifeCycleState") != "Finished":
+                continue  # still running (or unknown to Bamboo): leave it alone
+            state = item.get("state")
+            self.log.info("Previous stage job %s finished in Bamboo as %s; updating it", job.job_ref, state)
+            if state == "Successful":
+                job.success(self.github, agent="Bamboo")
+            elif state == "Failed":
+                job.failure(self.github, agent="Bamboo")
+            elif state == "Unknown":
+                job.cancelled(self.github, agent="Bamboo")
 
     def _must_update_previous_stage(self, current: Stage) -> None:
         position = int(current.configuration.position or 0) if current.configuration else 0
