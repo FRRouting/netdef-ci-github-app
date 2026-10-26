@@ -201,7 +201,7 @@ class Plan(Base):
     github_repo_name: Mapped[str] = mapped_column(String, nullable=False, default="0")
     created_at: Mapped[datetime] = _ts()
     updated_at: Mapped[datetime] = _ts_updated()
-    check_suite_id: Mapped[int | None] = mapped_column(BigId, index=True)  # legacy column, unused
+    check_suite_id: Mapped[int | None] = mapped_column(BigId, index=True)  # unused column
     pull_request_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("pull_requests.id"), index=True)
     name: Mapped[str] = mapped_column(String, nullable=False, default="")
 

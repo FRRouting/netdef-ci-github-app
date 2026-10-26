@@ -31,7 +31,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    worker = sub.add_parser("worker", help="run a background job worker (rake jobs:work)")
+    worker = sub.add_parser("worker", help="run a background job worker")
     worker.add_argument("--queues", default="", help="comma separated queue names; empty = every queue")
 
     sub.add_parser("watch-dog", help="reconcile every running check suite with Bamboo (cron)")
@@ -45,7 +45,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     stamp.add_argument("--revision", default="0001_initial_schema")
     sub.add_parser("check-config", help="validate configuration, GitHub App keys and database connectivity")
-    sub.add_parser("purge-jobs", help="delete every pending background job (rake jobs:clear)")
+    sub.add_parser("purge-jobs", help="delete every pending background job")
 
     org = sub.add_parser("org", help="organizations").add_subparsers(dest="action", required=True)
     org.add_parser("find").add_argument("name")
