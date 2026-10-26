@@ -26,7 +26,7 @@ _settings = get_settings()
 os.environ.setdefault("PROMETHEUS_MULTIPROC_DIR", _settings.prometheus_multiproc_dir)
 Path(os.environ["PROMETHEUS_MULTIPROC_DIR"]).mkdir(parents=True, exist_ok=True)
 
-from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest  # noqa: E402
+from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram, generate_latest  # noqa: E402
 from prometheus_client.core import GaugeMetricFamily  # noqa: E402
 from prometheus_client.multiprocess import MultiProcessCollector  # noqa: E402
 
@@ -74,15 +74,75 @@ GITHUB_API_REQUESTS = Counter(
     "github_api_requests_total", "Requests made to the GitHub API, by method and status class", ["method", "status"]
 )
 AR_QUERIES = Counter(
-    "db_queries_total",
+    "activerecord_queries_total",
     "Total number of SQL queries executed, by operation type and table",
     ["operation", "table"],
 )
 AR_QUERY_DURATION = Histogram(
-    "db_query_duration_seconds",
+    "activerecord_query_duration_seconds",
     "Duration of SQL queries in seconds, by operation type and table",
     ["operation", "table"],
 )
+
+HTTP_SERVER_REQUESTS = Counter(
+    "http_server_requests_total", "The total number of HTTP requests handled by the app.", ["code", "method", "path"]
+)
+HTTP_SERVER_DURATION = Histogram(
+    "http_server_request_duration_seconds", "The HTTP response duration of the app.", ["method", "path"]
+)
+HTTP_SERVER_EXCEPTIONS = Counter(
+    "http_server_exceptions_total", "The total number of exceptions raised by the app.", ["exception"]
+)
+# Web worker (process) saturation. uvicorn has no Puma-style thread pool; a "thread" is a request being handled in the
+# worker's thread pool, "backlog" is not observable and stays 0.
+PUMA_RUNNING = Gauge(
+    "puma_running_threads", "Requests being handled, per web worker", ["worker"], multiprocess_mode="livesum"
+)
+PUMA_CAPACITY = Gauge(
+    "puma_pool_capacity", "Request slots available, per web worker", ["worker"], multiprocess_mode="livesum"
+)
+PUMA_MAX = Gauge(
+    "puma_max_threads", "Maximum concurrent requests per web worker", ["worker"], multiprocess_mode="livesum"
+)
+PUMA_BACKLOG = Gauge(
+    "puma_backlog",
+    "Requests waiting for a free slot, per web worker (not observable: always 0)",
+    ["worker"],
+    multiprocess_mode="livesum",
+)
+
+_inflight = 0
+
+
+_DEFAULT_MAX_THREADS = 40  # anyio's default thread limiter
+_started = False
+
+
+def web_worker_started(max_threads: int = _DEFAULT_MAX_THREADS) -> None:
+    global _started
+    _started = True
+    worker = str(os.getpid())
+    PUMA_MAX.labels(worker=worker).set(max_threads)
+    PUMA_CAPACITY.labels(worker=worker).set(max_threads)
+    PUMA_RUNNING.labels(worker=worker).set(0)
+    PUMA_BACKLOG.labels(worker=worker).set(0)
+
+
+def web_request_in_flight(delta: int) -> None:
+    global _inflight
+    if not _started:
+        web_worker_started()
+    _inflight += delta
+    worker = str(os.getpid())
+    PUMA_RUNNING.labels(worker=worker).set(_inflight)
+    PUMA_CAPACITY.labels(worker=worker).set(max(PUMA_MAX.labels(worker=worker)._value.get() - _inflight, 0))
+
+
+def _booted_web_workers() -> int:
+    directory = Path(os.environ["PROMETHEUS_MULTIPROC_DIR"])
+    pids = {m.group(1) for p in directory.glob("gauge_livesum_*.db") if (m := re.search(r"_(\d+)\.db$", p.name))}
+    return sum(1 for pid in pids if _alive(int(pid)))
+
 
 _SQL_OPS = {"SELECT", "INSERT", "UPDATE", "DELETE"}
 _TABLE_RE = re.compile(r'(?:FROM|INTO|UPDATE)\s+"?([A-Za-z_][A-Za-z0-9_]*)"?', re.I)
@@ -184,19 +244,25 @@ class DatabaseCollector:
             families[name] = GaugeMetricFamily(name, doc, labels=labels)
             return families[name]
 
-        pending = gauge("jobs_pending", "Jobs waiting to run (run_at <= now, not locked, not failed)", ["queue"])
-        running = gauge("jobs_running", "Jobs currently locked by a worker", ["queue"])
-        scheduled = gauge("jobs_scheduled", "Jobs scheduled to run in the future (run_at > now)", ["queue"])
-        failed = gauge("jobs_failed", "Jobs that have permanently failed (failed_at IS NOT NULL)", ["queue"])
-        maxed = gauge("jobs_max_attempts_reached", "Jobs that have exhausted all retry attempts", ["queue"])
+        pending = gauge(
+            "delayed_jobs_pending", "Jobs waiting to run (run_at <= now, not locked, not failed)", ["queue"]
+        )
+        running = gauge("delayed_jobs_running", "Jobs currently locked by a worker", ["queue"])
+        scheduled = gauge("delayed_jobs_scheduled", "Jobs scheduled to run in the future (run_at > now)", ["queue"])
+        failed = gauge("delayed_jobs_failed", "Jobs that have permanently failed (failed_at IS NOT NULL)", ["queue"])
+        maxed = gauge("delayed_jobs_max_attempts_reached", "Jobs that have exhausted all retry attempts", ["queue"])
         stuck = gauge(
-            "jobs_locked_too_long", "Jobs locked longer than max_run_time, indicating a stuck worker", ["queue"]
+            "delayed_jobs_locked_too_long", "Jobs locked longer than max_run_time, indicating a stuck worker", ["queue"]
         )
         table = gauge(
-            "jobs_table",
+            "delayed_jobs_table",
             "Unix timestamp of each scheduled job",
             ["job_id", "queue", "job_class", "job_args", "run_at"],
         )
+        workers_total = gauge("puma_workers_total", "Number of web worker processes configured", [])
+        workers_total.add_metric([], settings.web_workers)
+        workers_booted = gauge("puma_booted_workers", "Number of web worker processes currently running", [])
+        workers_booted.add_metric([], _booted_web_workers())
         ci_jobs = gauge("ci_jobs_total", "CI jobs grouped by status", ["status"])
         ci_stages = gauge("ci_stages_total", "CI stages grouped by status", ["status"])
 
@@ -244,14 +310,20 @@ class DatabaseCollector:
             busy = pool.checkedout()
             checkedin = pool.checkedin()
             for name, doc, value in (
-                ("db_connection_pool_size", "Maximum number of connections allowed in the pool", size),
+                ("activerecord_connection_pool_size", "Maximum number of connections allowed in the pool", size),
                 (
-                    "db_connection_pool_connections",
+                    "activerecord_connection_pool_connections",
                     "Current number of connections in the pool",
                     busy + checkedin,
                 ),
-                ("db_connection_pool_busy", "Connections currently checked out by a thread", busy),
-                ("db_connection_pool_idle", "Connections available for checkout", checkedin),
+                ("activerecord_connection_pool_busy", "Connections currently checked out by a thread", busy),
+                ("activerecord_connection_pool_idle", "Connections available for checkout", checkedin),
+                # SQLAlchemy's pool does not expose its waiters; reported as 0.
+                (
+                    "activerecord_connection_pool_waiting",
+                    "Threads waiting to obtain a connection (not observable: 0)",
+                    0,
+                ),
             ):
                 family = GaugeMetricFamily(name, doc)
                 family.add_metric([], value)

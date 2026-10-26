@@ -52,6 +52,19 @@ def _json_error() -> Response:
     )
 
 
+class CollapseLeadingSlashes:
+    """ASGI middleware: `//ping` (what `proxy_pass http://host/;` produces behind a prefix location) -> `/ping`."""
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] in ("http", "websocket") and scope.get("path", "").startswith("//"):
+            path = "/" + scope["path"].lstrip("/")
+            scope = {**scope, "path": path, "raw_path": path.encode()}
+        await self.app(scope, receive, send)
+
+
 def create_app(*, init_database: bool = True) -> FastAPI:
     configure_logging()
     settings = get_settings()
@@ -63,6 +76,9 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         if init_database:
             init_engine()
         metrics.cleanup_stale_metric_files()
+        from anyio.to_thread import current_default_thread_limiter
+
+        metrics.web_worker_started(int(current_default_thread_limiter().total_tokens))
         yield
 
     app = FastAPI(
@@ -74,15 +90,26 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(CollapseLeadingSlashes)
+
     @app.middleware("http")
     async def observe(request: Request, call_next: Callable[[Request], Any]) -> Response:
         start = time.monotonic()
         event = request.headers.get("x-github-event")
-        response: Response = await call_next(request)
+        metrics.web_request_in_flight(1)
+        try:
+            response: Response = await call_next(request)
+        except Exception as error:
+            metrics.HTTP_SERVER_EXCEPTIONS.labels(exception=type(error).__name__).inc()
+            raise
+        finally:
+            metrics.web_request_in_flight(-1)
         route = request.scope.get("route")
         path = "/*" if getattr(route, "path", "") == "/{full_path:path}" else getattr(route, "path", "unmatched")
         metrics.HTTP_REQUESTS.labels(method=request.method, path=path, status=str(response.status_code)).inc()
         metrics.HTTP_REQUEST_DURATION.labels(path=path).observe(time.monotonic() - start)
+        metrics.HTTP_SERVER_REQUESTS.labels(code=str(response.status_code), method=request.method, path=path).inc()
+        metrics.HTTP_SERVER_DURATION.labels(method=request.method, path=path).observe(time.monotonic() - start)
         if event:
             result = "processed" if response.status_code < 400 else "error"
             metrics.GITHUB_WEBHOOK_EVENTS.labels(event=event, result=result).inc()
@@ -96,6 +123,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
                 return await handler(request)  # type: ignore[no-any-return]
             except Exception as error:
                 first = [p for p in request.url.path.split("/") if p]
+                metrics.HTTP_SERVER_EXCEPTIONS.labels(exception=type(error).__name__).inc()
                 metrics.APP_EXCEPTIONS.labels(
                     **{"class": type(error).__name__, "handler": first[0] if first else "root"}
                 ).inc()

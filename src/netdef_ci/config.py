@@ -89,6 +89,8 @@ class Settings(BaseSettings):
     timeout_check_minutes: int = Field(30, alias="TIMEOUT_CHECK_MINUTES", ge=1)
     timeout_hang_hours: int = Field(2, alias="TIMEOUT_HANG_HOURS", ge=1)
 
+    web_workers: int = Field(1, alias="WEB_WORKERS", ge=1)  # reported by the puma_workers_total metric
+
     # --- metrics ------------------------------------------------------------------------------
     prometheus_multiproc_dir: str = Field("/tmp/prometheus_metrics", alias="PROMETHEUS_MULTIPROC_DIR")  # noqa: S108
     ci_metrics_window_hours: int = Field(24, alias="CI_METRICS_WINDOW_HOURS", ge=1)

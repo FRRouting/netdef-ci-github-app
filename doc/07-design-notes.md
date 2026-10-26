@@ -48,10 +48,15 @@
 
 | Metric                                                                                                                       | Notes                                                                                           |
 |------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------|
-| `jobs_pending`, `jobs_running`, `jobs_scheduled`, `jobs_failed`, `jobs_max_attempts_reached`, `jobs_locked_too_long`          | Gauges labelled by `queue`, computed from the `jobs` table at scrape time.                       |
-| `jobs_table`                                                                                                                 | Per-job scheduled timestamp, for inspecting what is queued.                                      |
-| `db_queries_total`, `db_query_duration_seconds`                                                                              | Labelled by `operation` and `table`; `table` is the SQL table name (for example `ci_jobs`).      |
-| `db_connection_pool_size`, `db_connection_pool_connections`, `db_connection_pool_busy`, `db_connection_pool_idle`            | Connection pool state.                                                                           |
+| `delayed_jobs_pending`, `delayed_jobs_running`, `delayed_jobs_scheduled`, `delayed_jobs_failed`, `delayed_jobs_max_attempts_reached`, `delayed_jobs_locked_too_long`          | Gauges labelled by `queue`, computed from the `jobs` table at scrape time.                       |
+| `delayed_jobs_table`                                                                                                                 | Per-job scheduled timestamp, for inspecting what is queued.                                      |
+| `activerecord_queries_total`, `activerecord_query_duration_seconds`                                                                              | Labelled by `operation` and `table`; `table` is the SQL table name (for example `ci_jobs`).      |
+| `activerecord_connection_pool_size`, `activerecord_connection_pool_connections`, `activerecord_connection_pool_busy`, `activerecord_connection_pool_idle`            | Connection pool state.                                                                           |
 | `ci_jobs_total{status}`, `ci_job_timeout_total`, `app_exceptions_total`, `bamboo_api_requests_total`, `github_api_requests_total`, `slack_notifications_total` | CI state and integration health.                                          |
+
+| `puma_workers_total`, `puma_booted_workers` | Configured (`WEB_WORKERS`) and currently running web worker processes. |
+| `puma_running_threads`, `puma_pool_capacity`, `puma_max_threads`, `puma_backlog` | Simplified per-worker saturation, labelled by `worker` (pid): requests in flight, free slots, the worker thread-pool size (40) and a `puma_backlog` that is always 0 because uvicorn does not expose its queue. |
+| `http_server_requests_total{code,method,path}`, `http_server_request_duration_seconds`, `http_server_exceptions_total` | Request counters/histogram by route pattern, and exceptions by class. |
+| `activerecord_connection_pool_waiting` | Always 0: SQLAlchemy's pool does not expose its waiters. |
 
 Dashboards and alert rules must use these names and the `table` label. Metric files of dead worker processes are cleaned up automatically (`test_stale_metric_files_of_dead_processes_are_removed`).

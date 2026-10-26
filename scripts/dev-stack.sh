@@ -23,6 +23,7 @@ export METRICS_USERNAME=${METRICS_USERNAME:-prometheus} METRICS_PASSWORD=${METRI
 export PROMETHEUS_MULTIPROC_DIR="$PWD/$RUN_DIR/prometheus"
 export LOG_DIR="$PWD/$RUN_DIR/logs"
 export STATUS_DEBOUNCE_SECONDS=${STATUS_DEBOUNCE_SECONDS:-5} CREATE_EXECUTION_DELAY_SECONDS=${CREATE_EXECUTION_DELAY_SECONDS:-1}
+export WEB_WORKERS=2
 export JOB_SLEEP_DELAY_SECONDS=${JOB_SLEEP_DELAY_SECONDS:-1}
 
 pids=()
@@ -81,7 +82,7 @@ cat <<INFO
 
 Stack is up. Try:
   curl http://127.0.0.1:$PORT/ping
-  curl -u $METRICS_USERNAME:$METRICS_PASSWORD http://127.0.0.1:$PORT/metrics | grep -E 'jobs_|http_requests'
+  curl -u $METRICS_USERNAME:$METRICS_PASSWORD http://127.0.0.1:$PORT/metrics | grep -E 'delayed_jobs|http_requests'
   BODY='{}'; SIG="sha256=\$(printf %s "\$BODY" | openssl dgst -sha256 -hmac '$WEBHOOK_SECRET' | sed 's/^.* //')"
   curl -X POST http://127.0.0.1:$PORT/ -H 'X-GitHub-Event: ping' -H "X-Hub-Signature-256: \$SIG" -d "\$BODY"
   tail -f $RUN_DIR/logs/*.out        # logs per process ($RUN_DIR/logs/pr<N>.log per pull request)
