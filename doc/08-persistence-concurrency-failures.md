@@ -2,21 +2,21 @@
 
 ## Persistence
 
-- PostgreSQL (same schema as Ruby; see `06`). Short SQLAlchemy sessions, with an explicit `commit` on every state change (equivalent to ActiveRecord's *autocommit per `save`*): if a job dies midway, what has already been written stays consistent with what has already been sent to GitHub/Bamboo.
-- Dates in "naive" UTC (`timestamp without time zone`), like Rails.
+- PostgreSQL (schema in `06`). Short SQLAlchemy sessions, with an explicit `commit` on every state change: if a job dies midway, what has already been written stays consistent with what has already been sent to GitHub/Bamboo.
+- Dates in "naive" UTC (`timestamp without time zone`).
 - `AuditStatus` records each transition of `CiJob`/`Stage` (with the agent: `Github` or `WatchDog`); `AuditRetry` records who requested a retry/rerun.
 
 ## Job queue (`jobs/queue.py`, `jobs` table)
 
-| Characteristic | Delayed Job (Ruby)                                       | Python                                                                                                                              |
-|----------------|----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------|
-| Scheduling     | `run_at`                                                 | `run_at`                                                                                                                            |
-| Queues         | `0..9` (by `github_pr_id % 10`) and named                | same (`queue` text); the worker accepts `--queues`                                                                                  |
-| Reservation    | optimistic `UPDATE … locked_at`                          | `SELECT … FOR UPDATE SKIP LOCKED` + `locked_at/locked_by` (test with 4 workers × 40 jobs: no job runs twice)                        |
-| Failure        | `attempts += 1`, `run_at = now + 5 + attempts**4` s      | identical                                                                                                                           |
-| Limit          | `max_attempts = 5`, then removes (`destroy_failed_jobs`) | `max_attempts` per job (default 5), then removes                                                                                    |
-| Timeout        | `max_run_time = 5 min`                                   | 5 min alarm in the worker process (`SIGALRM`), the job fails and is rescheduled; an expired lock also lets another worker take over |
-| Debounce       | `destroy_all` by `handler LIKE` + new job                | `replace_pending(handler, dedupe_key, queue)` removes only **unstarted** jobs and schedules +30 s                                   |
+| Characteristic | Behaviour |
+|----------------|-----------|
+| Scheduling     | `run_at` |
+| Queues         | `0..9` (by `github_pr_id % 10`) and named (`queue` text); the worker accepts `--queues` |
+| Reservation    | `SELECT … FOR UPDATE SKIP LOCKED` + `locked_at/locked_by` (test with 4 workers × 40 jobs: no job runs twice) |
+| Failure        | `attempts += 1`, `run_at = now + 5 + attempts**4` s |
+| Limit          | `max_attempts` per job (default 5), then removes |
+| Timeout        | 5 min alarm in the worker process (`SIGALRM`), the job fails and is rescheduled; an expired lock also lets another worker take over |
+| Debounce       | `replace_pending(handler, dedupe_key, queue)` removes only **unstarted** jobs and schedules +30 s |
 
 Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`, `timeout_execution`, `fetch_topotest_failures`, `slack_username_to_id`.
 
@@ -31,7 +31,7 @@ Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`,
 
 | Operation                                                       |          Idempotent?           | Policy                                                                                                                                                                                               |
 |-----------------------------------------------------------------|:------------------------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Check run `PATCH`, `GET`s, reactions                            |              yes               | up to `GITHUB_MAX_RETRIES` retries on transient failure; check run "not yet visible" (404) retried 3× with 5/10/15/20 s (same as Ruby)                                                               |
+| Check run `PATCH`, `GET`s, reactions                            |              yes               | up to `GITHUB_MAX_RETRIES` retries on transient failure; check run "not yet visible" (404) retried 3× with 5/10/15/20 s                                                               |
 | Check run `POST`, plan `POST` in Bamboo, comments               |               no               | **no automatic retry**; `create_execution_by_*` with 1 attempt                                                                                                                                       |
 | `/update/status` callback                                       | yes (304 guard per transition) | Bamboo can resend without a duplicate effect                                                                                                                                                         |
 | `ci_job_status`, `timeout_execution`, `fetch_topotest_failures` | yes (recompute from the state) | 5 attempts with back-off                                                                                                                                                                             |
@@ -40,7 +40,7 @@ Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`,
 ## Failures and recovery
 
 - **GitHub unavailable/rate limit:** 5xx/limit responses → retries with `Retry-After` (max. 60 s); if it persists, the job fails, retries (back-off) or is discarded with `last_error` recorded and an `ERROR` log.
-- **Bamboo unavailable:** the client returns `None` (as in Ruby); plan not started → `418`/status recorded and **no** stage created; `Finished` responds `503` without changing state.
+- **Bamboo unavailable:** the client returns `None`; plan not started → `418`/status recorded and **no** stage created; `Finished` responds `503` without changing state.
 - **Slack unavailable:** never propagates; metric `slack_notifications_total{status="error"}`.
 - **Database:** `pool_pre_ping`; workers survive loop errors and keep going.
 - **"Stuck" executions:** `timeout_execution` (30 min; 2 h without updates → `Finished` *hanged*), the `watch-dog` and `pr-bamboo-sync` timers reconcile with Bamboo; `single-sync <PLAN-123>` for one-off cases.

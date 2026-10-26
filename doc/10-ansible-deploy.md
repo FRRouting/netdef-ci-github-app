@@ -98,7 +98,7 @@ ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vaul
 ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass -e netdef_ci_rollback_to=<release-id>
 ```
 
-The playbook switches the `current` link, restarts `netdef-ci.target` and runs the health check. The database is **not** rolled back (additive migrations). To go back to Ruby, see `06-database-and-rollout.md`.
+The playbook switches the `current` link, restarts `netdef-ci.target` and runs the health check. The database is **not** rolled back (additive migrations). For database rollout notes, see `06-database-and-rollout.md`.
 
 ## Idempotency
 

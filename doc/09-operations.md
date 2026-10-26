@@ -15,7 +15,7 @@
 - Default: stdout → journald (`journalctl -u 'netdef-ci-*' -f`, `-u netdef-ci-web`).
 - `LOG_DIR` (Ansible: `/var/log/netdef-ci`, `netdef_ci_file_logging`): `github_app.log` and a **`pr<N>.log` per pull request** (start there to debug a PR); rotation via `/etc/logrotate.d/netdef-ci`.
 - Secrets are redacted (see `04`). DEBUG level: `DEBUG=true` and restart.
-- Each log line carries the component (`netdef_ci.github_update_status`, `…github_build_summary`, `…ci_job_status`, etc.), analogous to the Ruby files.
+- Each log line carries the component (`netdef_ci.github_update_status`, `…github_build_summary`, `…ci_job_status`, etc.).
 
 ## Health checks
 
@@ -28,8 +28,7 @@
 
 ## Metrics and alerts
 
-`GET /metrics` (Basic Auth). Suggestions: `delayed_jobs_pending` growing, `delayed_jobs_locked_too_long > 0`, `delayed_jobs_max_attempts_reached > 0`, `app_exceptions_total`, `ci_job_timeout_total`, `bamboo_api_requests_total{status="error"}`, `github_api_requests_total{status="5xx"}`, `ci_stages_total{status="in_progress"}` stuck.
-The Ruby project's `grafana_dashboard.json` remains usable, except for the `puma_*`/`http_server_*` panels (see `07`).
+`GET /metrics` (Basic Auth). Suggestions: `jobs_pending` growing, `jobs_locked_too_long > 0`, `jobs_max_attempts_reached > 0`, `app_exceptions_total`, `ci_job_timeout_total`, `bamboo_api_requests_total{status="error"}`, `github_api_requests_total{status="5xx"}`, `ci_stages_total{status="in_progress"}` stuck.
 
 ## Troubleshooting
 

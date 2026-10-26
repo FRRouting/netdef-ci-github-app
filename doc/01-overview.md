@@ -2,7 +2,7 @@
 
 ## Purpose and scope
 
-`netdef-ci-github-app-python` is the Python migration of the Ruby/Sinatra server `netdef-ci-github-app`. It connects **GitHub
+`netdef-ci-github-app-python` is a standalone Python service. It connects **GitHub
 Pull Requests** to an **Atlassian Bamboo CI** server:
 
 1. receives GitHub events (PR opened/updated, `ci:retry` / `ci:rerun` comments, re-run from the Checks UI);
@@ -11,9 +11,7 @@ Pull Requests** to an **Atlassian Bamboo CI** server:
 4. receives Bamboo *callbacks* (`POST /update/status`) and reconciles state in the background (WatchDog, timeout);
 5. notifies users on Slack and exposes Prometheus metrics.
 
-Out of scope (not migrated, see `12-limitations-and-pending.md`): ad-hoc report scripts in `reports/`,
-`tasks/retrieve_address_sanitizer_error.rb`, `grafana_dashboard.json` (still valid, see `09-operations.md`) and the
-legacy Sidekiq/Redis files.
+Out of scope: ad-hoc report scripts and Redis-based queues (see `12-limitations-and-pending.md` and `09-operations.md`).
 
 ## Architecture
 
@@ -23,7 +21,7 @@ flowchart LR
     BAM[(Bamboo CI)] -- POST /update/status HMAC --> WEB
     SL[(Slack bot)] -- /slack, /slack/settings Basic --> WEB
     PROM[(Prometheus)] -- GET /metrics Basic --> WEB
-    WEB -- enqueues --> DB[(PostgreSQL<br/>Ruby schema + jobs)]
+    WEB -- enqueues --> DB[(PostgreSQL<br/>schema + jobs)]
     W[job workers<br/>python -m netdef_ci worker] <--> DB
     WEB <--> DB
     W -- Check Runs / comments<br/>JWT + installation token --> GH
@@ -38,10 +36,10 @@ flowchart LR
 | Component         | Responsibility                                                                                                                                | Code                            |
 |-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
 | **web**           | Authenticates (HMAC/Basic), validates the raw body, delegates to the service and responds. Makes no slow external calls: it enqueues jobs.    | `web/app.py`, `web/webhooks.py` |
-| **services**      | Business rules ported from Ruby (BuildPlan, UpdateStatus, Summary, Finished, executions, retry, rerun, tasks).                                | `services/`                     |
+| **services**      | Business rules (BuildPlan, UpdateStatus, Summary, Finished, executions, retry, rerun, tasks).                                | `services/`                     |
 | **clients**       | GitHub App (JWT, installation token with caching/renewal), Bamboo REST, Slack bot; bounded retries.                                           | `clients/`                      |
-| **jobs**          | PostgreSQL queue with Delayed Job semantics (`run_at`, named/numeric queues, 5 attempts, 5 min lock); worker; per-PR locks.                   | `jobs/`                         |
-| **models**        | SQLAlchemy models over the **same schema** as Ruby (+ `jobs` and `webhook_deliveries` tables).                                                | `models.py`, `migrations/`      |
+| **jobs**          | PostgreSQL queue (`run_at`, named/numeric queues, 5 attempts, 5 min lock); worker; per-PR locks.                   | `jobs/`                         |
+| **models**        | SQLAlchemy models over the schema (including the `jobs` and `webhook_deliveries` tables).                                                | `models.py`, `migrations/`      |
 | **cli**           | `worker`, `watch-dog`, `pr-bamboo-sync`, `single-sync`, `migrate`, `check-config`, organizations/users console.                               | `cli/main.py`                   |
 | **observability** | Logs with secret redaction, Prometheus metrics (multiprocess), `/healthz`, `/readyz`.                                                         | `logs.py`, `metrics.py`         |
 
@@ -144,7 +142,7 @@ netdef-ci-github-app-python/
 ├── README.md  AGENTS.md  PLAN.md  Makefile
 ├── requirements.txt  requirements-dev.txt        # pinned dependencies
 ├── .env.example  github_apps.example.toml        # dummy configuration
-├── alembic.ini  migrations/versions/             # 0001 Ruby baseline, 0002 Python tables
+├── alembic.ini  migrations/versions/             # 0001 initial schema, 0002 jobs and webhook tables
 ├── src/netdef_ci/
 │   ├── config.py  db.py  models.py  enums.py  security.py  logs.py  metrics.py  container.py
 │   ├── web/{app.py,webhooks.py}
