@@ -31,7 +31,7 @@ SIG="sha256=$(printf %s "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" |
 | `check_suite`       | `action` contains `rerequested`                                         | `200 Scheduled Plan Runs` · `404 Failed to fetch a check suite`; other action `200 OK`                                                                               |
 | `installation`      | —                                                                       | `202 Updated`                                                                                                                                                        |
 | other               | —                                                                       | `401 Invalid request (4)`                                                                                                                                            |
-| no `X-GitHub-Event` | —                                                                       | `400 Missing X-GitHub-Event header` (in Ruby: 500)                                                                                                                   |
+| no `X-GitHub-Event` | —                                                                       | `400 Missing X-GitHub-Event header`                                                                                                                   |
 
 Common errors: no signature `404 Signature not found`; wrong signature `401 Signatures didn't match!`; invalid JSON (after authentication) `400`; internal failure `500 {"error":"Internal Server Error"}` (no details). Content-Type: `text/plain; charset=utf-8`.
 
@@ -60,7 +60,7 @@ Payload: `status` (`in_progress` | `success` | `failure` | `finished` | other �
 | error while updating                                                                                                          | `500 Internal Server Error`                                                                   |
 | `status == finished`                                                                                                          | `200 Finished` · `200 Still running` · `404 Check Suite not found` · `503 Bamboo unavailable` |
 
-The `Content-Type` is `application/json` even with a text body (same as Ruby).
+The `Content-Type` is `application/json` even with a text body.
 
 ```bash
 curl -sS https://ci.example.invalid/update/status -H "Signature: $SIG" --data-binary \
@@ -79,7 +79,7 @@ curl -sS https://ci.example.invalid/update/status -H "Signature: $SIG" --data-bi
 
 ## Metrics (`GET /metrics`)
 
-Same names as Ruby: `http_requests_total`, `http_request_duration_seconds`, `github_webhook_events_total`, `app_exceptions_total{class,handler}`,
+`http_requests_total`, `http_request_duration_seconds`, `github_webhook_events_total`, `app_exceptions_total{class,handler}`,
 `bamboo_api_requests_total`, `bamboo_api_request_duration_seconds`, `slack_notifications_total`, `ci_job_execution_seconds`, `ci_job_retry_total`,
-`ci_job_timeout_total`, `activerecord_queries_total`, `activerecord_query_duration_seconds`, gauges `delayed_jobs_*` (now computed over the `jobs` table),
-`ci_jobs_total`, `ci_stages_total`, `activerecord_connection_pool_*`; new: `github_api_requests_total`.
+`ci_job_timeout_total`, `db_queries_total`, `db_query_duration_seconds`, gauges `jobs_*` (computed over the `jobs` table; `jobs_table` is the detail gauge),
+`ci_jobs_total`, `ci_stages_total`, `db_connection_pool_*`, `github_api_requests_total`.

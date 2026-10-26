@@ -1,15 +1,14 @@
 # NetDEF CI GitHub App (Python)
 
 Server that connects **GitHub Pull Requests** to **Bamboo CI**: it receives webhooks, triggers the Bamboo plans, keeps the
-*Check Runs* on GitHub up to date, consolidates the results sent by Bamboo and notifies Slack. It is the Python (3.15.2) migration of the Ruby
-project `netdef-ci-github-app`, with the **same database**, the same endpoints and the same business rules.
+*Check Runs* on GitHub up to date, consolidates the results sent by Bamboo and notifies Slack.
 
 - Python **3.15.2** · FastAPI + uvicorn · SQLAlchemy 2 + Alembic + PostgreSQL · httpx · PyJWT · prometheus-client
-- Own PostgreSQL job queue (Delayed Job semantics), no Redis
+- Own PostgreSQL job queue (`run_at`, named queues, retries with back-off), no Redis
 - Tests: **252 passing**, **94 %** coverage, `ruff` and `mypy` clean · Deploy: **Ansible** (dev and production)
 
-Full documentation in [`doc/`](doc/): overview and diagrams (`01`), Ruby analysis and **parity matrix** (`02`), technical decisions (`03`),
-configuration/GitHub App/secrets (`04`), endpoints (`05`), migration and rollback (`06`), divergences and improvements (`07`),
+Full documentation in [`doc/`](doc/): overview and diagrams (`01`), feature and test matrix (`02`), technical decisions (`03`),
+configuration/GitHub App/secrets (`04`), endpoints (`05`), database and rollout (`06`), design notes (`07`),
 persistence/concurrency (`08`), operations and troubleshooting (`09`), Ansible deploy (`10`), testing (`11`), limitations (`12`).
 
 ## Quick start (development)
@@ -25,7 +24,7 @@ cp github_apps.example.toml github_apps.toml   # App ID, .pem key path and repos
 export PYTHONPATH=src
 
 python -m netdef_ci check-config           # validates configuration, keys and database
-python -m netdef_ci migrate                # creates/updates the schema (adopts databases created by Ruby)
+python -m netdef_ci migrate                # creates/updates the schema (adopts existing databases)
 
 python -m uvicorn --factory netdef_ci.web.app:app_factory --host 0.0.0.0 --port 9292   # web
 python -m netdef_ci worker                 # in another terminal: processes the queue (--queues 0,1,2,3 for one range)
@@ -35,7 +34,7 @@ python -m netdef_ci watch-dog              # reconciliation (in production: syst
 `make run`, `make worker`, `make migrate`, `make check` and `make smoke` wrap the commands above.
 Register the repository's plans and stages in `plans` (`bamboo_ci_plan_name`, `github_repo_name`, `name`) and `stage_configurations` (see `doc/04`).
 
-Console commands (equivalent to Ruby's `bin/console`):
+Console commands:
 
 ```bash
 python -m netdef_ci org create NetDEF --contact-name "Jane Doe"
@@ -75,7 +74,7 @@ Secret management and rotation: [`doc/04-configuration-and-environment.md`](doc/
 
 ## Status
 
-Functional parity is demonstrated by tests (matrix in `doc/02`), with deliberate divergences listed in `doc/07` and open items in `doc/12`
-(Ruby report scripts not migrated; real GitHub/Bamboo/Slack integration and server deployment not validated).
+Functionality is demonstrated by tests (matrix in `doc/02`), with design notes in `doc/07` and open items in `doc/12`
+(real GitHub/Bamboo/Slack integration and server deployment not validated).
 
 License: BSD-2-Clause — Network Device Education Foundation, Inc. ("NetDEF").
