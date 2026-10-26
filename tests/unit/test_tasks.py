@@ -58,7 +58,7 @@ def test_timeout_reschedules_recently_updated_suites(session, clients) -> None:
     assert tasks.timeout_execution(session, w.suite.id) is False
     job = session.scalars(select(Job)).one()
     assert job.handler == "timeout_execution" and job.queue == "timeout_execution" and job.args == [w.suite.id]
-    assert timedelta(minutes=29) < job.run_at - utcnow() <= timedelta(minutes=30)
+    assert timedelta(minutes=9) < job.run_at - utcnow() <= timedelta(minutes=10)
 
 
 def test_timeout_marks_hung_suites_as_finished(session, clients, bamboo) -> None:

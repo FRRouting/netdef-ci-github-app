@@ -31,7 +31,7 @@ SIG="sha256=$(printf %s "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" |
 | `check_suite`       | `action` contains `rerequested`                                         | `200 Scheduled Plan Runs` · `404 Failed to fetch a check suite`; other action `200 OK`                                                                               |
 | `installation`      | —                                                                       | `202 Updated`                                                                                                                                                        |
 | other               | —                                                                       | `401 Invalid request (4)`                                                                                                                                            |
-| no `X-GitHub-Event` | —                                                                       | `400 Missing X-GitHub-Event header`                                                                                                                   |
+| no `X-GitHub-Event` | —                                                                       | `400 Missing X-GitHub-Event header`                                                                                                                                  |
 
 Common errors: no signature `404 Signature not found`; wrong signature `401 Signatures didn't match!`; invalid JSON (after authentication) `400`; internal failure `500 {"error":"Internal Server Error"}` (no details). Content-Type: `text/plain; charset=utf-8`.
 

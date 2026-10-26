@@ -33,15 +33,15 @@ flowchart LR
     T --> GH
 ```
 
-| Component         | Responsibility                                                                                                                                | Code                            |
-|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
-| **web**           | Authenticates (HMAC/Basic), validates the raw body, delegates to the service and responds. Makes no slow external calls: it enqueues jobs.    | `web/app.py`, `web/webhooks.py` |
-| **services**      | Business rules (BuildPlan, UpdateStatus, Summary, Finished, executions, retry, rerun, tasks).                                | `services/`                     |
-| **clients**       | GitHub App (JWT, installation token with caching/renewal), Bamboo REST, Slack bot; bounded retries.                                           | `clients/`                      |
-| **jobs**          | PostgreSQL queue (`run_at`, named/numeric queues, 5 attempts, 5 min lock); worker; per-PR locks.                   | `jobs/`                         |
-| **models**        | SQLAlchemy models over the schema (including the `jobs` and `webhook_deliveries` tables).                                                | `models.py`, `migrations/`      |
-| **cli**           | `worker`, `watch-dog`, `pr-bamboo-sync`, `single-sync`, `migrate`, `check-config`, organizations/users console.                               | `cli/main.py`                   |
-| **observability** | Logs with secret redaction, Prometheus metrics (multiprocess), `/healthz`, `/readyz`.                                                         | `logs.py`, `metrics.py`         |
+| Component         | Responsibility                                                                                                                             | Code                            |
+|-------------------|--------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------|
+| **web**           | Authenticates (HMAC/Basic), validates the raw body, delegates to the service and responds. Makes no slow external calls: it enqueues jobs. | `web/app.py`, `web/webhooks.py` |
+| **services**      | Business rules (BuildPlan, UpdateStatus, Summary, Finished, executions, retry, rerun, tasks).                                              | `services/`                     |
+| **clients**       | GitHub App (JWT, installation token with caching/renewal), Bamboo REST, Slack bot; bounded retries.                                        | `clients/`                      |
+| **jobs**          | PostgreSQL queue (`run_at`, named/numeric queues, 5 attempts, 5 min lock); worker; per-PR locks.                                           | `jobs/`                         |
+| **models**        | SQLAlchemy models over the schema (including the `jobs` and `webhook_deliveries` tables).                                                  | `models.py`, `migrations/`      |
+| **cli**           | `worker`, `watch-dog`, `pr-bamboo-sync`, `single-sync`, `migrate`, `check-config`, organizations/users console.                            | `cli/main.py`                   |
+| **observability** | Logs with secret redaction, Prometheus metrics (multiprocess), `/healthz`, `/readyz`.                                                      | `logs.py`, `metrics.py`         |
 
 ## Main flows
 
@@ -69,7 +69,7 @@ sequenceDiagram
     W->>SL: execution started
     W->>B: result/<key>?expand=stages.stage.results
     W->>GH: SkipOldTests + Check Run per stage (queued)
-    W->>DB: Stage, CiJob, job timeout_execution (+30 min)
+    W->>DB: Stage, CiJob, job timeout_execution (+10 min)
 ```
 
 ### Bamboo status callback and consolidation
@@ -107,11 +107,11 @@ flowchart TD
     E --> F[clear_deleted_jobs: remaining → skipped]
     F --> G[update_all_stages: Summary from the last stage]
     G --> H[200 Finished]
-    T([timeout_execution +30 min]) --> T1{suite finished?}
+    T([timeout_execution +10 min]) --> T1{suite finished?}
     T1 -- yes --> T9([end])
     T1 -- no --> T2{no update for > 2 h?}
     T2 -- yes --> T3[metric ci_job_timeout_total + Finished hanged=true]
-    T2 -- no --> T4[reschedules +30 min]
+    T2 -- no --> T4[reschedules +10 min]
     W([watch-dog timer]) --> W1[suites with queued/in_progress stages] --> A
 ```
 

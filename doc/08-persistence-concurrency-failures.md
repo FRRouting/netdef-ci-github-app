@@ -8,17 +8,18 @@
 
 ## Job queue (`jobs/queue.py`, `jobs` table)
 
-| Characteristic | Behaviour |
-|----------------|-----------|
-| Scheduling     | `run_at` |
-| Queues         | `0..9` (by `github_pr_id % 10`) and named (`queue` text); the worker accepts `--queues` |
-| Reservation    | `SELECT … FOR UPDATE SKIP LOCKED` + `locked_at/locked_by` (test with 4 workers × 40 jobs: no job runs twice) |
-| Failure        | `attempts += 1`, `run_at = now + 5 + attempts**4` s |
-| Limit          | `max_attempts` per job (default 5), then removes |
+| Characteristic | Behaviour                                                                                                                           |
+|----------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| Scheduling     | `run_at`                                                                                                                            |
+| Queues         | `0..9` (by `github_pr_id % 10`) and named (`queue` text); the worker accepts `--queues`                                             |
+| Reservation    | `SELECT … FOR UPDATE SKIP LOCKED` + `locked_at/locked_by` (test with 4 workers × 40 jobs: no job runs twice)                        |
+| Failure        | `attempts += 1`, `run_at = now + 5 + attempts**4` s                                                                                 |
+| Limit          | `max_attempts` per job (default 5), then removes                                                                                    |
 | Timeout        | 5 min alarm in the worker process (`SIGALRM`), the job fails and is rescheduled; an expired lock also lets another worker take over |
-| Debounce       | `replace_pending(handler, dedupe_key, queue)` removes only **unstarted** jobs and schedules +30 s |
+| Debounce       | `replace_pending(handler, dedupe_key, queue)` removes only **unstarted** jobs and schedules +30 s                                   |
 
 Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`, `timeout_execution`, `fetch_topotest_failures`, `slack_username_to_id`.
+Their delays, re-schedules and the periodic timers are listed in `09-operations.md` ("Background job schedule").
 
 ## Concurrency
 
@@ -31,7 +32,7 @@ Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`,
 
 | Operation                                                       |          Idempotent?           | Policy                                                                                                                                                                                               |
 |-----------------------------------------------------------------|:------------------------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Check run `PATCH`, `GET`s, reactions                            |              yes               | up to `GITHUB_MAX_RETRIES` retries on transient failure; check run "not yet visible" (404) retried 3× with 5/10/15/20 s                                                               |
+| Check run `PATCH`, `GET`s, reactions                            |              yes               | up to `GITHUB_MAX_RETRIES` retries on transient failure; check run "not yet visible" (404) retried 3× with 5/10/15/20 s                                                                              |
 | Check run `POST`, plan `POST` in Bamboo, comments               |               no               | **no automatic retry**; `create_execution_by_*` with 1 attempt                                                                                                                                       |
 | `/update/status` callback                                       | yes (304 guard per transition) | Bamboo can resend without a duplicate effect                                                                                                                                                         |
 | `ci_job_status`, `timeout_execution`, `fetch_topotest_failures` | yes (recompute from the state) | 5 attempts with back-off                                                                                                                                                                             |
@@ -43,5 +44,5 @@ Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`,
 - **Bamboo unavailable:** the client returns `None`; plan not started → `418`/status recorded and **no** stage created; `Finished` responds `503` without changing state.
 - **Slack unavailable:** never propagates; metric `slack_notifications_total{status="error"}`.
 - **Database:** `pool_pre_ping`; workers survive loop errors and keep going.
-- **"Stuck" executions:** `timeout_execution` (30 min; 2 h without updates → `Finished` *hanged*), the `watch-dog` and `pr-bamboo-sync` timers reconcile with Bamboo; `single-sync <PLAN-123>` for one-off cases.
+- **"Stuck" executions:** `timeout_execution` (every 10 min; 2 h without updates → `Finished` *hanged*), the `watch-dog` and `pr-bamboo-sync` timers reconcile with Bamboo; `single-sync <PLAN-123>` for one-off cases.
 - **Restarts:** `Restart=always`; reserved jobs whose lock expires (5 min) return to the queue.

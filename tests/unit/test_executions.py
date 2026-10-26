@@ -61,7 +61,7 @@ def test_new_execution_starts_plan_and_creates_stages_and_jobs(session, ready, b
         ("Tests job", "Tests", Status.QUEUED),
     ]
     timeout = session.scalars(select(Job).where(Job.handler == "timeout_execution")).one()
-    assert timeout.args == [suite.id] and timedelta(minutes=29) < timeout.run_at - utcnow() <= timedelta(minutes=30)
+    assert timeout.args == [suite.id] and timedelta(minutes=9) < timeout.run_at - utcnow() <= timedelta(minutes=10)
     assert slack.names() == ["started"]
     assert session.scalars(select(GithubUser)).one().github_id == 4242
 

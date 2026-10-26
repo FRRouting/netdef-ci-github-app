@@ -4,12 +4,12 @@
 
 The service uses a single PostgreSQL database. The schema is defined by the SQLAlchemy models in `models.py` and versioned with Alembic (`migrations/versions/`).
 
-| Group             | Tables                                                                                                                                                                                  | Created by                    |
-|-------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------|
-| Domain tables (13) | `organizations`, `github_users`, `pull_requests`, `pull_request_subscriptions`, `plans`, `check_suites`, `stages`, `ci_jobs`, `stage_configurations`, `audit_statuses`, `audit_retries`, `audit_retries_ci_jobs`, `topotest_failures` | `0001_initial_schema`         |
-| Background queue  | `jobs` (JSON payloads, queue, priority, `run_at`, attempts, lock and failure columns)                                                                                                   | `0002_python_tables`          |
-| Deduplication     | `webhook_deliveries` (stays empty while `WEBHOOK_DEDUPE_TTL_SECONDS=0`)                                                                                                                 | `0002_python_tables`          |
-| Versioning        | `alembic_version`                                                                                                                                                                       | Alembic                       |
+| Group              | Tables                                                                                                                                                                                                                                | Created by            |
+|--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
+| Domain tables (13) | `organizations`, `github_users`, `pull_requests`, `pull_request_subscriptions`, `plans`, `check_suites`, `stages`, `ci_jobs`, `stage_configurations`, `audit_statuses`, `audit_retries`, `audit_retries_ci_jobs`, `topotest_failures` | `0001_initial_schema` |
+| Background queue   | `jobs` (JSON payloads, queue, priority, `run_at`, attempts, lock and failure columns)                                                                                                                                                 | `0002_python_tables`  |
+| Deduplication      | `webhook_deliveries` (stays empty while `WEBHOOK_DEDUPE_TTL_SECONDS=0`)                                                                                                                                                               | `0002_python_tables`  |
+| Versioning         | `alembic_version`                                                                                                                                                                                                                     | Alembic               |
 
 Status values are stored as integers (`queued` 0 … `skipped` -3) and audit rows use `auditable_type` (`CiJob`/`Stage`).
 
@@ -22,12 +22,12 @@ Status values are stored as integers (`queued` 0 … `skipped` -3) and audit row
 
 Commands:
 
-| Command                                | Purpose                                                                                                                              |
-|----------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `python -m netdef_ci migrate`          | Applies all pending migrations (`alembic upgrade head`). Idempotent; the Ansible deploy runs it on every release.                    |
-| `python -m netdef_ci stamp-baseline`   | Marks a database whose domain tables already exist as revision `0001_initial_schema` (`--revision` selects another one) without running it. Optional, since the baseline is a no-op on existing tables. |
-| `python -m netdef_ci check-config`     | Validates configuration, GitHub App keys and database connectivity.                                                                  |
-| `python -m netdef_ci purge-jobs`       | Deletes every pending background job (use with care).                                                                                |
+| Command                              | Purpose                                                                                                                                                                                                 |
+|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `python -m netdef_ci migrate`        | Applies all pending migrations (`alembic upgrade head`). Idempotent; the Ansible deploy runs it on every release.                                                                                       |
+| `python -m netdef_ci stamp-baseline` | Marks a database whose domain tables already exist as revision `0001_initial_schema` (`--revision` selects another one) without running it. Optional, since the baseline is a no-op on existing tables. |
+| `python -m netdef_ci check-config`   | Validates configuration, GitHub App keys and database connectivity.                                                                                                                                     |
+| `python -m netdef_ci purge-jobs`     | Deletes every pending background job (use with care).                                                                                                                                                   |
 
 Schema changes are made only through new Alembic revisions. `tests/integration/test_migrations.py` checks that the models and the migrations describe the same schema.
 
@@ -53,10 +53,10 @@ Schema changes are made only through new Alembic revisions. `tests/integration/t
 
 ## Release rollback
 
-| Situation                                              | Action                                                                                                                                                                                                       |
-|--------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Defect in the deployed release, database intact        | `ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass` returns to the previous release (or `-e netdef_ci_rollback_to=<id>` for a specific one). No reverse migration is needed: tables added by newer migrations are ignored by older releases. |
-| Corrupted data                                         | Restore the `pg_dump` taken before the release (everything written afterwards is lost).                                                                                                                      |
+| Situation                                       | Action                                                                                                                                                                                                                                                                            |
+|-------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Defect in the deployed release, database intact | `ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass` returns to the previous release (or `-e netdef_ci_rollback_to=<id>` for a specific one). No reverse migration is needed: tables added by newer migrations are ignored by older releases. |
+| Corrupted data                                  | Restore the `pg_dump` taken before the release (everything written afterwards is lost).                                                                                                                                                                                           |
 
 ## Database downgrade notes
 
