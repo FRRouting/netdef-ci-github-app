@@ -105,3 +105,42 @@ def test_check_config_reports_problems(session, monkeypatch, settings, capsys, t
     assert code == 1
     assert "WEBHOOK_SECRET is empty" in captured.err and "GITHUB_APPS_FILE unreadable" in captured.err
     assert "Bamboo credentials not found" in captured.err and "SLACK_BOT_URL not set" in captured.out
+
+
+def test_check_bamboo_reports_each_probe(clients, capsys) -> None:
+    import httpx
+
+    from netdef_ci import container
+    from netdef_ci.clients.bamboo import BambooClient
+    from netdef_ci.config import get_settings
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if path.endswith("/info"):
+            return httpx.Response(200, json={"version": "10"})
+        if path.endswith("/plan/NOPE"):
+            return httpx.Response(404)
+        return httpx.Response(200, json={"stages": {"stage": []}})
+
+    container.override(bamboo=BambooClient(get_settings(), transport=httpx.MockTransport(handler)))
+    assert main(["check-bamboo"]) == 0
+    assert "ok   server info: 200" in capsys.readouterr().out
+    assert main(["check-bamboo", "--plan", "NOPE", "--result", "PROJ-PLAN-1"]) == 1
+    out = capsys.readouterr().out
+    assert "FAIL plan NOPE: 404 (not found)" in out and "ok   execution PROJ-PLAN-1: 200" in out
+    assert "jobs found in PROJ-PLAN-1: 0" in out
+
+
+def test_check_bamboo_reports_connection_errors(clients, capsys) -> None:
+    import httpx
+
+    from netdef_ci import container
+    from netdef_ci.clients.bamboo import BambooClient
+    from netdef_ci.config import get_settings
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    container.override(bamboo=BambooClient(get_settings(), transport=httpx.MockTransport(down)))
+    assert main(["check-bamboo"]) == 1
+    assert "FAIL server info: ConnectError: refused" in capsys.readouterr().out

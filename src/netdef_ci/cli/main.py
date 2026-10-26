@@ -45,6 +45,9 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     stamp.add_argument("--revision", default="0001_initial_schema")
     sub.add_parser("check-config", help="validate configuration, GitHub App keys and database connectivity")
+    bamboo = sub.add_parser("check-bamboo", help="probe the Bamboo connection with the service's own client")
+    bamboo.add_argument("--plan", help="also read a plan key, e.g. PROJ-PLAN")
+    bamboo.add_argument("--result", help="also read an execution key, e.g. PROJ-PLAN-123 (jobs and status)")
     sub.add_parser("purge-jobs", help="delete every pending background job")
 
     org = sub.add_parser("org", help="organizations").add_subparsers(dest="action", required=True)
@@ -79,6 +82,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "migrate": _migrate,
         "stamp-baseline": _stamp,
         "check-config": _check_config,
+        "check-bamboo": _check_bamboo,
         "purge-jobs": _purge_jobs,
         "org": _org,
         "user": _user,
@@ -178,6 +182,42 @@ def _purge_jobs(_: argparse.Namespace) -> int:
         session.commit()
         print(f"Removed {getattr(result, 'rowcount', 0)} job(s)")
     return 0
+
+
+def _check_bamboo(args: argparse.Namespace) -> int:
+    """Real HTTP calls to Bamboo (read-only): server info, optionally a plan and an execution."""
+    import time
+
+    from netdef_ci import container
+
+    settings = get_settings()
+    client = container.bamboo()
+    print(f"Bamboo: {settings.bamboo_base_url} (TLS verification: {settings.bamboo_verify_tls})")
+    if settings.bamboo_credentials() is None:
+        print("warning: no Bamboo credentials (BAMBOO_USERNAME/PASSWORD or ~/.netrc); requests are anonymous")
+    probes = [("server info", "/rest/api/latest/info")]
+    if args.plan:
+        probes.append((f"plan {args.plan}", f"/rest/api/latest/plan/{args.plan}"))
+    if args.result:
+        probes.append((f"execution {args.result}", f"/rest/api/latest/result/{args.result}"))
+        probes.append((f"execution status {args.result}", f"/rest/api/latest/result/status/{args.result}"))
+    failed = 0
+    for label, path in probes:
+        start = time.monotonic()
+        try:
+            response = client._send("GET", path, headers={"Accept": "application/json"})
+            code, detail = response.status_code, ""
+        except Exception as error:
+            code, detail = None, f"{type(error).__name__}: {error}"
+        elapsed = int((time.monotonic() - start) * 1000)
+        ok = code is not None and code < 400
+        failed += 0 if ok else 1
+        hint = {401: " (credentials missing or wrong)", 403: " (not allowed)", 404: " (not found)"}.get(code or 0, "")
+        print(f"{'ok  ' if ok else 'FAIL'} {label}: {code if code else detail}{hint} [{elapsed} ms]")
+    if args.result:
+        jobs = client.running_plan(args.result)
+        print(f"     jobs found in {args.result}: {len(jobs)}")
+    return 1 if failed else 0
 
 
 def _check_config(_: argparse.Namespace) -> int:
