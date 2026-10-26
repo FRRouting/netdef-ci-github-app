@@ -30,6 +30,13 @@
   loop_control:
     label: "{{ item.msg[:60] }}"
 
+- name: Warn when the Bamboo credentials are missing
+  ansible.builtin.debug:
+    msg: >-
+      vault_netdef_ci_bamboo_username/password are not set: the service will call Bamboo anonymously and every request
+      will fail with 401 unless the service account has a ~/.netrc entry. Verify with: python -m netdef_ci check-bamboo
+  when: netdef_ci_bamboo_username | length == 0 or netdef_ci_bamboo_password | length == 0
+
 - name: Check the interpreter built by the python_runtime role
   ansible.builtin.stat:
     path: "{{ netdef_ci_python_bin }}"
