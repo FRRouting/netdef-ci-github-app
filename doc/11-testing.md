@@ -45,3 +45,18 @@ Environment: Python **3.15.2** (built from the python.org tarball), PostgreSQL 1
 Coverage per module (branches included): the business modules (`services/*`, `web/*`, `jobs/*`, `models`, `security`) sit between 91 % and 100 %; the lowest are `clients/slack.py` (85 %), `container.py` (79 %, real client wiring) and `commits.py` (84 %).
 
 Not executed/validated: see `12-limitations-and-pending.md`.
+
+## GitHub Actions pipeline
+
+`.github/workflows/python.yml` runs on pushes to `master`, `develop` and `feature/**`, on pull requests to `master`/`develop`, and on `v*` tags:
+
+| Job | What it does |
+|-----|--------------|
+| `lint` | `ruff check`, `ruff format --check`, `mypy src` (Python 3.15.2) |
+| `tests` | `pytest` (unit + integration) against a PostgreSQL 17 service, coverage must stay >= 90 %, `pip check` |
+| `smoke` | `scripts/smoke_test.py`: real uvicorn + worker processes (runs after `lint` and `tests`) |
+| `ansible` | `ansible-lint` (production profile) and `--syntax-check` of the deploy playbook for dev and prod |
+| `ci-passed` | aggregates the jobs above; **mark it as a required status check** in the branch protection rules so a branch version can only be released when everything is green |
+| `release` | only for `v*` tags and only after `ci-passed`: builds `netdef-ci-<tag>.tar.gz` with `git archive` and publishes a GitHub release |
+
+Deploy a released version with `-e netdef_ci_version=<tag>` (see `10-ansible-deploy.md`).
