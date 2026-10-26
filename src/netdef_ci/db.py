@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Database engine/session handling. Timestamps are naive UTC, like Rails' default for the shared schema."""
+"""Database engine/session handling. Timestamps are naive UTC, as stored in `timestamp without time zone` columns."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ _factory: sessionmaker[Session] | None = None
 
 
 def utcnow() -> datetime:
-    """Naive UTC "now" (the Ruby app stores UTC in `timestamp without time zone`)."""
+    """Naive UTC "now" (UTC stored in `timestamp without time zone`)."""
     return datetime.now(UTC).replace(tzinfo=None)
 
 
@@ -74,7 +74,7 @@ def new_session() -> Session:
 
 @contextmanager
 def session_scope() -> Iterator[Session]:
-    """Session that is always closed; callers commit explicitly (the Ruby code autocommits per save)."""
+    """Session that is always closed; callers commit explicitly (there is no implicit autocommit)."""
     session = new_session()
     try:
         yield session

@@ -2,7 +2,7 @@
 
 Project: **netdef-ci-github-app-python**, the Python migration of the Ruby server `netdef-ci-github-app` (a GitHub App that
 connects Pull Requests to Bamboo CI). The executed Ruby code is the behavioural reference; divergences are recorded in
-`doc/07-divergences-and-improvements.md`.
+`doc/07-design-notes.md`.
 
 ## Language rule
 
@@ -22,7 +22,7 @@ project skill `.claude/skills/document-in-english/SKILL.md`.
 - Operations with non-idempotent external side effects (starting a Bamboo plan) run with `max_attempts=1`.
 - Tests: `pytest` in `tests/unit` and `tests/integration`; external HTTP only through `respx`/doubles in `tests/fakes.py`.
   No test touches real resources. Test database: PostgreSQL via `TEST_DATABASE_URL` (or SQLite, skipping the `pg` tests).
-- Behaviour changes relative to Ruby must be recorded in `doc/07-divergences-and-improvements.md`.
+- Behaviour changes relative to Ruby must be recorded in `doc/07-design-notes.md`.
 - Schema: changes only through Alembic migrations in `migrations/versions/` (the baseline reproduces the 2025-08-22 Ruby schema).
 
 ## Commands

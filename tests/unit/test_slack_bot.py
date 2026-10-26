@@ -63,7 +63,7 @@ def test_started_goes_to_subscribers_of_pr_and_author_once_per_user(session, bot
     )
     request = rec.requests[0]
     assert str(request.url) == "https://slack-bot.example.test/github/user"
-    assert request.headers["content-type"] == "application/xml"  # contract kept from the Ruby client
+    assert request.headers["content-type"] == "application/xml"  # required by the Slack bot
     assert request.headers["authorization"].startswith("Basic ")
 
 

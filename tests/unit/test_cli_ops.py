@@ -63,7 +63,7 @@ def test_pr_bamboo_sync_command(session, clients, github, capsys) -> None:
 def test_migrate_and_stamp_commands(engine, capsys) -> None:
     assert main(["migrate"]) == 0
     assert "already at revision 0002_python_tables" in capsys.readouterr().out
-    assert main(["stamp-ruby-schema", "--revision", "0002_python_tables"]) == 0
+    assert main(["stamp-baseline", "--revision", "0002_python_tables"]) == 0
 
 
 def test_worker_command_runs_jobs_and_stops_on_sigterm(session, clients) -> None:

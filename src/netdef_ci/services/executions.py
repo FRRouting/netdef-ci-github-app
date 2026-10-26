@@ -302,7 +302,7 @@ class CreateExecutionByCommand(RerunBase):
         self.github = container.github(old_suite)
         self.stop_previous_execution(plan)
         check_suite = self.copy_check_suite(old_suite)
-        # Same as the Ruby flow: this suite is not linked to `plan` (plan_id stays NULL).
+        # This suite is not linked to `plan` (plan_id stays NULL).
         self.start_new_execution(check_suite, plan)
         self.ci_jobs(check_suite, plan)
 

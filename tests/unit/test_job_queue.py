@@ -78,7 +78,7 @@ def test_worker_only_takes_its_queues(session) -> None:
     assert CALLS == [("b",)]
 
 
-def test_failed_job_is_rescheduled_with_delayed_job_backoff_then_destroyed(session) -> None:
+def test_failed_job_is_rescheduled_with_backoff_then_destroyed(session) -> None:
     queue.enqueue(session, "t_fail", [], max_attempts=3)
     w = worker()
     for attempt in (1, 2):

@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Registered background job handlers (one function per Ruby worker class)."""
+"""Registered background job handlers (one function per job type)."""
 
 from __future__ import annotations
 

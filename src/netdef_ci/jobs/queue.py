@@ -5,9 +5,8 @@
 #
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
-
-"""PostgreSQL-backed job queue with Delayed Job semantics: `run_at` scheduling, named/numeric queues, lock expiry,
-bounded attempts with the same back-off (`5 + attempts**4` seconds) and removal of permanently failed jobs."""
+"""PostgreSQL-backed job queue: `run_at` scheduling, named/numeric queues, lock expiry, bounded attempts with
+back-off (`5 + attempts**4` seconds) and removal of permanently failed jobs."""
 
 from __future__ import annotations
 
@@ -81,7 +80,7 @@ class JobTimeoutError(Exception):
 
 @contextmanager
 def _time_limit(seconds: int) -> Any:
-    """Abort the running job after `seconds` (Delayed::Worker.max_run_time). Only possible in the main thread."""
+    """Abort the running job after `seconds`. Only possible in the main thread."""
     if threading.current_thread() is not threading.main_thread() or not hasattr(signal, "setitimer"):
         yield
         return
@@ -179,7 +178,7 @@ class Worker:
             job.last_error = text
             if job.attempts >= job.max_attempts:
                 self.log.error("Job %s (%s) exhausted %s attempts; removing it", job_id, handler_name, job.max_attempts)
-                session.delete(job)  # Delayed::Worker.destroy_failed_jobs = true
+                session.delete(job)  # exhausted jobs are removed
             else:
                 job.run_at = utcnow() + timedelta(seconds=5 + job.attempts**4)
                 job.locked_at = None

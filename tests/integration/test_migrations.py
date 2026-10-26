@@ -6,7 +6,7 @@
 #  Copyright (c) 2026 by
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
-"""Alembic migrations: empty database, Ruby-created database and parity with the ORM models."""
+"""Alembic migrations: empty database, database that already has the schema and parity with the ORM models."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from tests.conftest import IS_PG, TEST_DATABASE_URL
 pytestmark = pytest.mark.skipif(not IS_PG, reason="needs PostgreSQL (TEST_DATABASE_URL)")
 
 ROOT = Path(__file__).resolve().parents[2]
-RUBY_TABLES = {
+DOMAIN_TABLES = {
     "audit_retries",
     "audit_retries_ci_jobs",
     "audit_statuses",
@@ -62,12 +62,12 @@ def scratch_db(engine):
         conn.execute(text(f"DROP DATABASE IF EXISTS {name} WITH (FORCE)"))
 
 
-def test_empty_database_gets_ruby_and_python_tables(scratch_db) -> None:
+def test_empty_database_gets_all_tables(scratch_db) -> None:
     command.upgrade(config(scratch_db), "head")
     eng = create_engine(scratch_db)
     tables = set(inspect(eng).get_table_names())
-    assert tables >= RUBY_TABLES and {"jobs", "webhook_deliveries", "alembic_version"} <= tables
-    assert "delayed_jobs" not in tables  # the Ruby queue table is not recreated
+    assert tables >= DOMAIN_TABLES and {"jobs", "webhook_deliveries", "alembic_version"} <= tables
+    assert "alembic_version" in tables
     fks = {(fk["referred_table"]) for fk in inspect(eng).get_foreign_keys("check_suites")}
     assert {"stages", "plans", "pull_requests", "github_users", "check_suites"} <= fks
     eng.dispose()
@@ -92,18 +92,18 @@ def _accepted(diff) -> bool:
     return diff[0] in ("add_fk", "remove_fk")
 
 
-def test_database_created_by_the_ruby_app_is_adopted_without_changes(scratch_db) -> None:
+def test_existing_database_is_adopted_without_changes(scratch_db) -> None:
     cfg = config(scratch_db)
-    command.upgrade(cfg, "0001_ruby_baseline")
+    command.upgrade(cfg, "0001_initial_schema")
     eng = create_engine(scratch_db)
-    with eng.begin() as conn:  # simulate production data + the Ruby bookkeeping
+    with eng.begin() as conn:  # simulate production data
         conn.execute(
             text(
                 "INSERT INTO pull_requests (author, github_pr_id, branch_name, repository, created_at, updated_at) VALUES ('a', 1, 'b', 'o/r', now(), now())"
             )
         )
         conn.execute(text("DELETE FROM alembic_version"))
-    command.stamp(cfg, "0001_ruby_baseline")  # `python -m netdef_ci stamp-ruby-schema`
+    command.stamp(cfg, "0001_initial_schema")  # `python -m netdef_ci stamp-baseline`
     command.upgrade(cfg, "head")
     with eng.connect() as conn:
         assert conn.execute(text("SELECT count(*) FROM pull_requests")).scalar() == 1
@@ -114,7 +114,7 @@ def test_database_created_by_the_ruby_app_is_adopted_without_changes(scratch_db)
 
 def test_baseline_over_existing_tables_is_idempotent(scratch_db) -> None:
     cfg = config(scratch_db)
-    command.upgrade(cfg, "0001_ruby_baseline")
+    command.upgrade(cfg, "0001_initial_schema")
     eng = create_engine(scratch_db)
     with eng.begin() as conn:
         conn.execute(text("DELETE FROM alembic_version"))
@@ -125,7 +125,7 @@ def test_baseline_over_existing_tables_is_idempotent(scratch_db) -> None:
 def test_python_migration_downgrade(scratch_db) -> None:
     cfg = config(scratch_db)
     command.upgrade(cfg, "head")
-    command.downgrade(cfg, "0001_ruby_baseline")
+    command.downgrade(cfg, "0001_initial_schema")
     eng = create_engine(scratch_db)
     assert "jobs" not in set(inspect(eng).get_table_names())
     eng.dispose()

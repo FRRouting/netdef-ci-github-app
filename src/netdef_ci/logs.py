@@ -81,7 +81,7 @@ def _file_handler(filename: str, fmt: logging.Formatter | None = None) -> loggin
 
 
 class Log:
-    """Component logger that also mirrors into `pr<N>.log` when a pull request id is known (Ruby parity)."""
+    """Component logger that also mirrors into `pr<N>.log` when a pull request id is known."""
 
     def __init__(self, component: str, pr_id: int | str | None = None) -> None:
         configure_logging()

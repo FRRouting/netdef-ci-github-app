@@ -1,16 +1,15 @@
-"""Ruby baseline: the ActiveRecord schema of netdef-ci-github-app (db/schema.rb 2025_08_22_071834).
+"""Initial schema: the domain tables of the CI app.
 
-On a database already created by the Ruby app (fully migrated) every table exists and nothing is changed, so the
-revision can simply be applied (or stamped). On an empty database the tables are created with the same layout.
+On a database that already has these tables nothing is changed, so the revision can simply be applied (or stamped). On an empty database the tables are created with the same layout.
 
-Revision ID: 0001_ruby_baseline
+Revision ID: 0001_initial_schema
 Revises:
 """
 
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0001_ruby_baseline"
+revision = "0001_initial_schema"
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -182,7 +181,7 @@ def upgrade() -> None:
     )
 
     if "check_suites" not in existing:
-        # circular references, added after both tables exist (same as Rails' schema.rb)
+        # circular references, added after both tables exist
         op.create_foreign_key(
             "fk_check_suites_stopped_in_stage", "check_suites", "stages", ["stopped_in_stage_id"], ["id"]
         )
@@ -216,4 +215,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    raise RuntimeError("The Ruby baseline cannot be downgraded: the tables belong to the legacy schema.")
+    raise RuntimeError("The initial schema cannot be downgraded: it holds the domain data.")

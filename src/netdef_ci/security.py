@@ -31,7 +31,7 @@ def compute_signature(secret: str, body: bytes) -> str:
 
 
 def verify_hmac(secret: str, body: bytes, signature_header: str | None) -> AuthResult:
-    """Same decision order as `Sinatra::Payload#authenticate_request` in the Ruby app."""
+    """Decision order: empty body 401, missing signature 404, mismatch 401."""
     if not body:
         return AuthResult(False, 401, "")
     if not secret:

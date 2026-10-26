@@ -7,7 +7,7 @@
 #  Network Device Education Foundation, Inc. ("NetDEF")
 
 """Command line: job worker, cron tasks (watch-dog, pr-bamboo-sync, single-sync), console (organizations/users)
-and operational checks. Replaces `rake jobs:work`, workers/*.rb scripts and bin/console of the Ruby app."""
+and operational checks."""
 
 from __future__ import annotations
 
@@ -40,8 +40,10 @@ def _build_parser() -> argparse.ArgumentParser:
     single.add_argument("bamboo_ref")
 
     sub.add_parser("migrate", help="apply database migrations (alembic upgrade head)")
-    stamp = sub.add_parser("stamp-ruby-schema", help="mark an existing Ruby-created database as the baseline revision")
-    stamp.add_argument("--revision", default="0001_ruby_baseline")
+    stamp = sub.add_parser(
+        "stamp-baseline", help="mark an existing database that already has the baseline schema as revision 0001"
+    )
+    stamp.add_argument("--revision", default="0001_initial_schema")
     sub.add_parser("check-config", help="validate configuration, GitHub App keys and database connectivity")
     sub.add_parser("purge-jobs", help="delete every pending background job (rake jobs:clear)")
 
@@ -75,7 +77,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "pr-bamboo-sync": _pr_bamboo_sync,
         "single-sync": _single_sync,
         "migrate": _migrate,
-        "stamp-ruby-schema": _stamp,
+        "stamp-baseline": _stamp,
         "check-config": _check_config,
         "purge-jobs": _purge_jobs,
         "org": _org,

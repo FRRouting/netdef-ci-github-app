@@ -67,7 +67,7 @@ class BuildPlan:
             self._add_plans(pull_request, repository)
             return pull_request
         author = _dig(self.payload, "pull_request", "user", "login")
-        if not (author and number and branch and repository):  # model validations of the Ruby app
+        if not (author and number and branch and repository):  # required fields
             self.log.error("Pull request payload is missing required fields")
             return None
         pull_request = PullRequest(author=author, github_pr_id=number, branch_name=branch, repository=repository)
@@ -79,7 +79,7 @@ class BuildPlan:
 
     def _add_plans(self, pull_request: PullRequest, repository: str) -> None:
         plans = list(self.session.scalars(select(Plan).where(Plan.github_repo_name == repository).order_by(Plan.id)))
-        pull_request.plans = plans  # re-assigns plans.pull_request_id (same as `pull_request.plans = plans` in Rails)
+        pull_request.plans = plans  # re-assigns plans.pull_request_id
         self.session.commit()
 
     def _schedule(self, pull_request: PullRequest) -> Response:

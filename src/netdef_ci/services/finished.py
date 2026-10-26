@@ -33,7 +33,7 @@ class Finished:
             conditions.append(CheckSuite.bamboo_ci_ref == ref)
         if suite_id is not None:
             conditions.append(CheckSuite.id == suite_id)
-        # Ruby's `where(ref: nil).or(where(id: nil))` also matched suites without a Bamboo ref; only given keys are used here.
+        # Only the keys that were given take part in the lookup.
         self.check_suite: CheckSuite | None = (
             session.scalars(select(CheckSuite).where(or_(*conditions)).order_by(CheckSuite.id.desc()).limit(1)).first()
             if conditions

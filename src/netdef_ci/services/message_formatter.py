@@ -18,7 +18,7 @@ from netdef_ci.config import get_settings
 from netdef_ci.enums import Status
 from netdef_ci.models import CiJob, Stage
 
-MAX_SUMMARY = 65_536  # the Ruby slice `header[0..65_535]`
+MAX_SUMMARY = 65_536  # GitHub limit for the summary text
 
 
 class MessageFormatter:

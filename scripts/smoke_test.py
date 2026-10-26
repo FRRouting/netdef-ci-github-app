@@ -128,7 +128,7 @@ def main() -> int:
             if x.startswith('http_requests_total{method="GET",path="/ping",status="200"}')
         )
         check(float(line.split()[-1]) >= 8, f"metrics aggregate the web workers ({line})")
-        check("delayed_jobs_pending" in metrics, "database gauges present in /metrics")
+        check("jobs_pending" in metrics, "database gauges present in /metrics")
     finally:
         for proc in (web, worker):
             proc.send_signal(signal.SIGTERM)
