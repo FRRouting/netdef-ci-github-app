@@ -25,7 +25,7 @@ from netdef_ci.jobs.locks import pull_request_lock
 from netdef_ci.logs import Log
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, Plan, PullRequest, Stage
 from netdef_ci.services.action import Action
-from netdef_ci.services.common import find_pull_request
+from netdef_ci.services.common import find_pull_request, wait_for_running_jobs
 from netdef_ci.services.plan_run import PlanRun
 from netdef_ci.services.unavailable_jobs import UnavailableJobs
 from netdef_ci.services.user_info import sync_user_info
@@ -161,7 +161,7 @@ class CreateExecutionByPlan:
     def _ci_jobs(self, plan: Plan) -> Response:
         assert self.check_suite is not None
         container.slack().execution_started_notification(self.check_suite)
-        jobs = container.bamboo().running_plan(self.check_suite.bamboo_ci_ref)
+        jobs = wait_for_running_jobs(self.check_suite.bamboo_ci_ref)
         if not jobs:
             return 422, "Failed to fetch RunningPlan"
         Action(self.check_suite, self.github, jobs, plan.name).create_summary()
@@ -257,7 +257,12 @@ class RerunBase:
         container.slack().execution_started_notification(check_suite)
         check_suite.cancelled_previous_check_suite_id = self.last_check_suite.id if self.last_check_suite else None
         self.session.commit()
-        jobs = container.bamboo().running_plan(check_suite.bamboo_ci_ref)
+        jobs = wait_for_running_jobs(check_suite.bamboo_ci_ref)
+        if not jobs:  # without jobs the stages would stay at "0/0" forever
+            self.log.error(
+                "No jobs were listed for %s; stages and check runs were not created", check_suite.bamboo_ci_ref
+            )
+            return
         Action(check_suite, self.github, jobs, plan.name).create_summary(rerun=True)
         for suite in list(
             self.session.scalars(
@@ -295,16 +300,19 @@ class CreateExecutionByCommand(RerunBase):
         instance = cls(session, payload, Log("github_rerun_command"))
         assert check_suite.pull_request is not None
         with pull_request_lock(check_suite.pull_request.id):
-            instance.execute(plan, check_suite)
-        return 200, "Starting re-run (command)"
+            failed = instance.execute(plan, check_suite)
+        return failed or (200, "Starting re-run (command)")
 
-    def execute(self, plan: Plan, old_suite: CheckSuite) -> None:
+    def execute(self, plan: Plan, old_suite: CheckSuite) -> Response | None:
         self.github = container.github(old_suite)
         self.stop_previous_execution(plan)
         check_suite = self.copy_check_suite(old_suite)
         # This suite is not linked to `plan` (plan_id stays NULL).
-        self.start_new_execution(check_suite, plan)
+        status = self.start_new_execution(check_suite, plan)
+        if status != 200:  # no Bamboo execution exists: do not create stages/check runs for it
+            return (status, "Failed to create CI Plan")
         self.ci_jobs(check_suite, plan)
+        return None
 
 
 class CreateExecutionByComment(RerunBase):
@@ -344,7 +352,9 @@ class CreateExecutionByComment(RerunBase):
         check_suite.plan_id = plan.id
         self.session.commit()
         self.stop_previous_execution(plan)
-        self.start_new_execution(check_suite, plan)
+        status = self.start_new_execution(check_suite, plan)
+        if status != 200:  # no Bamboo execution exists: do not create stages/check runs for it
+            return (status, "Failed to create CI Plan")
         self.ci_jobs(check_suite, plan)
         return 201, "Starting re-run (comment)"
 

@@ -96,3 +96,17 @@ def test_lookup_by_id_ignores_unrelated_suites_without_bamboo_ref(session, clien
     other.bamboo_ci_ref = None
     session.commit()
     assert Finished(session, {"check_suite_id": w.suite.id}).check_suite.id == w.suite.id
+
+
+def test_suite_without_bamboo_reference_is_closed_without_calling_bamboo(session, clients, bamboo, github) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    w.suite.bamboo_ci_ref = None
+    session.commit()
+
+    def explode(*_args):
+        raise AssertionError("Bamboo must not be called")
+
+    bamboo.get_status = bamboo.build_status = explode
+    assert Finished(session, {"check_suite_id": w.suite.id}).finished() == (200, "Finished")
+    session.refresh(w.build_job)
+    assert w.build_job.state == Status.SKIPPED

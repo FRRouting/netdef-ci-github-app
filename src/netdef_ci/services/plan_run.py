@@ -33,11 +33,26 @@ class PlanRun:
         bamboo = container.bamboo()
         self.response = bamboo.submit_pr_to_ci(self.check_suite, self.plan, self.ci_variables)
         if self.response is None:
-            self.log.error("HTTP Request error")
+            self.log.error(
+                "Bamboo did not answer the submission of plan %s (check suite %s)",
+                self.plan.bamboo_ci_plan_name,
+                self.check_suite.id,
+            )
             return 418
         code = self.response.status_code
         if code in (200, 201):
-            self.ci_key = self.response.json().get("buildResultKey")
+            try:
+                self.ci_key = self.response.json().get("buildResultKey")
+            except ValueError:
+                self.ci_key = None
+            if not self.ci_key:
+                self.log.error(
+                    "Bamboo accepted plan %s but returned no buildResultKey (check suite %s): %s",
+                    self.plan.bamboo_ci_plan_name,
+                    self.check_suite.id,
+                    self.response.text[:300],
+                )
+                return 502
             self.check_suite.bamboo_ci_ref = self.ci_key
             session = object_session(self.check_suite)
             assert session is not None
@@ -51,7 +66,13 @@ class PlanRun:
 
     def _failed(self) -> int:
         assert self.response is not None
-        self.log.debug("ci submission failed (%s): %s", self.response.status_code, self.response.text[:500])
+        self.log.error(
+            "Bamboo rejected plan %s for check suite %s: HTTP %s %s",
+            self.plan.bamboo_ci_plan_name,
+            self.check_suite.id,
+            self.response.status_code,
+            self.response.text[:300],
+        )
         if "reached the maximum number of concurrent builds" in self.response.text:
             return 429
         return self.response.status_code

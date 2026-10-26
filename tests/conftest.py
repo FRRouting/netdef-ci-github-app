@@ -29,6 +29,7 @@ os.environ.update(
         "BAMBOO_PASSWORD": "bamboopass",
         "METRICS_USERNAME": "metrics",
         "METRICS_PASSWORD": "metricspass",
+        "RUNNING_PLAN_WAIT_SECONDS": "0",
         "HOME": str(_TMP),  # no ~/.netrc from the developer machine
     }
 )

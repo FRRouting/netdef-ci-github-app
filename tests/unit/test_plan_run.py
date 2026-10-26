@@ -59,3 +59,18 @@ def test_failures_map_to_status_codes(run, bamboo, status, text, expected) -> No
 def test_unreachable_bamboo_is_418(run, bamboo) -> None:
     bamboo.unreachable = True
     assert run[1].start_plan() == 418
+
+
+def test_accepted_submission_without_build_key_is_an_error(run, bamboo, session) -> None:
+    w, plan_run = run
+    bamboo.submit_body = {"message": "ok but no key"}
+    assert plan_run.start_plan() == 502
+    session.refresh(w.suite)
+    assert w.suite.bamboo_ci_ref is None and bamboo.comments == []
+
+
+def test_rejection_is_logged_as_error_with_status_and_body(run, bamboo, caplog) -> None:
+    bamboo.submit_status, bamboo.submit_text = 404, "Plan PROJ-PLAN not found"
+    with caplog.at_level("ERROR"):
+        assert run[1].start_plan() == 404
+    assert "HTTP 404 Plan PROJ-PLAN not found" in caplog.text
