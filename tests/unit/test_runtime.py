@@ -17,15 +17,12 @@ import time
 import httpx
 import pytest
 import respx
-from sqlalchemy import select
 
 from netdef_ci import container
 from netdef_ci.clients.http import MAX_RETRY_AFTER_SECONDS, request_with_retries, retry_after_seconds
 from netdef_ci.jobs import queue
 from netdef_ci.jobs.registry import HANDLERS, job_handler
 from netdef_ci.logs import Log, redact
-from netdef_ci.models import Job
-from tests.conftest import IS_PG
 
 
 # ---------------------------------------------------------------------------- redaction

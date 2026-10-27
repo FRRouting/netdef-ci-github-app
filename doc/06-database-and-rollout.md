@@ -29,7 +29,7 @@ Commands:
 | `python -m netdef_ci check-config`   | Validates configuration, GitHub App keys and database connectivity.                                                                                                                                     |
 | `python -m netdef_ci purge-jobs`     | Deletes every pending background job (use with care).                                                                                                                                                   |
 
-Schema changes are made only through new Alembic revisions. `tests/integration/test_migrations.py` checks that the models and the migrations describe the same schema.
+Schema changes are made only through new Alembic revisions.
 
 ## Data and backups
 
