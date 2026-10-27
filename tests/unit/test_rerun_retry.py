@@ -41,12 +41,12 @@ def test_rerun_comment_reacts_and_schedules_one_job_per_plan(session, clients, g
     f.plan(session, name="second", bamboo="PROJ-B", pull_request=w.pr)
     payload = payloads.issue_comment("Please CI:RERUN #abc", number=w.pr.github_pr_id)
     assert ReRunComment(session, payload).start() == (200, "Scheduled Plan Runs")
-    assert github.reactions == [("org/repo", 99, "+1")]
+    assert github.reactions == [("org/repo", 99, "rocket")]  # swapped for +1 once Bamboo receives the plan
     jobs = session.scalars(select(Job).order_by(Job.id)).all()
     assert [(j.handler, j.queue, j.max_attempts) for j in jobs] == [
         ("create_execution_by_comment", "create_execution_by_comment", 1)
     ] * 2
-    assert all(j.args[0] == w.pr.id and j.args[1] == payload for j in jobs)
+    assert all(j.args[0] == w.pr.id and j.args[1] == payload and j.args[3] == 4242 for j in jobs)
 
 
 def test_rerun_comment_falls_back_to_repository_plans_and_ignores_reaction_errors(session, clients, github) -> None:
@@ -55,7 +55,7 @@ def test_rerun_comment_falls_back_to_repository_plans_and_ignores_reaction_error
     session.commit()
     github.fail_reactions = True
     assert ReRunComment(session, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id)).start()[0] == 200
-    assert session.scalars(select(Job)).one().args[2] == w.plan.id
+    assert session.scalars(select(Job)).one().args[2:] == [w.plan.id, None]  # no rocket to remove later
 
 
 def test_rerun_comment_does_not_cross_repositories(session, clients) -> None:

@@ -58,7 +58,7 @@ Quick validation: `python -m netdef_ci check-config` (variables, `.pem` keys, Ba
 Set up the GitHub App as follows (an existing App can be reused, **there is no need to create another one**):
 
 1. Webhook URL: `https://<public-host>/<path>` — any path is accepted (`POST /*`); at NetDEF a reverse proxy serves `/githubcheck`. **Webhook secret** = `WEBHOOK_SECRET`. SSL verification enabled.
-2. Repository permissions: **Metadata** (read, mandatory), **Checks**, **Issues**, **Pull requests** and **Discussions** (read and write). Used by the code: Checks (create/update check runs), Pull requests (PR info and commits), Issues (comments/`+1`/`-1` reactions on `ci:rerun`/`ci:retry`).
+2. Repository permissions: **Metadata** (read, mandatory), **Checks**, **Issues**, **Pull requests** and **Discussions** (read and write). Used by the code: Checks (create/update check runs), Pull requests (PR info and commits), Issues (comments; `rocket`/`+1`/`-1` reactions on `ci:rerun`/`ci:retry`).
 3. Subscribed events: **Check run**, **Check suite**, **Issue comment**, **Pull request** (required); *Discussion comment* and *Pull request review comment* are checked in the current App but are **not handled** (they respond 401 `Invalid request (4)`; no effect).
 4. Generate the private key (`.pem`), install the App only on the desired repositories and register `login` (App ID) / `cert` / `repo` in `github_apps.toml`.
 5. Register each repository's Bamboo plan in the `plans` table (`bamboo_ci_plan_name`, `github_repo_name`, `name`) and the stages in `stage_configurations` (`bamboo_stage_name`, `github_check_run_name`, `position`, `mandatory`, `can_retry`, `start_in_progress`). Without plans the PR receives `422 No Plans associated…` (there is no default plan in the code).

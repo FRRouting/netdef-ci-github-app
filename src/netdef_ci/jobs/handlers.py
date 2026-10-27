@@ -24,9 +24,11 @@ def create_execution_by_plan(pull_request_id: int, payload: dict[str, Any], plan
 
 
 @job_handler("create_execution_by_comment")
-def create_execution_by_comment(pull_request_id: int, payload: dict[str, Any], plan_id: int) -> None:
+def create_execution_by_comment(
+    pull_request_id: int, payload: dict[str, Any], plan_id: int, rocket_reaction_id: int | None = None
+) -> None:
     with session_scope() as session:
-        executions.CreateExecutionByComment.run(session, pull_request_id, payload, plan_id)
+        executions.CreateExecutionByComment.run(session, pull_request_id, payload, plan_id, rocket_reaction_id)
 
 
 @job_handler("create_execution_by_command")

@@ -116,6 +116,19 @@ class FakeGithub:
         self.reactions.append((repo, comment_id, "-1"))
         return {}
 
+    def comment_reaction_rocket(self, repo: str, comment_id: int) -> dict[str, Any]:
+        if self.fail_reactions:
+            raise RuntimeError("reaction failed")
+        self.reactions.append((repo, comment_id, "rocket"))
+        return {"id": 4242, "content": "rocket"}
+
+    def delete_comment_reaction(self, repo: str, comment_id: int, reaction_id: int) -> dict[str, Any]:
+        if self.fail_reactions:
+            raise RuntimeError("reaction failed")
+        assert reaction_id == 4242, reaction_id
+        self.reactions.remove((repo, comment_id, "rocket"))  # ValueError (like GitHub's 404) when already removed
+        return {}
+
     def signature(self) -> str:
         return self.secret
 

@@ -20,7 +20,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from netdef_ci import container, metrics
-from netdef_ci.enums import Status
+from netdef_ci.enums import RUNNING_STATUSES, Status
 from netdef_ci.jobs.locks import pull_request_lock
 from netdef_ci.logs import Log
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, Plan, PullRequest, Stage
@@ -187,6 +187,7 @@ class RerunBase:
         self.log = log
         self.github: Any = None
         self.last_check_suite: CheckSuite | None = None
+        self.stopped_suites: list[CheckSuite] = []
 
     @property
     def pr_id(self) -> int | None:
@@ -206,7 +207,7 @@ class RerunBase:
                 Plan.id == plan.id,
                 PullRequest.github_pr_id == self.pr_id,
                 PullRequest.repository == self.repo,
-                CiJob.status == Status.IN_PROGRESS,
+                CiJob.status.in_(list(RUNNING_STATUSES)),  # a suite whose jobs are all queued is running too
             )
             .distinct()
             .order_by(CheckSuite.id)
@@ -219,6 +220,7 @@ class RerunBase:
             return
         self.log.info("Stopping previous execution")
         self.last_check_suite = None
+        self.stopped_suites = suites
         for check_suite in suites:
             self._stop_and_update(check_suite)
         wait_until_stopped([suite.bamboo_ci_ref for suite in suites], self.log)
@@ -233,6 +235,11 @@ class RerunBase:
         self.session.commit()
         for ci_job in [j for j in check_suite.ci_jobs if j.state != Status.SKIPPED]:
             ci_job.cancelled(self.github)
+        # A rerun reuses the commit, so an open stage finished later by a late Bamboo callback would create a newer
+        # check run with the same name and hide the queued one of the new execution.
+        github = container.github(check_suite)
+        for open_stage in [s for s in check_suite.stages if s.state in RUNNING_STATUSES]:
+            open_stage.cancelled(github)
         self.last_check_suite = check_suite
         container.bamboo().stop_plan(check_suite.bamboo_ci_ref)
 
@@ -260,6 +267,9 @@ class RerunBase:
         container.slack().execution_started_notification(check_suite)
         check_suite.cancelled_previous_check_suite_id = self.last_check_suite.id if self.last_check_suite else None
         self.session.commit()
+        # Same note as a new commit leaves, so the stopped Bamboo builds point to the execution that replaced them.
+        for stopped in self.stopped_suites:
+            container.bamboo().comment_cancelled(stopped, check_suite)
         jobs = wait_for_running_jobs(check_suite.bamboo_ci_ref)
         if not jobs:  # without jobs the stages would stay at "0/0" forever
             self.log.error(
@@ -322,20 +332,54 @@ class CreateExecutionByComment(RerunBase):
     """`ci:rerun [#sha]` comment."""
 
     @classmethod
-    def run(cls, session: Session, pull_request_id: int, payload: dict[str, Any], plan_id: int) -> Response:
-        plan = session.get(Plan, plan_id)
-        if plan is None:
-            return 422, "Plan not found"
+    def run(
+        cls,
+        session: Session,
+        pull_request_id: int,
+        payload: dict[str, Any],
+        plan_id: int,
+        rocket_reaction_id: int | None = None,
+    ) -> Response:
         pull_request = session.get(PullRequest, pull_request_id)
         if pull_request is None:
             raise LookupError(f"PullRequest {pull_request_id} not found")
         instance = cls(session, payload, Log("github_rerun_comment", pull_request.github_pr_id))
         instance.pull_request = pull_request
-        with pull_request_lock(pull_request_id):
-            return instance.execute(plan)
+        instance.rocket_reaction_id = rocket_reaction_id
+        plan = session.get(Plan, plan_id)
+        if plan is None:
+            instance.finish_reaction(started=False)
+            return 422, "Plan not found"
+        try:
+            with pull_request_lock(pull_request_id):
+                return instance.execute(plan)
+        finally:
+            instance.finish_reaction(started=False)  # no-op when the outcome was already reported
 
     pull_request: PullRequest
     old_check_suite: CheckSuite | None = None
+    rocket_reaction_id: int | None = None
+    reaction_finished = False
+
+    def finish_reaction(self, *, started: bool) -> None:
+        """Replace the rocket added on receipt by +1 (Bamboo plan submitted) or -1 (not started). Reaction errors are
+        only logged: they never change the outcome of the execution."""
+        if self.reaction_finished:
+            return
+        self.reaction_finished = True
+        comment_id = dig(self.payload, "comment", "id")
+        if comment_id is None or self.repo is None:
+            return
+        github = container.github(self.pull_request.last_check_suite())
+        if self.rocket_reaction_id is not None:
+            try:
+                github.delete_comment_reaction(self.repo, comment_id, self.rocket_reaction_id)
+            except Exception as error:  # e.g. already removed by the job of another plan
+                self.log.info("Could not remove rocket reaction from comment %s: %s", comment_id, error)
+        try:
+            (github.comment_reaction_thumb_up if started else github.comment_reaction_thumb_down)(self.repo, comment_id)
+        except Exception as error:
+            self.log.warning("Could not add reaction to comment %s: %s", comment_id, error)
 
     @property
     def action(self) -> str:
@@ -356,6 +400,7 @@ class CreateExecutionByComment(RerunBase):
         self.session.commit()
         self.stop_previous_execution(plan)
         status = self.start_new_execution(check_suite, plan)
+        self.finish_reaction(started=status == 200)
         if status != 200:  # no Bamboo execution exists: do not create stages/check runs for it
             return (status, "Failed to create CI Plan")
         self.ci_jobs(check_suite, plan)
