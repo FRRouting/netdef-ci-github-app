@@ -48,15 +48,15 @@ Not executed/validated: see `12-limitations-and-pending.md`.
 
 ## GitHub Actions pipeline
 
-`.github/workflows/python.yml` runs on pushes to `master`, `develop` and `feature/**`, on pull requests to `master`/`develop`, and on `v*` tags:
+`.github/workflows/python.yml` runs on pushes to `master`, `develop` and `feature/**` and on pull requests to `master`/`develop`; `v*` tags run it through `.github/workflows/release.yml`:
 
-| Job         | What it does                                                                                                                                                       |
-|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `lint`      | `ruff check`, `ruff format --check`, `mypy src` (Python 3.15.2), Markdown tables aligned (`scripts/align_md_tables.py --check`)                                    |
-| `tests`     | `pytest` (unit + integration) against a PostgreSQL 17 service, coverage must stay >= 90 %, `pip check`                                                             |
-| `smoke`     | `scripts/smoke_test.py`: real uvicorn + worker processes (runs after `lint` and `tests`)                                                                           |
-| `ansible`   | `ansible-lint` (production profile) and `--syntax-check` of the deploy playbook for dev and prod                                                                   |
-| `ci-passed` | aggregates the jobs above; **mark it as a required status check** in the branch protection rules so a branch version can only be released when everything is green |
-| `release`   | only for `v*` tags and only after `ci-passed`: builds `netdef-ci-<tag>.tar.gz` with `git archive` and publishes a GitHub release                                   |
+| Job         | What it does                                                                                                                                                                                                                                                                          |
+|-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `lint`      | `ruff check`, `ruff format --check`, `mypy src` (Python 3.15.2), Markdown tables aligned (`scripts/align_md_tables.py --check`)                                                                                                                                                       |
+| `tests`     | `pytest` (unit + integration) against a PostgreSQL 17 service, coverage must stay >= 90 %, `pip check`                                                                                                                                                                                |
+| `smoke`     | `scripts/smoke_test.py`: real uvicorn + worker processes (runs after `lint` and `tests`)                                                                                                                                                                                              |
+| `ansible`   | `ansible-lint` (production profile) and `--syntax-check` of the deploy playbook for dev and prod                                                                                                                                                                                      |
+| `ci-passed` | aggregates the jobs above; **mark it as a required status check** in the branch protection rules so a branch version can only be released when everything is green                                                                                                                    |
+| `release`   | `release.yml`, only for `v*` tags and only after the whole `python.yml` gate passed: builds `netdef-ci-<tag>.tar.gz` with `git archive` and publishes a GitHub release. It lives in its own workflow so pull requests and branch pushes do not show a skipped "Release package" check |
 
 Deploy a released version with `-e netdef_ci_version=<tag>` (see `10-ansible-deploy.md`).

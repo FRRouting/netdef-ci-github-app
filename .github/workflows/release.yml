@@ -1,0 +1,31 @@
+name: Release
+
+# A `v*` tag runs the full Python CI gate (python.yml) and, only when it passes, publishes the GitHub release.
+# Kept apart from python.yml so pull requests and branch pushes do not show a skipped "Release package" check.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    name: Python CI
+    uses: ./.github/workflows/python.yml
+
+  release:
+    name: Release package
+    runs-on: ubuntu-latest
+    needs: [ci]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build the source archive of the tagged version
+        run: git archive --format=tar.gz --prefix="netdef-ci-${GITHUB_REF_NAME}/" -o "netdef-ci-${GITHUB_REF_NAME}.tar.gz" "${GITHUB_REF_NAME}"
+      - name: Publish the GitHub release with the archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${GITHUB_REF_NAME}" "netdef-ci-${GITHUB_REF_NAME}.tar.gz" --generate-notes --verify-tag
