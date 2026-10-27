@@ -154,17 +154,20 @@ class BambooClient:
     def stop_plan(self, bamboo_ci_ref: str | None) -> httpx.Response | None:
         def call() -> httpx.Response | None:
             try:
+                # Bamboo rejects a GET as a mutative operation without an XSRF token (HTTP 500); a POST with
+                # `X-Atlassian-Token: no-check` is the documented way for API clients to skip that check.
                 response = self._send(
-                    "GET",
+                    "POST",
                     "/build/admin/stopPlan.action",
                     params={"planResultKey": str(bamboo_ci_ref)},
-                    headers={"Accept": "application/json"},
+                    headers={"Accept": "application/json", "X-Atlassian-Token": "no-check"},
                 )
             except Exception as error:
                 self.log.error("stop_plan failed (%s: %s) for %s", type(error).__name__, error, bamboo_ci_ref)
                 return None
-            # Redirects are not followed, so a 3xx (e.g. to the login or XSRF page) means Bamboo did not stop anything.
-            if response.is_success:
+            # A stop answers with a redirect to the build result; one to the login page means nothing was stopped.
+            location = response.headers.get("Location") or ""
+            if response.is_success or (response.is_redirect and "login" not in location.lower()):
                 self.log.info("stop_plan for %s answered HTTP %s", bamboo_ci_ref, response.status_code)
             else:
                 self.log.warning(
