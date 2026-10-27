@@ -140,8 +140,14 @@ class FakeBamboo:
         self.cancel_comments: list[tuple[Any, Any]] = []
         self.logs: dict[str, str] = {}
         self.unreachable = False
+        # Simulated stop: Bamboo reports a stopped result as finished after `stop_checks` state reads
+        # (None: never, e.g. a hung agent). `events` records stop requests, state reads and submissions in order.
+        self.stop_checks: int | None = 0
+        self._reads: dict[str | None, int] = {}
+        self.events: list[tuple[str, str | None]] = []
 
     def submit_pr_to_ci(self, check_suite: Any, plan: Any, ci_variables: list[dict[str, str]]) -> httpx.Response | None:
+        self.events.append(("submit", check_suite.commit_sha_ref))
         self.submissions.append({"plan": plan.bamboo_ci_plan_name, "suite": check_suite.id, "variables": ci_variables})
         if self.unreachable:
             return None
@@ -170,6 +176,14 @@ class FakeBamboo:
 
     def stop_plan(self, ref: str | None) -> None:
         self.stopped.append(ref)
+        self.events.append(("stop", ref))
+
+    def is_stopped(self, ref: str) -> bool:
+        self.events.append(("check", ref))
+        if self.stop_checks is None or ref not in self.stopped:
+            return False
+        self._reads[ref] = self._reads.get(ref, 0) + 1
+        return self._reads[ref] > self.stop_checks
 
     def restart(self, plan_key: str | None) -> None:
         self.restarted.append(plan_key)

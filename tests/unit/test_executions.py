@@ -315,3 +315,62 @@ def test_rerun_without_listed_jobs_creates_no_stages(session, ready, bamboo, git
         session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
     )
     assert len(session.scalars(select(Stage)).all()) == before
+
+
+# ---------------------------------------------------------------------------- waiting for the previous execution
+def new_commit(session, w):
+    return CreateExecutionByPlan.run(
+        session, w.pr.id, payloads.pull_request(sha="9" * 40, number=w.pr.github_pr_id), w.plan.id
+    )
+
+
+def test_new_execution_starts_right_after_bamboo_confirms_the_stop(session, ready, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    assert new_commit(session, w) == (200, "Pull Request created")
+    assert bamboo.events == [("stop", "PROJ-PLAN-77"), ("check", "PROJ-PLAN-77"), ("submit", "9" * 40)]
+
+
+def test_new_execution_waits_while_bamboo_is_still_stopping(session, ready, bamboo, caplog) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    bamboo.stop_checks = 3  # still running on the first three reads
+    with caplog.at_level("ERROR"):
+        assert new_commit(session, w) == (200, "Pull Request created")
+    assert bamboo.events == [("stop", "PROJ-PLAN-77")] + [("check", "PROJ-PLAN-77")] * 4 + [("submit", "9" * 40)]
+    assert "did not confirm" not in caplog.text
+
+
+def test_new_execution_starts_anyway_when_the_wait_limit_is_reached(
+    session, ready, bamboo, settings, monkeypatch, caplog
+) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    monkeypatch.setattr(settings, "execution_cancel_wait_max_seconds", 0.05)
+    bamboo.stop_checks = None  # Bamboo never reports it as stopped
+    with caplog.at_level("ERROR"):
+        assert new_commit(session, w) == (200, "Pull Request created")
+    checks = [e for e in bamboo.events if e[0] == "check"]
+    assert len(checks) >= 2 and bamboo.events[-1] == ("submit", "9" * 40)
+    assert "Bamboo did not confirm the stop of PROJ-PLAN-77 within" in caplog.text
+
+
+def test_zero_wait_limit_starts_immediately(session, ready, bamboo, settings, monkeypatch) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    monkeypatch.setattr(settings, "execution_cancel_wait_max_seconds", 0)
+    bamboo.stop_checks = None
+    assert new_commit(session, w) == (200, "Pull Request created")
+    assert bamboo.events == [("stop", "PROJ-PLAN-77"), ("check", "PROJ-PLAN-77"), ("submit", "9" * 40)]
+
+
+def test_finished_previous_execution_is_neither_stopped_nor_awaited(session, ready, bamboo) -> None:
+    w = f.World(session, statuses=(Status.SUCCESS, Status.SUCCESS))
+    new_commit(session, w)
+    assert bamboo.events == [("submit", "9" * 40)]
+
+
+def test_rerun_waits_for_every_stopped_execution(session, ready, bamboo, github) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    github.commits = [[{"sha": "c" * 40}]]
+    bamboo.stop_checks = 1
+    CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    assert bamboo.events == [("stop", "PROJ-PLAN-77")] + [("check", "PROJ-PLAN-77")] * 2 + [("submit", "c" * 40)]

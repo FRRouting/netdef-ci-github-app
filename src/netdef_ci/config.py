@@ -90,6 +90,9 @@ class Settings(BaseSettings):
     running_plan_poll_seconds: float = Field(3.0, alias="RUNNING_PLAN_POLL_SECONDS", gt=0)
     timeout_check_minutes: int = Field(10, alias="TIMEOUT_CHECK_MINUTES", ge=1)
     timeout_hang_hours: int = Field(2, alias="TIMEOUT_HANG_HOURS", ge=1)
+    # How long a new execution waits for Bamboo to confirm that the previous one of the same PR stopped.
+    execution_cancel_wait_max_seconds: int = Field(60, alias="EXECUTION_CANCEL_WAIT_MAX_SECONDS", ge=0)
+    execution_cancel_poll_seconds: float = Field(5.0, alias="EXECUTION_CANCEL_POLL_SECONDS", gt=0)
 
     web_workers: int = Field(1, alias="WEB_WORKERS", ge=1)  # reported by the puma_workers_total metric
 

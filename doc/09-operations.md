@@ -41,10 +41,10 @@ Back-off with the defaults: 1st failure → +6 s, 2nd → +21 s, 3rd → +86 s, 
 
 ### Periodic tasks (systemd timers, `netdef_ci_timers`)
 
-| Timer                        | Command          | Default calendar                  | Notes                                                                                     |
-|------------------------------|------------------|-----------------------------------|-------------------------------------------------------------------------------------------|
-| `netdef-ci-watchdog.timer`   | `watch-dog`      | `*:0/15` (every 15 min), enabled  | reconciles every suite with `queued`/`in_progress` stages via `Finished`                  |
-| `netdef-ci-pr-sync.timer`    | `pr-bamboo-sync` | `hourly`, **disabled**            | compares suites created between 24 h and 2 h ago with Bamboo and fixes the stale ones     |
+| Timer                      | Command          | Default calendar                 | Notes                                                                                 |
+|----------------------------|------------------|----------------------------------|---------------------------------------------------------------------------------------|
+| `netdef-ci-watchdog.timer` | `watch-dog`      | `*:0/15` (every 15 min), enabled | reconciles every suite with `queued`/`in_progress` stages via `Finished`              |
+| `netdef-ci-pr-sync.timer`  | `pr-bamboo-sync` | `hourly`, **disabled**           | compares suites created between 24 h and 2 h ago with Bamboo and fixes the stale ones |
 
 Both timers use `Persistent=true` (a run missed while the host was down happens at boot) and `RandomizedDelaySec=30`
 (each run starts up to 30 s late). `single-sync <PLAN-123>` has no timer: it is run by hand.

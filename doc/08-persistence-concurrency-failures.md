@@ -24,7 +24,7 @@ Their delays, re-schedules and the periodic timers are listed in `09-operations.
 ## Concurrency
 
 - **Per PR**: `ci_job_status` uses the `github_pr_id % 10` queue; with one worker per queue range (Ansible), updates for the same PR are serialized.
-- **Creating/canceling executions**: PostgreSQL advisory lock per pull request (`pg_advisory_lock`, dedicated connection) in `CreateExecutionBy*`; two rapid events on the same PR do not compete to cancel/create suites.
+- **Creating/canceling executions**: PostgreSQL advisory lock per pull request (`pg_advisory_lock`, dedicated connection) in `CreateExecutionBy*`; two rapid events on the same PR do not compete to cancel/create suites. Inside the lock, the new execution is submitted only after Bamboo confirms that the previous one stopped, or after `EXECUTION_CANCEL_WAIT_MAX_SECONDS` (60 s, then an `ERROR` is logged).
 - **Web**: uvicorn with N processes; state only in the database; metrics aggregated via mmap files in `PROMETHEUS_MULTIPROC_DIR`.
 - **GitHub token**: protected by a per-App `threading.Lock`; single renewal even with concurrent requests.
 

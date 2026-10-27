@@ -40,6 +40,8 @@ jobs:
         run: ruff format --check src tests migrations scripts
       - name: mypy
         run: mypy src
+      - name: Markdown tables aligned
+        run: python scripts/align_md_tables.py --check
 
   tests:
     name: Unit and integration tests

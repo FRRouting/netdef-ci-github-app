@@ -166,6 +166,31 @@ class BambooClient:
 
         return metrics.track_bamboo("stop_plan", call)
 
+    def is_stopped(self, bamboo_ci_ref: str) -> bool:
+        """True only when Bamboo reports the result as no longer active (`Finished`/`NotBuilt`) or no longer knows
+        it (404). Running, queued, unknown states and errors are False."""
+
+        def call() -> bool:
+            try:
+                response = self._send(
+                    "GET", f"/rest/api/latest/result/{bamboo_ci_ref}", headers={"Accept": "application/json"}
+                )
+            except Exception as error:
+                self.log.error("is_stopped failed (%s: %s) for %s", type(error).__name__, error, bamboo_ci_ref)
+                return False
+            if response.status_code == 404:
+                return True
+            if response.status_code != 200:
+                return False
+            try:
+                data = response.json()
+            except ValueError:
+                return False
+            state = str(data.get("lifeCycleState") or "") if isinstance(data, dict) else ""
+            return state in ("Finished", "NotBuilt")
+
+        return bool(metrics.track_bamboo("result_state", call))
+
     def comment_cancelled(self, check_suite: Any, new_check_suite: Any) -> None:
         new_url = f"https://{self.settings.ci_url}/browse/{new_check_suite.bamboo_ci_ref}"
         comment = f"This execution was cancelled due to a new commit or `ci:rerun` ({new_url})"

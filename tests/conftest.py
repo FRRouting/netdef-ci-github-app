@@ -30,6 +30,7 @@ os.environ.update(
         "METRICS_USERNAME": "metrics",
         "METRICS_PASSWORD": "metricspass",
         "RUNNING_PLAN_WAIT_SECONDS": "0",
+        "EXECUTION_CANCEL_POLL_SECONDS": "0.01",
         "HOME": str(_TMP),  # no ~/.netrc from the developer machine
     }
 )
