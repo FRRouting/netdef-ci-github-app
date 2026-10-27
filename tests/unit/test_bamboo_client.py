@@ -111,6 +111,20 @@ def test_restart_rerun_stop_and_status_endpoints(router, client) -> None:
     assert client.build_status("PROJ-PLAN-1") == {"currentStage": "Final"}
 
 
+def test_stop_plan_logs_the_bamboo_answer(router, client, caplog) -> None:
+    stop = router.get(f"{BASE}/build/admin/stopPlan.action")
+    stop.respond(200, text="<html/>")
+    with caplog.at_level("INFO"):
+        client.stop_plan("PROJ-PLAN-1")
+    assert "stop_plan for PROJ-PLAN-1 answered HTTP 200" in caplog.text
+    caplog.clear()
+    stop.respond(302, headers={"Location": f"{BASE}/userlogin!doDefault.action"})
+    with caplog.at_level("INFO"):
+        assert client.stop_plan("PROJ-PLAN-2").status_code == 302
+    assert any(r.levelname == "WARNING" for r in caplog.records)
+    assert "PROJ-PLAN-2 answered HTTP 302 (Location: https://127.0.0.1/userlogin!doDefault.action)" in caplog.text
+
+
 def test_write_errors_return_none_instead_of_raising(router, client) -> None:
     router.post(f"{BASE}/rest/api/latest/queue/X").mock(side_effect=httpx.ConnectError("down"))
     assert client._write("POST", "/rest/api/latest/queue/X") is None

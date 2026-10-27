@@ -154,7 +154,7 @@ class BambooClient:
     def stop_plan(self, bamboo_ci_ref: str | None) -> httpx.Response | None:
         def call() -> httpx.Response | None:
             try:
-                return self._send(
+                response = self._send(
                     "GET",
                     "/build/admin/stopPlan.action",
                     params={"planResultKey": str(bamboo_ci_ref)},
@@ -163,6 +163,17 @@ class BambooClient:
             except Exception as error:
                 self.log.error("stop_plan failed (%s: %s) for %s", type(error).__name__, error, bamboo_ci_ref)
                 return None
+            # Redirects are not followed, so a 3xx (e.g. to the login or XSRF page) means Bamboo did not stop anything.
+            if response.is_success:
+                self.log.info("stop_plan for %s answered HTTP %s", bamboo_ci_ref, response.status_code)
+            else:
+                self.log.warning(
+                    "stop_plan for %s answered HTTP %s (Location: %s); the execution may still be running",
+                    bamboo_ci_ref,
+                    response.status_code,
+                    response.headers.get("Location") or "-",
+                )
+            return response
 
         return metrics.track_bamboo("stop_plan", call)
 
