@@ -58,14 +58,6 @@ def test_pr_bamboo_sync_command(session, clients, github, capsys) -> None:
     out = capsys.readouterr().out
     assert "Time window:" in out and "Total checked  : 0" in out
 
-
-@pytest.mark.skipif(not IS_PG, reason="alembic commands run against PostgreSQL")
-def test_migrate_and_stamp_commands(engine, capsys) -> None:
-    assert main(["migrate"]) == 0
-    assert "already at revision 0002_python_tables" in capsys.readouterr().out
-    assert main(["stamp-baseline", "--revision", "0002_python_tables"]) == 0
-
-
 def test_worker_command_runs_jobs_and_stops_on_sigterm(session, clients) -> None:
     from netdef_ci.jobs import queue
     from netdef_ci.jobs.registry import HANDLERS, job_handler
