@@ -23,6 +23,15 @@ from netdef_ci.logs import Log
 
 JsonDict = dict[str, Any]
 
+# How many times a stop is sent before leaving the wait for the stop to `wait_until_stopped`.
+STOP_PLAN_ATTEMPTS = 3
+
+
+def _stop_accepted(response: httpx.Response) -> bool:
+    """A stop answers with a redirect to the build result; one to the login page means nothing was stopped."""
+    location = response.headers.get("Location") or ""
+    return response.is_success or (response.is_redirect and "login" not in location.lower())
+
 
 class BambooClient:
     def __init__(
@@ -151,31 +160,47 @@ class BambooClient:
     def stop_job(self, job_key: str) -> httpx.Response | None:
         return metrics.track_bamboo("stop_job", lambda: self._write("DELETE", f"/rest/api/latest/queue/{job_key}"))
 
+    def _stop_plan_request(self, bamboo_ci_ref: str | None, method: str) -> httpx.Response | None:
+        headers = {"Accept": "application/json"}
+        if method == "POST":
+            # `X-Atlassian-Token: no-check` is the documented way for API clients to skip Bamboo's XSRF check.
+            headers["X-Atlassian-Token"] = "no-check"
+        try:
+            response = self._send(
+                method, "/build/admin/stopPlan.action", params={"planResultKey": str(bamboo_ci_ref)}, headers=headers
+            )
+        except Exception as error:
+            self.log.error("stop_plan %s failed (%s: %s) for %s", method, type(error).__name__, error, bamboo_ci_ref)
+            return None
+        location = response.headers.get("Location") or ""
+        if _stop_accepted(response):
+            self.log.info("stop_plan %s for %s answered HTTP %s", method, bamboo_ci_ref, response.status_code)
+        else:
+            self.log.warning(
+                "stop_plan %s for %s answered HTTP %s (Location: %s); the execution may still be running",
+                method,
+                bamboo_ci_ref,
+                response.status_code,
+                location or "-",
+            )
+        return response
+
     def stop_plan(self, bamboo_ci_ref: str | None) -> httpx.Response | None:
+        """Stop an execution, up to STOP_PLAN_ATTEMPTS times until Bamboo reports it stopped. Each attempt sends the
+        Ruby app's `GET stopPlan.action` and, when Bamboo refuses it (its XSRF check answers 500), the same action as
+        a `POST`."""
+
         def call() -> httpx.Response | None:
-            try:
-                # Bamboo rejects a GET as a mutative operation without an XSRF token (HTTP 500); a POST with
-                # `X-Atlassian-Token: no-check` is the documented way for API clients to skip that check.
-                response = self._send(
-                    "POST",
-                    "/build/admin/stopPlan.action",
-                    params={"planResultKey": str(bamboo_ci_ref)},
-                    headers={"Accept": "application/json", "X-Atlassian-Token": "no-check"},
-                )
-            except Exception as error:
-                self.log.error("stop_plan failed (%s: %s) for %s", type(error).__name__, error, bamboo_ci_ref)
-                return None
-            # A stop answers with a redirect to the build result; one to the login page means nothing was stopped.
-            location = response.headers.get("Location") or ""
-            if response.is_success or (response.is_redirect and "login" not in location.lower()):
-                self.log.info("stop_plan for %s answered HTTP %s", bamboo_ci_ref, response.status_code)
-            else:
-                self.log.warning(
-                    "stop_plan for %s answered HTTP %s (Location: %s); the execution may still be running",
-                    bamboo_ci_ref,
-                    response.status_code,
-                    response.headers.get("Location") or "-",
-                )
+            response: httpx.Response | None = None
+            for attempt in range(1, STOP_PLAN_ATTEMPTS + 1):
+                response = self._stop_plan_request(bamboo_ci_ref, "GET")
+                if response is None or not _stop_accepted(response):
+                    response = self._stop_plan_request(bamboo_ci_ref, "POST")
+                if not bamboo_ci_ref or self.is_stopped(bamboo_ci_ref):
+                    return response
+                if attempt < STOP_PLAN_ATTEMPTS:
+                    self._sleep(self.settings.execution_cancel_poll_seconds)
+            self.log.warning("stop_plan for %s: still running after %s attempts", bamboo_ci_ref, STOP_PLAN_ATTEMPTS)
             return response
 
         return metrics.track_bamboo("stop_plan", call)

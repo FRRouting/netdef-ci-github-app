@@ -102,40 +102,70 @@ def test_restart_rerun_stop_and_status_endpoints(router, client) -> None:
     assert dict(restart.calls.last.request.url.params) == {"executeAllStages": "true"}
     assert client.rerun("PROJ-PLAN-1") == "ok"
     assert dict(restart.calls.last.request.url.params) == {"executeAllStages": "true", "orphanRemoval": "true"}
-    stop = router.post(f"{BASE}/build/admin/stopPlan.action").respond(200, text="<html/>")
-    client.stop_plan("PROJ-PLAN-1")
-    assert dict(stop.calls.last.request.url.params) == {"planResultKey": "PROJ-PLAN-1"}
-    # Without this header Bamboo refuses the stop as an XSRF-unsafe mutative operation.
-    assert stop.calls.last.request.headers["X-Atlassian-Token"] == "no-check"
     router.delete(f"{BASE}/rest/api/latest/queue/PROJ-JOB-1").respond(200)
     assert client.stop_job("PROJ-JOB-1").status_code == 200
     router.get(f"{BASE}/rest/api/latest/result/status/PROJ-PLAN-1").respond(200, json={"currentStage": "Final"})
     assert client.build_status("PROJ-PLAN-1") == {"currentStage": "Final"}
 
 
-def test_stop_plan_logs_the_bamboo_answer(router, client, caplog) -> None:
-    stop = router.post(f"{BASE}/build/admin/stopPlan.action")
-    stop.respond(200, text="<html/>")
+def _stop_routes(router, ref: str, get_status: int = 302, post_status: int = 302, states=("Finished",)):
+    get = router.get(f"{BASE}/build/admin/stopPlan.action").respond(get_status, headers={"Location": f"/browse/{ref}"})
+    post = router.post(f"{BASE}/build/admin/stopPlan.action").respond(
+        post_status, headers={"Location": f"/browse/{ref}"}
+    )
+    state = router.get(f"{BASE}/rest/api/latest/result/{ref}").mock(
+        side_effect=[httpx.Response(200, json={"lifeCycleState": s}) for s in states]
+    )
+    return get, post, state
+
+
+def test_stop_plan_sends_the_ruby_get_and_stops_when_bamboo_accepts_it(router, client, caplog) -> None:
+    get, post, _ = _stop_routes(router, "PROJ-PLAN-1")
     with caplog.at_level("INFO"):
-        client.stop_plan("PROJ-PLAN-1")
-    assert "stop_plan for PROJ-PLAN-1 answered HTTP 200" in caplog.text
-    caplog.clear()
-    stop.respond(302, headers={"Location": f"{BASE}/browse/PROJ-PLAN-3"})
-    with caplog.at_level("INFO"):
-        client.stop_plan("PROJ-PLAN-3")
-    assert "stop_plan for PROJ-PLAN-3 answered HTTP 302" in caplog.text
+        assert client.stop_plan("PROJ-PLAN-1").status_code == 302
+    assert dict(get.calls.last.request.url.params) == {"planResultKey": "PROJ-PLAN-1"}
+    assert get.call_count == 1 and post.call_count == 0
+    assert "stop_plan GET for PROJ-PLAN-1 answered HTTP 302" in caplog.text
     assert not any(r.levelname == "WARNING" for r in caplog.records)
-    caplog.clear()
-    stop.respond(500, text="XSRF")
-    with caplog.at_level("INFO"):
-        client.stop_plan("PROJ-PLAN-4")
-    assert "PROJ-PLAN-4 answered HTTP 500" in caplog.text and any(r.levelname == "WARNING" for r in caplog.records)
-    caplog.clear()
-    stop.respond(302, headers={"Location": f"{BASE}/userlogin!doDefault.action"})
+
+
+def test_stop_plan_falls_back_to_post_when_the_get_is_refused(router, client, caplog) -> None:
+    get, post, _ = _stop_routes(router, "PROJ-PLAN-2", get_status=500)
     with caplog.at_level("INFO"):
         assert client.stop_plan("PROJ-PLAN-2").status_code == 302
+    assert get.call_count == 1 and post.call_count == 1
+    # Without this header Bamboo refuses the stop as an XSRF-unsafe mutative operation.
+    assert post.calls.last.request.headers["X-Atlassian-Token"] == "no-check"
+    assert "X-Atlassian-Token" not in get.calls.last.request.headers
+    assert "stop_plan GET for PROJ-PLAN-2 answered HTTP 500" in caplog.text
+    assert "stop_plan POST for PROJ-PLAN-2 answered HTTP 302" in caplog.text
+
+
+def test_stop_plan_repeats_until_bamboo_reports_the_execution_stopped(router, client) -> None:
+    get, post, state = _stop_routes(router, "PROJ-PLAN-3", get_status=500, states=("InProgress", "Finished"))
+    client.stop_plan("PROJ-PLAN-3")
+    assert get.call_count == 2 and post.call_count == 2 and state.call_count == 2
+    assert client.slept == [get_settings().execution_cancel_poll_seconds]
+
+
+def test_stop_plan_gives_up_after_three_attempts(router, client, caplog) -> None:
+    get, post, _ = _stop_routes(router, "PROJ-PLAN-4", get_status=500, post_status=500, states=("InProgress",) * 3)
+    with caplog.at_level("INFO"):
+        assert client.stop_plan("PROJ-PLAN-4").status_code == 500
+    assert get.call_count == 3 and post.call_count == 3 and len(client.slept) == 2
+    assert "stop_plan for PROJ-PLAN-4: still running after 3 attempts" in caplog.text
+
+
+def test_stop_plan_redirect_to_login_is_not_a_stop(router, client, caplog) -> None:
+    login = {"Location": f"{BASE}/userlogin!doDefault.action"}
+    router.get(f"{BASE}/build/admin/stopPlan.action").respond(302, headers=login)
+    post = router.post(f"{BASE}/build/admin/stopPlan.action").respond(302, headers=login)
+    router.get(f"{BASE}/rest/api/latest/result/PROJ-PLAN-5").respond(200, json={"lifeCycleState": "Finished"})
+    with caplog.at_level("INFO"):
+        client.stop_plan("PROJ-PLAN-5")
+    assert "PROJ-PLAN-5 answered HTTP 302 (Location: https://127.0.0.1/userlogin!doDefault.action)" in caplog.text
     assert any(r.levelname == "WARNING" for r in caplog.records)
-    assert "PROJ-PLAN-2 answered HTTP 302 (Location: https://127.0.0.1/userlogin!doDefault.action)" in caplog.text
+    assert post.call_count == 1  # a GET sent to the login page is not a stop, so the POST is tried
 
 
 def test_write_errors_return_none_instead_of_raising(router, client) -> None:
