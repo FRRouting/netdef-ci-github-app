@@ -198,6 +198,11 @@ def test_reactions_and_check_run_listing(suite, mock_api) -> None:
     check = make(suite)
     check.comment_reaction_thumb_up("org/repo", 3)
     assert json.loads(up.calls.last.request.content) == {"content": "+1"}
+    check.comment_reaction_rocket("org/repo", 3)
+    assert json.loads(up.calls.last.request.content) == {"content": "rocket"}
+    delete = mock_api.delete(f"{API}/repos/org/repo/issues/comments/3/reactions/55").respond(204)
+    check.delete_comment_reaction("org/repo", 3, 55)
+    assert delete.called
     assert check.check_runs_for_ref("org/repo", "abc", status="queued")["check_runs"] == [{"id": 1}]
 
 

@@ -268,6 +268,14 @@ class GithubCheck:
     def comment_reaction_thumb_down(self, repo: str, comment_id: int) -> Json:
         return self._request("POST", f"/repos/{repo}/issues/comments/{comment_id}/reactions", json={"content": "-1"})
 
+    def comment_reaction_rocket(self, repo: str, comment_id: int) -> Json:
+        return self._request(
+            "POST", f"/repos/{repo}/issues/comments/{comment_id}/reactions", json={"content": "rocket"}
+        )
+
+    def delete_comment_reaction(self, repo: str, comment_id: int, reaction_id: int) -> Json:
+        return self._request("DELETE", f"/repos/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}")
+
     def create(self, name: str) -> Json:
         if self.check_suite is None:
             raise GithubError(0, "cannot create a check run without a check suite")

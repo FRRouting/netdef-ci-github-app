@@ -87,23 +87,26 @@ class ReRunComment:
             return 404, "Pull Request not found"
         if not pull_request.check_suites:
             return 404, "Can not rerun a new PullRequest"
-        self._reaction(pull_request, repo)
+        rocket_id = self._reaction(pull_request, repo)
         for plan in _plans_for(self.session, pull_request, repo):
             jobs_queue.enqueue(
                 self.session,
                 "create_execution_by_comment",
-                [pull_request.id, self.payload, plan.id],
+                [pull_request.id, self.payload, plan.id, rocket_id],
                 queue="create_execution_by_comment",
                 delay_seconds=get_settings().rerun_delay_seconds,
                 max_attempts=1,
             )
         return 200, "Scheduled Plan Runs"
 
-    def _reaction(self, pull_request: PullRequest, repo: str | None) -> None:
+    def _reaction(self, pull_request: PullRequest, repo: str | None) -> int | None:
+        """Rocket on the comment while the executions are being started; the execution job swaps it for +1/-1."""
         comment_id = dig(self.payload, "comment", "id")
         if comment_id is None or repo is None:
-            return
+            return None
         try:
-            container.github(pull_request.last_check_suite()).comment_reaction_thumb_up(repo, comment_id)
+            reaction = container.github(pull_request.last_check_suite()).comment_reaction_rocket(repo, comment_id)
         except Exception as error:
             self.log.warning("Could not add reaction to comment %s: %s", comment_id, error)
+            return None
+        return reaction.get("id") if isinstance(reaction, dict) else None

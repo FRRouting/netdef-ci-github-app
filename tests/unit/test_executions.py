@@ -189,7 +189,7 @@ def test_rerun_comment_uses_last_commit_of_the_pr(session, ready, bamboo, github
         "777",
         new.id,
     )
-    assert slack.names()[0] == "started"
+    assert next(name for name in slack.names() if name != "stage_finished") == "started"  # old stages are cancelled
     queued = session.scalars(select(CiJob).where(CiJob.check_suite_id == new.id)).all()
     assert {j.name: j.state for j in queued} == {"Build job": Status.QUEUED, "Tests job": Status.QUEUED}
 
@@ -228,6 +228,44 @@ def test_rerun_comment_stops_running_execution_of_the_plan(session, ready, bambo
     assert w.build_job.state == Status.CANCELLED and "PROJ-PLAN-77" in bamboo.stopped
     new = session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first()
     assert new.cancelled_previous_check_suite_id == w.suite.id
+
+
+def test_rerun_comment_stops_execution_whose_jobs_are_all_queued(session, ready, bamboo, github) -> None:
+    w = f.World(session, statuses=(Status.QUEUED, Status.QUEUED))
+    github.commits = [[{"sha": "c" * 40}]]
+    CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    session.refresh(w.build_job)
+    assert w.build_job.state == Status.CANCELLED
+    assert bamboo.events == [("stop", "PROJ-PLAN-77"), ("check", "PROJ-PLAN-77"), ("submit", "c" * 40)]
+    new = session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first()
+    assert bamboo.cancel_comments == [("PROJ-PLAN-77", new.bamboo_ci_ref)]
+
+
+def test_rerun_keeps_new_check_runs_when_the_stopped_execution_reports_late(session, ready, bamboo, github) -> None:
+    from netdef_ci.services.summary import Summary
+
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    github.commits = [[{"sha": w.suite.commit_sha_ref}]]  # rerun of the same commit: same check run names
+    CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    session.refresh(w.build_stage)
+    session.refresh(w.tests_stage)
+    assert w.build_stage.state == Status.CANCELLED and w.tests_stage.state == Status.CANCELLED
+    Summary(w.build_job, agent="Bamboo").build_summary()  # a late callback of the stopped Bamboo build
+    for name in ("[CI] Build", "[CI] Tests"):
+        assert github.by_name(name)[-1]["status"] == "queued", name
+
+
+def test_rerun_without_running_execution_leaves_no_cancel_comment(session, ready, bamboo, github) -> None:
+    w = f.World(session, statuses=(Status.SUCCESS, Status.SUCCESS))
+    github.commits = [[{"sha": "c" * 40}]]
+    CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    assert bamboo.stopped == [] and bamboo.cancel_comments == []
 
 
 def test_rerun_comment_without_commits_creates_nothing(session, ready, github) -> None:
@@ -269,6 +307,57 @@ def test_rerun_command_copies_the_suite_without_linking_the_plan(session, ready,
 
 def test_rerun_command_with_unknown_suite(session, ready) -> None:
     assert CreateExecutionByCommand.run(session, 1, 9999, {})[0] == 404
+
+
+def rerun_with_rocket(session, w, github, plan_id=None):
+    github.reactions.append(("org/repo", 99, "rocket"))  # added by the webhook on receipt
+    return CreateExecutionByComment.run(
+        session,
+        w.pr.id,
+        payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id),
+        plan_id or w.plan.id,
+        4242,
+    )
+
+
+def test_rerun_swaps_rocket_for_thumbs_up_once_bamboo_receives_the_plan(session, ready, bamboo, github) -> None:
+    w = f.World(session)
+    github.commits = [[{"sha": "c" * 40}]]
+    events: list[str] = []
+    bamboo_submit, github_up = bamboo.submit_pr_to_ci, github.comment_reaction_thumb_up
+    bamboo.submit_pr_to_ci = lambda *a: events.append("submit") or bamboo_submit(*a)
+    github.comment_reaction_thumb_up = lambda *a: events.append("+1") or github_up(*a)
+    bamboo.running_plan = lambda _ref: events.append("running_plan") or []
+    assert rerun_with_rocket(session, w, github)[0] == 201
+    assert github.reactions == [("org/repo", 99, "+1")]
+    assert events[:2] == ["submit", "+1"]  # before waiting for the jobs and creating the check runs
+
+
+@pytest.mark.parametrize("unknown_plan", [False, True])
+def test_rerun_swaps_rocket_for_thumbs_down_when_nothing_was_started(
+    session, ready, bamboo, github, unknown_plan
+) -> None:
+    w = f.World(session)
+    github.commits = [[{"sha": "c" * 40}]]
+    bamboo.submit_status, bamboo.submit_text = 404, "Plan not found"
+    rerun_with_rocket(session, w, github, plan_id=999_999 if unknown_plan else None)
+    assert github.reactions == [("org/repo", 99, "-1")]
+
+
+def test_rerun_reports_thumbs_down_when_the_job_crashes(session, ready, bamboo, github) -> None:
+    w = f.World(session)
+    github.commits = [[{"sha": "c" * 40}]]
+    bamboo.submit_pr_to_ci = lambda *_a: (_ for _ in ()).throw(RuntimeError("boom"))
+    with pytest.raises(RuntimeError):
+        rerun_with_rocket(session, w, github)
+    assert github.reactions == [("org/repo", 99, "-1")]
+
+
+def test_rerun_reaction_errors_do_not_change_the_outcome(session, ready, bamboo, github) -> None:
+    w = f.World(session)
+    github.commits = [[{"sha": "c" * 40}]]
+    github.fail_reactions = True
+    assert rerun_with_rocket(session, w, github)[0] == 201
 
 
 def test_rerun_does_not_create_stages_when_bamboo_rejects_the_plan(session, ready, bamboo, github) -> None:
