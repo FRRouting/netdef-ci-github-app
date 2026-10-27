@@ -13,14 +13,12 @@ import os
 import signal
 import threading
 
-import pytest
 from sqlalchemy import select
 
 from netdef_ci.cli.main import main
 from netdef_ci.enums import Status
 from netdef_ci.models import Job
 from tests import factories as f
-from tests.conftest import IS_PG
 
 
 def test_watch_dog_and_single_sync_commands(session, clients, bamboo, capsys) -> None:
@@ -57,6 +55,7 @@ def test_pr_bamboo_sync_command(session, clients, github, capsys) -> None:
     assert main(["pr-bamboo-sync"]) == 0
     out = capsys.readouterr().out
     assert "Time window:" in out and "Total checked  : 0" in out
+
 
 def test_worker_command_runs_jobs_and_stops_on_sigterm(session, clients) -> None:
     from netdef_ci.jobs import queue

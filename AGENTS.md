@@ -21,7 +21,7 @@ project skill `.claude/skills/document-in-english/SKILL.md`.
 - Never log tokens, keys or secrets (`logs.py` redacts known patterns, but do not rely on it alone).
 - Operations with non-idempotent external side effects (starting a Bamboo plan) run with `max_attempts=1`.
 - Tests: `pytest` in `tests/unit` and `tests/integration`; external HTTP only through `respx`/doubles in `tests/fakes.py`.
-  No test touches real resources. Test database: PostgreSQL via `TEST_DATABASE_URL` (or SQLite, skipping the `pg` tests).
+  No test touches real resources. Test database: PostgreSQL via `TEST_DATABASE_URL` (or SQLite).
 - Deliberate behaviour decisions must be recorded in `doc/07-design-notes.md`.
 - Markdown tables stay aligned: after touching one, run `make docs-tables` (skill `.claude/skills/align-doc-tables/SKILL.md`).
 - Schema: changes only through Alembic migrations in `migrations/versions/` (revision `0001_initial_schema` is the baseline).
