@@ -20,6 +20,31 @@
     label: "{{ item.name }}"
   notify: [Reload systemd, Restart netdef-ci]
 
+- name: Find the installed job worker services
+  ansible.builtin.find:
+    paths: /etc/systemd/system
+    patterns: "netdef-ci-worker-*.service"
+  register: netdef_ci_installed_workers
+
+- name: List the job worker services that are no longer configured
+  ansible.builtin.set_fact:
+    netdef_ci_stale_workers: >-
+      {{ netdef_ci_installed_workers.files | map(attribute='path') | map('basename')
+         | reject('in', netdef_ci_service_names | map('regex_replace', '$', '.service') | list) | list }}
+
+- name: Stop and disable the job worker services that are no longer configured
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ netdef_ci_stale_workers }}"
+
+- name: Remove the job worker services that are no longer configured
+  ansible.builtin.file:
+    path: "/etc/systemd/system/{{ item }}"
+    state: absent
+  loop: "{{ netdef_ci_stale_workers }}"
+
 - name: Install the target that groups the services
   ansible.builtin.template:
     src: netdef-ci.target.j2

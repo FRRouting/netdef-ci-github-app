@@ -34,13 +34,18 @@ netdef_ci_listen_host: 0.0.0.0
 netdef_ci_listen_port: 4667
 netdef_ci_web_workers: 4
 # One systemd unit per entry. Numeric queues are chosen by pull request id (github_pr_id % 10) so every update of a PR is
-# processed by the same worker; the named queues hold the jobs that create executions and the timeout/fetch jobs.
+# processed by the same worker. Each named queue has its own worker: creating an execution can wait for Bamboo for up
+# to ~2 minutes, and must not be held behind (or hold) the timeout and topotest jobs or the other creation flows.
+# Worker units that are no longer listed here are stopped and removed on the next deploy.
 netdef_ci_job_workers:
   - {name: q0-3, queues: "0,1,2,3"}
   - {name: q4-6, queues: "4,5,6"}
   - {name: q7-9, queues: "7,8,9"}
-  - name: named
-    queues: "create_execution_by_plan,create_execution_by_comment,create_execution_by_command,timeout_execution,fetch_topotest_failures"
+  - {name: create-by-plan, queues: "create_execution_by_plan"}
+  - {name: create-by-comment, queues: "create_execution_by_comment"}
+  - {name: create-by-command, queues: "create_execution_by_command"}
+  - {name: timeout, queues: "timeout_execution"}
+  - {name: topotest, queues: "fetch_topotest_failures"}
 # Periodic tasks (systemd timers). Choose the calendar that fits your reconciliation needs.
 netdef_ci_timers:
   watchdog: {enabled: true, on_calendar: "*:0/15"}

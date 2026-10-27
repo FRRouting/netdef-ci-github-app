@@ -69,7 +69,11 @@ start web "$PYTHON" -m uvicorn --factory netdef_ci.web.app:app_factory --host 12
 start worker-q0-3 "$PYTHON" -m netdef_ci worker --queues 0,1,2,3
 start worker-q4-6 "$PYTHON" -m netdef_ci worker --queues 4,5,6
 start worker-q7-9 "$PYTHON" -m netdef_ci worker --queues 7,8,9
-start worker-named "$PYTHON" -m netdef_ci worker --queues create_execution_by_plan,create_execution_by_comment,create_execution_by_command,timeout_execution,fetch_topotest_failures
+start worker-create-by-plan "$PYTHON" -m netdef_ci worker --queues create_execution_by_plan
+start worker-create-by-comment "$PYTHON" -m netdef_ci worker --queues create_execution_by_comment
+start worker-create-by-command "$PYTHON" -m netdef_ci worker --queues create_execution_by_command
+start worker-timeout "$PYTHON" -m netdef_ci worker --queues timeout_execution
+start worker-topotest "$PYTHON" -m netdef_ci worker --queues fetch_topotest_failures
 ( while sleep "$WATCHDOG_INTERVAL"; do "$PYTHON" -m netdef_ci watch-dog >>"$RUN_DIR/logs/watch-dog.out" 2>&1 || true; done ) &
 pids+=($!); echo "   started watch-dog loop every ${WATCHDOG_INTERVAL}s (pid $!)"
 

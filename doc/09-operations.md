@@ -2,13 +2,14 @@
 
 ## Processes (systemd, installed by Ansible)
 
-| Unit                                                | Role                                                           |
-|-----------------------------------------------------|----------------------------------------------------------------|
-| `netdef-ci-web.service`                             | uvicorn (`--factory netdef_ci.web.app:app_factory`, N workers) |
-| `netdef-ci-worker-q0-3`, `-q4-6`, `-q7-9`, `-named` | job workers by queue range                                     |
-| `netdef-ci-watchdog.timer` / `.service`             | `python -m netdef_ci watch-dog`                                |
-| `netdef-ci-pr-sync.timer` / `.service`              | `python -m netdef_ci pr-bamboo-sync` (optional)                |
-| `netdef-ci.target`                                  | groups everything: `systemctl restart netdef-ci.target`        |
+| Unit                                                                                                   | Role                                                           |
+|--------------------------------------------------------------------------------------------------------|----------------------------------------------------------------|
+| `netdef-ci-web.service`                                                                                | uvicorn (`--factory netdef_ci.web.app:app_factory`, N workers) |
+| `netdef-ci-worker-q0-3`, `-q4-6`, `-q7-9`                                                              | job workers by queue range                                     |
+| `netdef-ci-worker-create-by-plan`, `-create-by-comment`, `-create-by-command`, `-timeout`, `-topotest` | one job worker per named queue                                 |
+| `netdef-ci-watchdog.timer` / `.service`                                                                | `python -m netdef_ci watch-dog`                                |
+| `netdef-ci-pr-sync.timer` / `.service`                                                                 | `python -m netdef_ci pr-bamboo-sync` (optional)                |
+| `netdef-ci.target`                                                                                     | groups everything: `systemctl restart netdef-ci.target`        |
 
 ## Background job schedule
 
@@ -87,7 +88,7 @@ These sleep inside the running job and count towards the 300 s limit:
 | Webhook returns `404 Signature not found` / `401 Signatures didn't match!` | secret differs between GitHub/Bamboo and `WEBHOOK_SECRET`; proxy rewriting the body (the signature is computed over the raw body)             |
 | PR without check runs, response `422 No Plans associated…`                 | missing row in `plans` (`github_repo_name = '<org>/<repo>'`)                                                                                  |
 | Check runs do not appear; log "Github Authentication Failed"               | `GITHUB_APPS_FILE`, `.pem` path/permissions, App installed on the repository; `check-config`                                                  |
-| `create_execution_by_plan` has no effect                                   | `SELECT * FROM jobs`; are the `named` workers active? (`systemctl status netdef-ci-worker-named`); PR log                                     |
+| `create_execution_by_plan` has no effect                                   | `SELECT * FROM jobs`; is its worker active? (`systemctl status netdef-ci-worker-create-by-plan`); PR log                                      |
 | Plan does not start: `Failed to create CI Plan` in the log (429/418/4xx)   | Bamboo concurrent build limit (429), Bamboo/`127.0.0.1` tunnel down (418), credentials                                                        |
 | Stage stuck in `in_progress`                                               | `python -m netdef_ci single-sync PROJ-PLAN-123` or wait for the `watch-dog`; check Bamboo callbacks (`/update/status`) and `signature_secret` |
 | `jobs` with high `attempts` / `last_error`                                 | `SELECT id, handler, attempts, last_error FROM jobs WHERE attempts > 0;`                                                                      |
