@@ -16,6 +16,7 @@ netdef_ci_settings:
   BAMBOO_VERIFY_TLS: "false"
   MULTI_PLAN: "false"
   GITHUB_APP_NAME: NetDEF CI Hook
+  EXECUTION_CANCEL_POLL_SECONDS: "1"  # check every second whether Bamboo stopped the previous execution (default 5)
 
 netdef_ci_timers:
   watchdog: {enabled: true, on_calendar: "*:0/15"}

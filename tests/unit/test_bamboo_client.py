@@ -102,9 +102,11 @@ def test_restart_rerun_stop_and_status_endpoints(router, client) -> None:
     assert dict(restart.calls.last.request.url.params) == {"executeAllStages": "true"}
     assert client.rerun("PROJ-PLAN-1") == "ok"
     assert dict(restart.calls.last.request.url.params) == {"executeAllStages": "true", "orphanRemoval": "true"}
-    stop = router.get(f"{BASE}/build/admin/stopPlan.action").respond(200, text="<html/>")
+    stop = router.post(f"{BASE}/build/admin/stopPlan.action").respond(200, text="<html/>")
     client.stop_plan("PROJ-PLAN-1")
     assert dict(stop.calls.last.request.url.params) == {"planResultKey": "PROJ-PLAN-1"}
+    # Without this header Bamboo refuses the stop as an XSRF-unsafe mutative operation.
+    assert stop.calls.last.request.headers["X-Atlassian-Token"] == "no-check"
     router.delete(f"{BASE}/rest/api/latest/queue/PROJ-JOB-1").respond(200)
     assert client.stop_job("PROJ-JOB-1").status_code == 200
     router.get(f"{BASE}/rest/api/latest/result/status/PROJ-PLAN-1").respond(200, json={"currentStage": "Final"})
@@ -112,11 +114,22 @@ def test_restart_rerun_stop_and_status_endpoints(router, client) -> None:
 
 
 def test_stop_plan_logs_the_bamboo_answer(router, client, caplog) -> None:
-    stop = router.get(f"{BASE}/build/admin/stopPlan.action")
+    stop = router.post(f"{BASE}/build/admin/stopPlan.action")
     stop.respond(200, text="<html/>")
     with caplog.at_level("INFO"):
         client.stop_plan("PROJ-PLAN-1")
     assert "stop_plan for PROJ-PLAN-1 answered HTTP 200" in caplog.text
+    caplog.clear()
+    stop.respond(302, headers={"Location": f"{BASE}/browse/PROJ-PLAN-3"})
+    with caplog.at_level("INFO"):
+        client.stop_plan("PROJ-PLAN-3")
+    assert "stop_plan for PROJ-PLAN-3 answered HTTP 302" in caplog.text
+    assert not any(r.levelname == "WARNING" for r in caplog.records)
+    caplog.clear()
+    stop.respond(500, text="XSRF")
+    with caplog.at_level("INFO"):
+        client.stop_plan("PROJ-PLAN-4")
+    assert "PROJ-PLAN-4 answered HTTP 500" in caplog.text and any(r.levelname == "WARNING" for r in caplog.records)
     caplog.clear()
     stop.respond(302, headers={"Location": f"{BASE}/userlogin!doDefault.action"})
     with caplog.at_level("INFO"):
