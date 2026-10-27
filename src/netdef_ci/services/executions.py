@@ -25,7 +25,7 @@ from netdef_ci.jobs.locks import pull_request_lock
 from netdef_ci.logs import Log
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, Plan, PullRequest, Stage
 from netdef_ci.services.action import Action
-from netdef_ci.services.common import find_pull_request, wait_for_running_jobs
+from netdef_ci.services.common import find_pull_request, wait_for_running_jobs, wait_until_stopped
 from netdef_ci.services.plan_run import PlanRun
 from netdef_ci.services.unavailable_jobs import UnavailableJobs
 from netdef_ci.services.user_info import sync_user_info
@@ -148,6 +148,8 @@ class CreateExecutionByPlan:
             stage.cancelled(self.github)
         self.has_previous_exec = True
         container.bamboo().stop_plan(last.bamboo_ci_ref)
+        # The new execution only starts once Bamboo confirms the stop (or the wait limit is reached).
+        wait_until_stopped([last.bamboo_ci_ref], self.log)
 
     def _start_new_execution(self, plan: Plan) -> int:
         assert self.check_suite is not None and self.pull_request is not None
@@ -219,6 +221,7 @@ class RerunBase:
         self.last_check_suite = None
         for check_suite in suites:
             self._stop_and_update(check_suite)
+        wait_until_stopped([suite.bamboo_ci_ref for suite in suites], self.log)
 
     def _stop_and_update(self, check_suite: CheckSuite) -> None:
         stage = getattr(_last_in_progress_stage(self.session, check_suite), "id", None)

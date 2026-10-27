@@ -135,3 +135,24 @@ def test_cancel_comment_links_the_new_execution(session, router, client) -> None
     route = router.post(f"{BASE}/rest/api/latest/result/PROJ-PLAN-77/comment").respond(200)
     client.comment_cancelled(w.suite, new)
     assert b"https://ci.example.test/browse/PROJ-PLAN-99" in route.calls.last.request.content
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "expected"),
+    [
+        (200, {"lifeCycleState": "Finished"}, True),
+        (200, {"lifeCycleState": "NotBuilt"}, True),
+        (200, {"lifeCycleState": "InProgress"}, False),
+        (200, {"lifeCycleState": "Queued"}, False),
+        (404, {"message": "Result PROJ-PLAN-5 not found"}, True),
+        (500, {"message": "boom"}, False),
+    ],
+)
+def test_is_stopped_only_trusts_finished_or_removed_results(router, client, status, body, expected) -> None:
+    router.get(f"{BASE}/rest/api/latest/result/PROJ-PLAN-5").respond(status, json=body)
+    assert client.is_stopped("PROJ-PLAN-5") is expected
+
+
+def test_is_stopped_is_false_when_bamboo_is_unreachable(router, client) -> None:
+    router.get(f"{BASE}/rest/api/latest/result/PROJ-PLAN-5").mock(side_effect=httpx.ConnectTimeout("timeout"))
+    assert client.is_stopped("PROJ-PLAN-5") is False

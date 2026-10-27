@@ -5,7 +5,7 @@ Server that connects **GitHub Pull Requests** to **Bamboo CI**: it receives webh
 
 - Python **3.15.2** · FastAPI + uvicorn · SQLAlchemy 2 + Alembic + PostgreSQL · httpx · PyJWT · prometheus-client
 - Own PostgreSQL job queue (`run_at`, named queues, retries with back-off), no Redis
-- Tests: **252 passing**, **94 %** coverage, `ruff` and `mypy` clean · Deploy: **Ansible** (dev and production)
+- Tests: **279 passing**, **94 %** coverage, `ruff` and `mypy` clean · Deploy: **Ansible** (dev and production)
 
 Full documentation in [`doc/`](doc/): overview and diagrams (`01`), feature and test matrix (`02`), technical decisions (`03`),
 configuration/GitHub App/secrets (`04`), endpoints (`05`), database and rollout (`06`), design notes (`07`),

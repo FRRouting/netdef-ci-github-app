@@ -40,14 +40,14 @@ What the role installs (Debian/Ubuntu with systemd — the current infrastructur
 
 ## Values that must be filled in
 
-| Where                                       | Variable                       | Description                                                                  |
-|---------------------------------------------|--------------------------------|------------------------------------------------------------------------------|
-| `inventories/<env>/hosts.yml`               | `ansible_host`, `ansible_user` | server and SSH user                                                          |
-| `inventories/<env>/group_vars/all/main.yml` | `netdef_ci_repo_url`           | repository URL                                                               |
-| same                                        | `netdef_ci_version`            | tag/commit (mandatory in production)                                         |
-| same                                        | `netdef_ci_settings.CI_URL`    | Bamboo host used in links                                                    |
-| same                                        | `netdef_ci_timers`             | schedules equivalent to the current cron                                     |
-| `vault.yml` (encrypted)                     | `vault_netdef_ci_*`            | database, webhook secret (≥ 16 characters), GitHub Apps passwords and keys   |
+| Where                                       | Variable                       | Description                                                                |
+|---------------------------------------------|--------------------------------|----------------------------------------------------------------------------|
+| `inventories/<env>/hosts.yml`               | `ansible_host`, `ansible_user` | server and SSH user                                                        |
+| `inventories/<env>/group_vars/all/main.yml` | `netdef_ci_repo_url`           | repository URL                                                             |
+| same                                        | `netdef_ci_version`            | tag/commit (mandatory in production)                                       |
+| same                                        | `netdef_ci_settings.CI_URL`    | Bamboo host used in links                                                  |
+| same                                        | `netdef_ci_timers`             | schedules equivalent to the current cron                                   |
+| `vault.yml` (encrypted)                     | `vault_netdef_ci_*`            | database, webhook secret (≥ 16 characters), GitHub Apps passwords and keys |
 
 ## Secrets with Ansible Vault
 

@@ -23,6 +23,7 @@ project skill `.claude/skills/document-in-english/SKILL.md`.
 - Tests: `pytest` in `tests/unit` and `tests/integration`; external HTTP only through `respx`/doubles in `tests/fakes.py`.
   No test touches real resources. Test database: PostgreSQL via `TEST_DATABASE_URL` (or SQLite, skipping the `pg` tests).
 - Deliberate behaviour decisions must be recorded in `doc/07-design-notes.md`.
+- Markdown tables stay aligned: after touching one, run `make docs-tables` (skill `.claude/skills/align-doc-tables/SKILL.md`).
 - Schema: changes only through Alembic migrations in `migrations/versions/` (revision `0001_initial_schema` is the baseline).
 
 ## Commands
@@ -31,4 +32,5 @@ project skill `.claude/skills/document-in-english/SKILL.md`.
 make install-dev && make check          # lint + mypy + tests with coverage
 scripts/test-with-podman.sh             # same gate with Python 3.15.2 and PostgreSQL in containers
 make smoke                              # starts real uvicorn + worker against a test PostgreSQL
+make docs-tables                        # aligns every Markdown table (lint runs it with --check)
 ```

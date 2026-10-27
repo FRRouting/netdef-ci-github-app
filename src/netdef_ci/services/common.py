@@ -33,6 +33,28 @@ def find_pull_request(session: Session, github_pr_id: int | None, repository: st
     return session.scalars(stmt.order_by(PullRequest.id).limit(1)).first()
 
 
+def wait_until_stopped(
+    bamboo_ci_refs: list[str | None], log: Log, *, sleep: Callable[[float], None] = time.sleep
+) -> bool:
+    """After a stop request, wait (bounded by EXECUTION_CANCEL_WAIT_MAX_SECONDS) until Bamboo reports every given
+    execution as stopped. Returns False when the limit was reached; the caller starts the new execution anyway."""
+    settings = get_settings()
+    pending = [ref for ref in bamboo_ci_refs if ref]
+    deadline = time.monotonic() + settings.execution_cancel_wait_max_seconds
+    while True:
+        pending = [ref for ref in pending if not container.bamboo().is_stopped(ref)]
+        if not pending:
+            return True
+        if time.monotonic() >= deadline:
+            log.error(
+                "Bamboo did not confirm the stop of %s within %ss; starting the new execution anyway",
+                ", ".join(pending),
+                settings.execution_cancel_wait_max_seconds,
+            )
+            return False
+        sleep(settings.execution_cancel_poll_seconds)
+
+
 def wait_for_running_jobs(
     check_suite_ref: str | None, *, sleep: Callable[[float], None] = time.sleep
 ) -> list[dict[str, str | None]]:

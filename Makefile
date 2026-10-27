@@ -4,7 +4,7 @@ VENV   ?= .venv
 BIN    := $(VENV)/bin
 export PYTHONPATH := src
 
-.PHONY: venv install install-dev migrate run worker watch-dog test lint typecheck check smoke
+.PHONY: venv install install-dev migrate run worker watch-dog test lint typecheck check smoke docs-tables
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -33,6 +33,10 @@ test:
 lint:
 	$(BIN)/ruff check src tests migrations
 	$(BIN)/ruff format --check src tests migrations
+	$(BIN)/python scripts/align_md_tables.py --check
+
+docs-tables:
+	$(BIN)/python scripts/align_md_tables.py
 
 typecheck:
 	$(BIN)/mypy src
