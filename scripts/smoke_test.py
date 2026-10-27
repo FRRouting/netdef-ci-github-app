@@ -130,7 +130,13 @@ def main() -> int:
         )
         check(float(line.split()[-1]) >= 8, f"metrics aggregate the web workers ({line})")
         check("delayed_jobs_pending" in metrics, "database gauges present in /metrics")
-        booted = next(x for x in metrics.splitlines() if x.startswith("puma_booted_workers"))
+        # /readyz only proves that one worker is up; the second one may still be starting, so wait for it (bounded).
+        for _ in range(30):
+            booted = next(x for x in metrics.splitlines() if x.startswith("puma_booted_workers"))
+            if booted.split()[-1] == "2.0":
+                break
+            time.sleep(0.5)
+            metrics = httpx.get(f"{url}/metrics", auth=("prom", "prompass")).text
         check(booted.split()[-1] == "2.0", f"both web workers are reported ({booted})")
     finally:
         for proc in (web, worker):
