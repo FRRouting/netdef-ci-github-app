@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     env: Literal["development", "production", "test"] = Field("development", alias="NETDEF_ENV")
     debug: bool = Field(False, alias="DEBUG")
     log_dir: str | None = Field(None, alias="LOG_DIR")
+    # `github_http.log` (one line per GitHub API call) rotates at this size and keeps this many files in total;
+    # files default to 5 in production and 1 elsewhere.
+    github_http_log_max_bytes: int = Field(1024**3, alias="GITHUB_HTTP_LOG_MAX_BYTES", ge=1024)
+    github_http_log_files: int | None = Field(None, alias="GITHUB_HTTP_LOG_FILES", ge=1)
 
     database_url: str = Field(
         "postgresql+psycopg://postgres:postgres@localhost:5432/githubruns-dev", alias="DATABASE_URL"

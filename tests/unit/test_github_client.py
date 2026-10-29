@@ -85,6 +85,25 @@ def test_requests_use_installation_token_and_api_headers(suite, mock_api) -> Non
     assert sent.headers["x-github-api-version"] == "2022-11-28"
 
 
+def test_github_calls_are_logged_to_github_http_log(suite, mock_api, settings, monkeypatch, tmp_path) -> None:
+    import logging
+
+    monkeypatch.setattr(settings, "log_dir", str(tmp_path))
+    logger = logging.getLogger("netdef_ci.github_http")
+    monkeypatch.setattr(logger, "handlers", [])
+    monkeypatch.setattr(logger, "propagate", True)
+    mock_api.get(f"{API}/repos/org/repo/pulls/5").respond(404)
+    with pytest.raises(gh.GithubNotFound):
+        make(suite).pull_request_info(5, "org/repo")
+    for handler in logger.handlers:
+        handler.close()
+    lines = (tmp_path / "github_http.log").read_text().splitlines()
+    assert lines[0].endswith(f"INFO GET {API}/app/installations -> 200")
+    assert lines[1].endswith(f"INFO POST {API}/app/installations/7/access_tokens -> 201")
+    assert lines[2].endswith(f"WARNING GET {API}/repos/org/repo/pulls/5 -> 404")
+    assert "ghs_tokentoken" not in "".join(lines)
+
+
 def test_create_check_run_posts_name_and_head_sha(suite, mock_api) -> None:
     route = mock_api.post(f"{API}/repos/org/repo/check-runs").respond(201, json={"id": 9, "name": "[CI] Build"})
     assert make(suite).create("[CI] Build")["id"] == 9

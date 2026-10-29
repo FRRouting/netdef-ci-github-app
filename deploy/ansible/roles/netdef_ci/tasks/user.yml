@@ -38,6 +38,10 @@
       owner: root
       group: "{{ netdef_ci_group }}"
       mode: "0750"
+    - path: "{{ netdef_ci_log_root }}"
+      owner: root
+      group: "{{ netdef_ci_group }}"
+      mode: "0750"
     - path: "{{ netdef_ci_log_dir }}"
       owner: "{{ netdef_ci_user }}"
       group: "{{ netdef_ci_group }}"
