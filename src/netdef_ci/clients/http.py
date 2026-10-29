@@ -48,7 +48,7 @@ def request_with_retries(
     *,
     max_retries: int,
     sleep: Sleeper = time.sleep,
-    logger: logging.Logger | None = None,
+    logger: logging.Logger | logging.LoggerAdapter[logging.Logger] | None = None,
     **kwargs: object,
 ) -> httpx.Response:
     """Send a request retrying (at most `max_retries` times) on transport errors / 5xx for idempotent methods and on

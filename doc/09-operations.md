@@ -68,8 +68,9 @@ These sleep inside the running job and count towards the 300 s limit:
   `netdef_ci_file_logging`): `github_app.log` and a **`pr<N>.log` per pull request** (start there to debug a PR);
   rotation via `/etc/logrotate.d/netdef-ci`.
 - `github_http.log` (same directory): one line per GitHub API call, retries included, as
-  `<METHOD> <URL> -> <HTTP status>` (or the transport error), `WARNING` from status 400 on. Use it to see which GitHub
-  call failed. The application rotates it at 1 GiB (`GITHUB_HTTP_LOG_MAX_BYTES`) and keeps 5 files in production and
+  `[PR <N>] <METHOD> <URL> -> <HTTP status>` (or the transport error), `WARNING` from status 400 on. `<N>` is the pull
+  request that caused the call (`-` when there is none, e.g. a Slack user lookup); token requests carry the pull
+  request whose call needed a new token. Use it to see which GitHub call failed: `grep '\[PR 1234\]' github_http.log`. The application rotates it at 1 GiB (`GITHUB_HTTP_LOG_MAX_BYTES`) and keeps 5 files in production and
   1 in development (`GITHUB_HTTP_LOG_FILES`); logrotate does not touch it. Without `LOG_DIR` these lines go to stdout.
 - Secrets are redacted (see `04`). DEBUG level: `DEBUG=true` and restart.
 - Each log line carries the component (`netdef_ci.github_update_status`, `…github_build_summary`, `…ci_job_status`, etc.).

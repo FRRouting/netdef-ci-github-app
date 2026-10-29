@@ -15,8 +15,10 @@ import logging
 import os
 import re
 import sys
+from collections.abc import MutableMapping
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
+from typing import Any
 
 from netdef_ci.config import get_settings
 
@@ -122,8 +124,20 @@ class SizeRotatingFileHandler(WatchedFileHandler):
         self.reopenIfNeeded()
 
 
-def github_http_logger() -> logging.Logger:
-    """Logger for the GitHub API calls (`<METHOD> <URL> -> <status>`): `github_http.log` in LOG_DIR, else stdout."""
+class PullRequestAdapter(logging.LoggerAdapter[logging.Logger]):
+    """Prefixes each message with the pull request that caused it (`[PR 123]`, or `[PR -]` when unknown)."""
+
+    def __init__(self, logger: logging.Logger, pr_id: int | str | None) -> None:
+        super().__init__(logger)
+        self.pr_id = pr_id
+
+    def process(self, msg: Any, kwargs: MutableMapping[str, Any]) -> tuple[Any, MutableMapping[str, Any]]:
+        return f"[PR {self.pr_id if self.pr_id is not None else '-'}] {msg}", kwargs
+
+
+def github_http_logger(pr_id: int | str | None = None) -> PullRequestAdapter:
+    """Logger for the GitHub API calls (`[PR <N>] <METHOD> <URL> -> <status>`): `github_http.log` in LOG_DIR, else
+    stdout."""
     configure_logging()
     logger = logging.getLogger(f"{ROOT}.github_http")
     settings = get_settings()
@@ -136,7 +150,7 @@ def github_http_logger() -> logging.Logger:
         handler.addFilter(RedactingFilter())
         logger.addHandler(handler)
         logger.propagate = False
-    return logger
+    return PullRequestAdapter(logger, pr_id)
 
 
 class Log:
