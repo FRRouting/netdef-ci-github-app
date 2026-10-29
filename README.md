@@ -9,7 +9,7 @@ Server that connects **GitHub Pull Requests** to **Bamboo CI**: it receives webh
 
 Full documentation in [`doc/`](doc/): overview and diagrams (`01`), feature and test matrix (`02`), technical decisions (`03`),
 configuration/GitHub App/secrets (`04`), endpoints (`05`), database and rollout (`06`), design notes (`07`),
-persistence/concurrency (`08`), operations and troubleshooting (`09`), Ansible deploy (`10`), testing (`11`), limitations (`12`).
+persistence/concurrency (`08`), operations and troubleshooting (`09`), Ansible deploy (`10`), testing (`11`), adding a plan for a repository (`12`).
 
 ## Quick start (development)
 
@@ -32,7 +32,7 @@ python -m netdef_ci watch-dog              # reconciliation (in production: syst
 ```
 
 `make run`, `make worker`, `make migrate`, `make check` and `make smoke` wrap the commands above.
-Register the repository's plans and stages in `plans` (`bamboo_ci_plan_name`, `github_repo_name`, `name`) and `stage_configurations` (see `doc/04`).
+Register the repository's plans and stages in `plans` (`bamboo_ci_plan_name`, `github_repo_name`, `name`) and `stage_configurations` (see [`doc/12`](doc/12-adding-a-plan.md)).
 
 Console commands:
 
