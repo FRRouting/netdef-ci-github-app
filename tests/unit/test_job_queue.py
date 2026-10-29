@@ -174,7 +174,8 @@ def test_notification_payload_carries_the_queue_and_when_the_job_is_due() -> Non
     import time
 
     name, due_in = queue.parse_notification(f"create_execution_by_plan_1|{time.time() + 30:.3f}")
-    assert name == "create_execution_by_plan_1" and 29 < due_in <= 30
+    # `:.3f` may round the due time up by 0.5 ms, so the bound needs that slack when the parse runs right away.
+    assert name == "create_execution_by_plan_1" and 29 < due_in <= 30.001
     assert queue.parse_notification("old-style-queue") == ("old-style-queue", 0.0)  # no time: due now
     assert queue.parse_notification("q|garbage") == ("q", 0.0)
 
