@@ -20,10 +20,6 @@ from netdef_ci.models import CheckSuite, StageConfiguration
 
 
 class SkipOldTests:
-    # Only queued, in_progress and
-    # completed are valid values of the check-runs `status` filter.
-    STATUSES = ("queued", "in_progress", "completed")
-
     def __init__(self, check_suite: CheckSuite) -> None:
         self.check_suite = check_suite
         self.github = container.github(check_suite)
@@ -37,17 +33,14 @@ class SkipOldTests:
     def skip_old_tests(self) -> None:
         assert self.check_suite.pull_request is not None
         repo = self.check_suite.pull_request.repository
+        # One listing without the `status` filter returns queued, in_progress and completed runs alike.
+        runs = self.github.check_runs_for_ref(repo, self.check_suite.commit_sha_ref, status=None).get("check_runs")
         seen: set[int] = set()
-        for status in self.STATUSES:
-            runs = (
-                self.github.check_runs_for_ref(repo, self.check_suite.commit_sha_ref, status=status).get("check_runs")
-                or []
-            )
-            for check_run in runs:
-                if check_run["id"] in seen:
-                    continue
-                seen.add(check_run["id"])
-                self._skip(check_run)
+        for check_run in runs or []:
+            if check_run["id"] in seen:
+                continue
+            seen.add(check_run["id"])
+            self._skip(check_run)
 
     def _skip(self, check_run: dict) -> None:
         if (check_run.get("app") or {}).get("name") != self.app_name or check_run["name"] in self.stages:

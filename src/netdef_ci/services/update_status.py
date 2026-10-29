@@ -60,22 +60,23 @@ class UpdateStatus:
     def _update_status(self, github: Any) -> Response:
         job = self.job
         assert job is not None
+        # One commit per callback (Bamboo sends hundreds per execution): the transition, its execution time, the
+        # topotest failures and the debounced status job are stored together.
         try:
             if self.status == "in_progress":
-                job.in_progress(github)
+                job.in_progress(github, commit=False)
             elif self.status == "success":
-                job.success(github)
-                job.update_execution_time()
+                job.success(github, commit=False)
+                job.update_execution_time(commit=False)
             else:
                 self._failure(github)
-                job.update_execution_time()
+                job.update_execution_time(commit=False)
                 job.summary = self.summary
-                self.session.commit()
             check_suite = job.check_suite
             assert check_suite is not None and check_suite.pull_request is not None
-            if not check_suite.pull_request.current_execution(check_suite):
-                return 200, "Success"
-            self._insert_new_job()
+            if check_suite.pull_request.current_execution(check_suite):
+                self._insert_new_job()
+            self.session.commit()
             return 200, "Success"
         except Exception as error:
             self.session.rollback()
@@ -85,7 +86,7 @@ class UpdateStatus:
     def _failure(self, github: Any) -> None:
         job = self.job
         assert job is not None
-        job.failure(github)
+        job.failure(github, commit=False)
         if isinstance(self.failures, list) and self.failures:
             for failure in self.failures:
                 self.session.add(
@@ -97,10 +98,14 @@ class UpdateStatus:
                         execution_time=int(failure.get("execution_time") or 0),
                     )
                 )
-            self.session.commit()
             return
         jobs_queue.enqueue(
-            self.session, "fetch_topotest_failures", [job.id, 1], queue="fetch_topotest_failures", delay_seconds=300
+            self.session,
+            "fetch_topotest_failures",
+            [job.id, 1],
+            queue="fetch_topotest_failures",
+            delay_seconds=300,
+            commit=False,
         )
 
     def _insert_new_job(self) -> None:
@@ -117,4 +122,5 @@ class UpdateStatus:
             [ref, job.id],
             queue=queue,
             delay_seconds=get_settings().status_debounce_seconds,
+            commit=False,
         )

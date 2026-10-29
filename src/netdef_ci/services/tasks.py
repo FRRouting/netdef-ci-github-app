@@ -24,7 +24,7 @@ from netdef_ci.enums import Status
 from netdef_ci.jobs import queue as jobs_queue
 from netdef_ci.logs import Log
 from netdef_ci.models import CheckSuite, CiJob, GithubUser, PullRequest, Stage, TopotestFailure
-from netdef_ci.services.finished import Finished
+from netdef_ci.services.finished import Finished, schedule_finished
 from netdef_ci.services.summary import Summary
 
 
@@ -35,12 +35,11 @@ def ci_job_status(session: Session, bamboo_ci_ref: str, ci_job_id: int) -> None:
     job = session.get(CiJob, ci_job_id)
     if job is None:
         raise LookupError(f"CiJob {ci_job_id} not found")
-    Summary(job).build_summary()
-    session.refresh(job)
+    Summary(job).build_summary()  # reloads the job; its changes stay in this session's identity map
     if not job.is_finished():
         return
     log.info("Github::PlanExecution::Finished: '%s'", bamboo_ci_ref)
-    Finished(session, {"bamboo_ref": bamboo_ci_ref}).finished()
+    schedule_finished(session, {"bamboo_ref": bamboo_ci_ref})
 
 
 # ---------------------------------------------------------------------------- TimeoutExecution
@@ -138,11 +137,13 @@ def slack_username_to_id(session: Session, username: str, slack_name: str) -> bo
 def watch_dog(session: Session) -> int:
     log = Log("watch_dog")
     log.info(">>> Running watchdog")
+    # Suites older than the window are left alone: one Bamboo never closes would otherwise be queried forever.
+    since = utcnow() - timedelta(hours=get_settings().watch_dog_max_age_hours)
     ids = list(
         session.scalars(
             select(CheckSuite.id)
             .join(Stage, Stage.check_suite_id == CheckSuite.id)
-            .where(Stage.status.in_([Status.QUEUED, Status.IN_PROGRESS]), CheckSuite.created_at <= utcnow())
+            .where(Stage.status.in_([Status.QUEUED, Status.IN_PROGRESS]), CheckSuite.created_at >= since)
             .distinct()
             .order_by(CheckSuite.id)
         )
@@ -212,9 +213,11 @@ def pr_bamboo_sync(session: Session, out: Any = print) -> dict[str, list[dict[st
                 continue
             sha = pr["head"]["sha"]
             try:
-                runs = (github.check_runs_for_ref(repo, sha, status="in_progress").get("check_runs") or []) + (
-                    github.check_runs_for_ref(repo, sha, status="queued").get("check_runs") or []
-                )
+                runs = [
+                    run
+                    for run in github.check_runs_for_ref(repo, sha, status=None).get("check_runs") or []
+                    if run.get("status") != "completed"
+                ]
             except Exception as error:
                 log.error("Failed fetching GitHub runs for %s: %s", sha[:8], error)
                 continue

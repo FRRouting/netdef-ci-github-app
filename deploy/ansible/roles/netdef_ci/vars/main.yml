@@ -11,6 +11,7 @@ netdef_ci_env_base:
   PYTHONPATH: "{{ netdef_ci_current_link }}/src"
   PYTHONDONTWRITEBYTECODE: "1"
   WEB_WORKERS: "{{ netdef_ci_web_workers }}"
+  EXECUTION_QUEUE_PARTITIONS: "{{ netdef_ci_execution_queue_partitions }}"
 
 netdef_ci_env_logging: >-
   {{ {

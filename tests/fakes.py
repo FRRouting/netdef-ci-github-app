@@ -86,8 +86,10 @@ class FakeGithub:
     def get_check_run(self, check_ref: Any) -> dict[str, Any]:
         return dict(self.check_runs.get(int(check_ref), {"output": {"title": "t", "summary": "s"}}))
 
-    def check_runs_for_ref(self, repo: str, sha: str, status: str = "queued") -> dict[str, Any]:
+    def check_runs_for_ref(self, repo: str, sha: str, status: str | None = "queued") -> dict[str, Any]:
         self._record("check_runs_for_ref", repo, sha, status)
+        if status is None:
+            return {"check_runs": [run for runs in self.listed_check_runs.values() for run in runs]}
         return {"check_runs": self.listed_check_runs.get(status, [])}
 
     def fetch_username(self, github_id: Any) -> dict[str, Any] | None:
@@ -96,7 +98,10 @@ class FakeGithub:
         )
 
     def pull_request_info(self, pr_id: int, repo: str) -> dict[str, Any]:
-        return self.pr_info
+        # Like GitHub: the head of the PR is its last commit.
+        commits = [c for page in self.commits for c in page]
+        head = {**self.pr_info["head"], "sha": commits[-1]["sha"]} if commits else self.pr_info["head"]
+        return {**self.pr_info, "head": head}
 
     def fetch_pull_request_commits(self, pr_id: int, repo: str, page: int) -> list[dict[str, Any]]:
         return self.commits[page - 1] if page - 1 < len(self.commits) else []

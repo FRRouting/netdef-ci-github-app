@@ -110,11 +110,10 @@ def subscribe(session: Session, payload: dict[str, Any]) -> str:
 def _invalid_github_user(session: Session, payload: dict[str, Any]) -> bool:
     if "notify" in str(payload.get("rule") or ""):
         return False
-    for repo in PullRequest.unique_repository_names(session):
-        pr = session.scalars(
-            select(PullRequest).where(PullRequest.repository == repo).order_by(PullRequest.id.desc())
-        ).first()
-        github = container.github(pr.last_check_suite() if pr else None)
-        if github.fetch_username(str(payload.get("target"))):
-            return False
-    return True
+    # A login lookup (`/users/<login>`) is not tied to a repository: one call through the most recent pull request's
+    # App is enough (the client already falls back to the other Apps when that one cannot authenticate).
+    pr = session.scalars(select(PullRequest).order_by(PullRequest.id.desc()).limit(1)).first()
+    if pr is None:
+        return True
+    github = container.github(pr.last_check_suite())
+    return not github.fetch_username(str(payload.get("target")))

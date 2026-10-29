@@ -110,3 +110,34 @@ def test_suite_without_bamboo_reference_is_closed_without_calling_bamboo(session
     assert Finished(session, {"check_suite_id": w.suite.id}).finished() == (200, "Finished")
     session.refresh(w.build_job)
     assert w.build_job.state == Status.SKIPPED
+
+
+def test_summaries_are_rebuilt_once_per_stage_not_once_per_job(session, clients, bamboo, monkeypatch) -> None:
+    from netdef_ci.services import finished as finished_module
+
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.IN_PROGRESS))
+    extra = [
+        f.job(session, w.suite, w.build_stage, f"Build {i}", Status.IN_PROGRESS, f"PROJ-PLAN-77-B{i}") for i in range(5)
+    ]
+    bamboo.statuses["PROJ-PLAN-77"] = {"currentStage": "Final", "finished": True}
+    bamboo.results["PROJ-PLAN-77"] = result(
+        ("PROJ-PLAN-77-BLD", "Successful"),
+        *[(job.job_ref, "Successful") for job in extra],
+        ("PROJ-PLAN-77-TST", "Successful"),
+    )
+    built: list[int | None] = []
+    real = finished_module.Summary.build_summary
+    monkeypatch.setattr(
+        finished_module.Summary, "build_summary", lambda self: (built.append(self.job.stage_id), real(self))[1]
+    )
+    assert Finished(session, {"bamboo_ref": "PROJ-PLAN-77"}).finished() == (200, "Finished")
+    assert built == [w.build_stage.id, w.tests_stage.id]  # pipeline order, one per stage
+
+
+def test_an_already_closed_suite_is_not_reopened(session, clients, bamboo, github, slack) -> None:
+    f.World(session, statuses=(Status.SUCCESS, Status.SUCCESS))
+    bamboo.statuses["PROJ-PLAN-77"] = {"currentStage": "Final", "finished": True}
+    bamboo.results["PROJ-PLAN-77"] = result(("PROJ-PLAN-77-BLD", "Successful"), ("PROJ-PLAN-77-TST", "Successful"))
+    assert Finished(session, {"bamboo_ref": "PROJ-PLAN-77"}).finished() == (200, "Finished")
+    assert github.calls == []  # no check run reopened and closed again
+    assert slack.names() == ["finished"]

@@ -49,17 +49,60 @@ def test_log_lines_are_redacted_before_reaching_handlers(caplog) -> None:
     assert "topsecret" not in record.msg
 
 
-def test_pr_logs_go_to_per_pull_request_files(tmp_path, monkeypatch, settings) -> None:
+@pytest.fixture
+def pr_logs(tmp_path, monkeypatch, settings):
+    """LOG_DIR in a temporary directory, with a fresh `pr<N>.log` handler."""
+    monkeypatch.setattr(settings, "log_dir", str(tmp_path))
+    from netdef_ci.logs import PullRequestFilesHandler
+
+    logger = logging.getLogger("netdef_ci.pull_requests")
+
+    def drop() -> None:
+        for handler in [h for h in logger.handlers if isinstance(h, PullRequestFilesHandler)]:
+            logger.removeHandler(handler)
+            handler.close()
+
+    drop()
+    yield tmp_path
+    drop()
+
+
+def test_pr_logs_go_to_per_pull_request_files(pr_logs) -> None:
+    Log("component", 321).info("hello Bearer abc123")
+    content = (pr_logs / "pr321.log").read_text()
+    assert "[netdef_ci.component] hello" in content and "abc123" not in content
+
+
+def test_pr_log_files_kept_open_are_bounded(pr_logs, monkeypatch, settings) -> None:
     from netdef_ci import logs
 
-    monkeypatch.setattr(settings, "log_dir", str(tmp_path))
-    monkeypatch.setattr(logs, "_file_handlers", {})
-    logging.getLogger("netdef_ci.pr.321").handlers.clear()
-    Log("component", 321).info("hello Bearer abc123")
-    for handler in logs._file_handlers.values():
-        handler.flush()
-    content = (tmp_path / "pr321.log").read_text()
-    assert "hello" in content and "abc123" not in content
+    monkeypatch.setattr(settings, "pr_log_open_files", 2)
+    for pr_id in (9001, 9002, 9003, 9001):
+        Log("component", pr_id).info("line %s", pr_id)
+    (handler,) = [
+        h for h in logging.getLogger("netdef_ci.pull_requests").handlers if isinstance(h, logs.PullRequestFilesHandler)
+    ]
+    assert handler.open_files == 2
+    assert (pr_logs / "pr9001.log").read_text().count("\n") == 2  # reopened after being closed
+    (pr_logs / "pr9003.log").rename(pr_logs / "pr9003.log.1")  # logrotate
+    Log("component", 9003).info("after rotation")
+    assert "after rotation" in (pr_logs / "pr9003.log").read_text()
+
+
+def test_without_log_dir_pr_lines_are_not_printed_twice(settings, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(settings, "log_dir", None)
+    Log("component", 55).info("only once")
+    assert capsys.readouterr().out.count("only once") <= 1
+
+
+def test_redaction_runs_once_per_record() -> None:
+    from netdef_ci.logs import RedactingFilter
+
+    record = logging.LogRecord("netdef_ci.x", logging.INFO, __file__, 1, "token=%s", ("topsecret",), None)
+    RedactingFilter().filter(record)
+    record.msg = "already redacted, untouched: token=x"
+    RedactingFilter().filter(record)
+    assert record.msg == "already redacted, untouched: token=x"
 
 
 def _write(handler: logging.Handler, message: str) -> None:
@@ -182,6 +225,8 @@ def test_registered_handlers_cover_every_enqueued_job_name() -> None:
         "timeout_execution",
         "fetch_topotest_failures",
         "slack_username_to_id",
+        "finished_execution",
+        "retry_execution",
     }
 
 
@@ -219,3 +264,14 @@ def test_worker_loop_processes_jobs_until_stopped(session) -> None:
         assert sorted(seen) == [0, 1, 2] and not thread.is_alive()
     finally:
         HANDLERS.pop("t_loop", None)
+
+
+def test_size_is_not_checked_on_every_line(tmp_path, monkeypatch) -> None:
+    handler = SizeRotatingFileHandler(tmp_path / "github_http.log", max_bytes=1_000_000, files=2)
+    checks: list[bool] = []
+    real = handler._too_big
+    monkeypatch.setattr(handler, "_too_big", lambda: checks.append(True) or real())
+    for index in range(10):  # ~10 x 80 bytes: below the 1000-byte check interval
+        _write(handler, f"line-{index}")
+    handler.close()
+    assert len(checks) == 1  # only the first record

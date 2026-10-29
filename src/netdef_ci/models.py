@@ -28,6 +28,7 @@ from sqlalchemy import (
     Table,
     Text,
     TypeDecorator,
+    exists,
     func,
     select,
 )
@@ -72,8 +73,8 @@ def _ts() -> Mapped[datetime]:
     return mapped_column(DateTime, nullable=False, default=utcnow)
 
 
-def _ts_updated() -> Mapped[datetime]:
-    return mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow)
+def _ts_updated(*, index: bool = False) -> Mapped[datetime]:
+    return mapped_column(DateTime, nullable=False, default=utcnow, onupdate=utcnow, index=index)
 
 
 audit_retries_ci_jobs = Table(
@@ -107,7 +108,7 @@ class GithubUser(Base):
     __tablename__ = "github_users"
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
-    github_login: Mapped[str | None] = mapped_column(String)
+    github_login: Mapped[str | None] = mapped_column(String, index=True)
     github_username: Mapped[str | None] = mapped_column(String)
     github_email: Mapped[str | None] = mapped_column(String)
     github_id: Mapped[int | None] = mapped_column(Integer, unique=True, index=True)
@@ -140,6 +141,7 @@ class StageConfiguration(Base):
 
 class PullRequest(Base):
     __tablename__ = "pull_requests"
+    __table_args__ = (Index("index_pull_requests_on_github_pr_id_and_repository", "github_pr_id", "repository"),)
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     author: Mapped[str] = mapped_column(String, nullable=False)
@@ -198,7 +200,7 @@ class Plan(Base):
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     bamboo_ci_plan_name: Mapped[str] = mapped_column(String, nullable=False)
-    github_repo_name: Mapped[str] = mapped_column(String, nullable=False, default="0")
+    github_repo_name: Mapped[str] = mapped_column(String, nullable=False, default="0", index=True)
     created_at: Mapped[datetime] = _ts()
     updated_at: Mapped[datetime] = _ts_updated()
     check_suite_id: Mapped[int | None] = mapped_column(BigId, index=True)  # unused column
@@ -210,12 +212,20 @@ class Plan(Base):
 
 class CheckSuite(Base):
     __tablename__ = "check_suites"
+    __table_args__ = (
+        # text_pattern_ops serves both `=` and the prefix match of `ci:rerun #<short sha>`.
+        Index(
+            "index_check_suites_on_commit_sha_ref",
+            "commit_sha_ref",
+            postgresql_ops={"commit_sha_ref": "text_pattern_ops"},
+        ),
+    )
 
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     author: Mapped[str] = mapped_column(String, nullable=False)
     commit_sha_ref: Mapped[str] = mapped_column(String, nullable=False)
     base_sha_ref: Mapped[str] = mapped_column(String, nullable=False)
-    bamboo_ci_ref: Mapped[str | None] = mapped_column(String)
+    bamboo_ci_ref: Mapped[str | None] = mapped_column(String, index=True)
     merge_branch: Mapped[str | None] = mapped_column(String)
     work_branch: Mapped[str | None] = mapped_column(String)
     details: Mapped[str | None] = mapped_column(String)
@@ -246,14 +256,11 @@ class CheckSuite(Base):
     audit_retries: Mapped[list[AuditRetry]] = relationship(back_populates="check_suite")
 
     def is_running(self) -> bool:
-        return (
+        return bool(
             _session(self).scalar(
-                select(func.count())
-                .select_from(Stage)
-                .where(Stage.check_suite_id == self.id, Stage.status.in_(list(RUNNING_STATUSES)))
+                select(exists().where(Stage.check_suite_id == self.id, Stage.status.in_(list(RUNNING_STATUSES))))
             )
-            or 0
-        ) > 0
+        )
 
     def is_finished(self) -> bool:
         return not self.is_running()
@@ -292,9 +299,9 @@ class Stage(Base):
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[Status] = mapped_column(StatusType, nullable=False, default=Status.QUEUED)
-    check_ref: Mapped[str | None] = mapped_column(String)
+    check_ref: Mapped[str | None] = mapped_column(String, index=True)
     created_at: Mapped[datetime] = _ts()
-    updated_at: Mapped[datetime] = _ts_updated()
+    updated_at: Mapped[datetime] = _ts_updated(index=True)
     check_suite_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("check_suites.id"), index=True)
     stage_configuration_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("stage_configurations.id"), index=True)
     execution_time: Mapped[int | None] = mapped_column(Integer)
@@ -329,10 +336,14 @@ class Stage(Base):
         return self.jobs_with(*FAILED_STATUSES)
 
     def is_running(self) -> bool:
-        return bool(self.jobs_with(*RUNNING_STATUSES))
+        return bool(
+            _session(self).scalar(
+                select(exists().where(CiJob.stage_id == self.id, CiJob.status.in_(list(RUNNING_STATUSES))))
+            )
+        )
 
     def is_finished(self) -> bool:
-        return not self.jobs_with(*RUNNING_STATUSES)
+        return not self.is_running()
 
     def suffix(self) -> str:
         return self.name.split(" - ")[-1]
@@ -422,16 +433,18 @@ class CiJob(Base):
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
     status: Mapped[Status] = mapped_column(StatusType, nullable=False, default=Status.QUEUED)
-    job_ref: Mapped[str | None] = mapped_column(String)
+    job_ref: Mapped[str | None] = mapped_column(String, index=True)
     check_ref: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = _ts()
-    updated_at: Mapped[datetime] = _ts_updated()
+    updated_at: Mapped[datetime] = _ts_updated(index=True)
     check_suite_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("check_suites.id"), index=True)
     retry: Mapped[int | None] = mapped_column(Integer, default=0)
     parent_stage_id: Mapped[int | None] = mapped_column(Integer)
     stage_id: Mapped[int | None] = mapped_column(BigId, ForeignKey("stages.id"), index=True)
     execution_time: Mapped[int | None] = mapped_column(Integer)
     summary: Mapped[str | None] = mapped_column(String)
+    # Tail of the failed build log, fetched from Bamboo once and reused by every summary rebuild.
+    build_log: Mapped[str | None] = mapped_column(Text)
 
     check_suite: Mapped[CheckSuite | None] = relationship(back_populates="ci_jobs", foreign_keys=[check_suite_id])
     stage: Mapped[Stage | None] = relationship(back_populates="jobs", foreign_keys=[stage_id])
@@ -445,50 +458,74 @@ class CiJob(Base):
     def is_finished(self) -> bool:
         return self.state not in RUNNING_STATUSES
 
-    def update_execution_time(self) -> None:
+    def update_execution_time(self, *, commit: bool = True) -> None:
         started, finished = _audit_pair(self, "CiJob")
         if started is None or finished is None:
             return
         duration = (finished.created_at - started.created_at).total_seconds()
         self.execution_time = int(duration)
-        _session(self).commit()
+        if commit:
+            _session(self).commit()
         from netdef_ci import metrics
 
         stage_name = self.stage.configuration.bamboo_stage_name if self.stage and self.stage.configuration else None
         metrics.CI_JOB_DURATION.labels(stage=stage_name or "unknown", status=self.state.label).observe(duration)
 
-    def create_check_run(self, agent: str = "Github") -> None:
-        self._record(Status.QUEUED, agent)
+    # Transitions commit by default; `commit=False` lets a loop over many jobs commit once at the end.
+    def create_check_run(self, agent: str = "Github", *, commit: bool = True) -> None:
+        self._record(Status.QUEUED, agent, commit)
 
-    def enqueue(self, _github: GithubCheck | None = None, _output: Output | None = None, agent: str = "Github") -> None:
-        self._record(Status.QUEUED, agent)
+    def enqueue(
+        self,
+        _github: GithubCheck | None = None,
+        _output: Output | None = None,
+        agent: str = "Github",
+        *,
+        commit: bool = True,
+    ) -> None:
+        self._record(Status.QUEUED, agent, commit)
 
-    def in_progress(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
-        self._transition(github, Status.IN_PROGRESS, github.in_progress, output, agent)
+    def in_progress(
+        self, github: GithubCheck, output: Output | None = None, agent: str = "Github", *, commit: bool = True
+    ) -> None:
+        self._transition(github, Status.IN_PROGRESS, github.in_progress, output, agent, commit)
 
-    def cancelled(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
-        self._transition(github, Status.CANCELLED, github.cancelled, output, agent)
+    def cancelled(
+        self, github: GithubCheck, output: Output | None = None, agent: str = "Github", *, commit: bool = True
+    ) -> None:
+        self._transition(github, Status.CANCELLED, github.cancelled, output, agent, commit)
 
-    def failure(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
-        self._transition(github, Status.FAILURE, github.failure, output, agent)
+    def failure(
+        self, github: GithubCheck, output: Output | None = None, agent: str = "Github", *, commit: bool = True
+    ) -> None:
+        self._transition(github, Status.FAILURE, github.failure, output, agent, commit)
 
-    def success(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
-        self._transition(github, Status.SUCCESS, github.success, output, agent)
+    def success(
+        self, github: GithubCheck, output: Output | None = None, agent: str = "Github", *, commit: bool = True
+    ) -> None:
+        self._transition(github, Status.SUCCESS, github.success, output, agent, commit)
 
-    def skipped(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
-        self._transition(github, Status.SKIPPED, github.skipped, output, agent)
+    def skipped(
+        self, github: GithubCheck, output: Output | None = None, agent: str = "Github", *, commit: bool = True
+    ) -> None:
+        self._transition(github, Status.SKIPPED, github.skipped, output, agent, commit)
 
-    def _transition(self, github: GithubCheck, status: Status, call: Any, output: Output | None, agent: str) -> None:
+    def _transition(
+        self, github: GithubCheck, status: Status, call: Any, output: Output | None, agent: str, commit: bool = True
+    ) -> None:
         # Jobs only own a GitHub check run when `check_ref` is set (the app never creates one for jobs).
         if self.check_ref is not None:
             call(self.check_ref, output or {})
-        self._record(status, agent)
+        self._record(status, agent, commit)
 
-    def _record(self, status: Status, agent: str) -> None:
+    def _record(self, status: Status, agent: str, commit: bool = True) -> None:
         session = _session(self)
         session.add(AuditStatus(auditable_type="CiJob", auditable_id=self.id, status=status, agent=agent))
         self.status = status
-        session.commit()
+        if status in RUNNING_STATUSES:
+            self.build_log = None  # a new run produces a new log
+        if commit:
+            session.commit()
 
 
 def _audit_pair(obj: CiJob | Stage, kind: str) -> tuple[AuditStatus | None, AuditStatus | None]:
@@ -561,7 +598,7 @@ class PullRequestSubscription(Base):
     id: Mapped[int] = mapped_column(BigId, primary_key=True)
     slack_user_id: Mapped[str] = mapped_column(String, nullable=False)
     rule: Mapped[str] = mapped_column(String, nullable=False)
-    target: Mapped[str] = mapped_column(String, nullable=False)
+    target: Mapped[str] = mapped_column(String, nullable=False, index=True)
     notification: Mapped[str | None] = mapped_column(String)
     created_at: Mapped[datetime] = _ts()
     updated_at: Mapped[datetime] = _ts_updated()

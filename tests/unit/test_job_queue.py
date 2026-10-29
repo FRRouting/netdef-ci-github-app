@@ -13,7 +13,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-from netdef_ci.db import utcnow
+from netdef_ci.db import new_session, utcnow
 from netdef_ci.jobs import queue
 from netdef_ci.jobs.registry import HANDLERS, job_handler
 from netdef_ci.models import Job
@@ -148,3 +148,58 @@ def test_timeout_aborts_long_job(session, settings) -> None:
         assert session.scalars(select(Job)).all() == []
     finally:
         HANDLERS.pop("t_slow", None)
+
+
+def test_execution_queues_are_partitioned_by_pull_request(settings, monkeypatch) -> None:
+    from netdef_ci.jobs.queue import execution_queue
+
+    assert execution_queue("create_execution_by_plan", 7) == "create_execution_by_plan"  # one partition: same name
+    monkeypatch.setattr(settings, "execution_queue_partitions", 2)
+    assert execution_queue("create_execution_by_plan", 7) == "create_execution_by_plan_1"
+    assert execution_queue("retry_execution", 8) == "retry_execution_0"
+    assert execution_queue("retry_execution", None) == "retry_execution_0"
+
+
+def test_idle_worker_sleeps_until_its_next_job_is_due(session) -> None:
+    worker = queue.Worker(queues=["idle-q"], use_timeout=False, name="idle")
+    assert worker.idle_seconds() == worker.settings.job_sleep_delay_seconds  # nothing queued: the upper bound
+    queue.enqueue(session, "x", [], queue="idle-q", delay_seconds=2)
+    queue.enqueue(session, "x", [], queue="other-q", delay_seconds=0.5)  # not one of its queues
+    assert 1.5 < worker.idle_seconds() <= 2
+    queue.enqueue(session, "x", [], queue="idle-q", delay_seconds=-10)  # overdue
+    assert worker.idle_seconds() == queue.MIN_IDLE_WAIT_SECONDS
+
+
+def test_notification_payload_carries_the_queue_and_when_the_job_is_due() -> None:
+    import time
+
+    name, due_in = queue.parse_notification(f"create_execution_by_plan_1|{time.time() + 30:.3f}")
+    assert name == "create_execution_by_plan_1" and 29 < due_in <= 30
+    assert queue.parse_notification("old-style-queue") == ("old-style-queue", 0.0)  # no time: due now
+    assert queue.parse_notification("q|garbage") == ("q", 0.0)
+
+
+def test_a_job_due_later_moves_the_wait_instead_of_waking_the_worker(session) -> None:
+    import threading
+    import time
+
+    from tests.conftest import IS_PG
+
+    if not IS_PG:
+        pytest.skip("LISTEN/NOTIFY needs PostgreSQL")
+    listener = queue._Listener(queue.Log("test"))
+    stop = threading.Event()
+
+    def enqueue_later() -> None:
+        with new_session() as other:
+            queue.enqueue(other, "x", [], queue="later-q", delay_seconds=1.0)
+
+    try:
+        listener.wait(0.01, ["later-q"], stop)  # connects and LISTENs
+        threading.Timer(0.2, enqueue_later).start()
+        start = time.monotonic()
+        listener.wait(10, ["later-q"], stop)
+        elapsed = time.monotonic() - start
+        assert 1.0 < elapsed < 2.5  # not woken at 0.2 s by the notification; woken when the job became due
+    finally:
+        listener.close()

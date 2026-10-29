@@ -88,6 +88,22 @@ def test_every_handler_runs_through_the_queue(session, clients, bamboo, github, 
     assert session.scalars(select(GithubUser).where(GithubUser.github_login == "zoe")).one().slack_id == "U55"
 
 
+def test_finished_execution_job_is_retried_while_bamboo_is_unavailable(session, clients, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    queue.enqueue(session, "finished_execution", [{"bamboo_ref": "PROJ-PLAN-77"}], queue=1)
+    assert drain() == 1  # bamboo.statuses has no entry: Bamboo unavailable
+    job = session.scalars(select(Job)).one()
+    assert job.attempts == 1 and "BambooUnavailable" in (job.last_error or "")
+    session.delete(job)
+    session.commit()
+    bamboo.statuses["PROJ-PLAN-77"] = {"currentStage": "Tests", "finished": False}
+    queue.enqueue(session, "finished_execution", [{"bamboo_ref": "PROJ-PLAN-77"}], queue=1)
+    assert drain() == 1
+    assert session.scalars(select(Job)).all() == []  # still running: nothing to do, the job is done
+    session.refresh(w.build_stage)
+    assert w.build_stage.state == Status.IN_PROGRESS
+
+
 def test_stale_metric_files_of_dead_processes_are_removed() -> None:
     directory = Path(os.environ["PROMETHEUS_MULTIPROC_DIR"])
     dead, alive = directory / "counter_999999.db", directory / f"counter_{os.getppid()}.db"
@@ -144,3 +160,14 @@ def test_bamboo_and_slack_trackers_count_outcomes() -> None:
     assert 'bamboo_api_requests_total{operation="probe_err",status="error"}' in text
     assert 'bamboo_api_requests_total{operation="probe_raise",status="error"}' in text
     assert 'slack_notifications_total{status="sent",type="probe_ok"}' in text
+
+
+def test_delayed_jobs_table_is_bounded_and_keeps_labels_short(session, clients, settings, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "metrics_jobs_table_limit", 2)
+    payload = {"action": "opened", "pull_request": {"body": "x" * 100_000}, "number": 7, "extra": [1, 2, 3, 4, 5]}
+    for delay in (300, 100, 200):
+        queue.enqueue(session, "create_execution_by_plan", [delay, payload], delay_seconds=delay)
+    text = metrics.render(db.session_factory(), db.get_engine()).decode()
+    rows = [line for line in text.splitlines() if line.startswith("delayed_jobs_table{")]
+    assert len(rows) == 2 and 'job_args="100, ' in rows[0] and 'job_args="200, ' in rows[1]
+    assert all(len(row.split('job_args="')[1].split('"')[0]) <= 80 for row in rows)

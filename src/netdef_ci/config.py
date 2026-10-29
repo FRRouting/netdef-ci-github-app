@@ -46,11 +46,16 @@ class Settings(BaseSettings):
     # files default to 5 in production and 1 elsewhere.
     github_http_log_max_bytes: int = Field(1024**3, alias="GITHUB_HTTP_LOG_MAX_BYTES", ge=1024)
     github_http_log_files: int | None = Field(None, alias="GITHUB_HTTP_LOG_FILES", ge=1)
+    # Per pull request log files kept open by each process; the least recently used one is closed beyond this.
+    pr_log_open_files: int = Field(64, alias="PR_LOG_OPEN_FILES", ge=1)
 
     database_url: str = Field(
         "postgresql+psycopg://postgres:postgres@localhost:5432/githubruns-dev", alias="DATABASE_URL"
     )
     db_pool_size: int = Field(10, alias="DB_POOL_SIZE")
+    db_max_overflow: int = Field(5, alias="DB_MAX_OVERFLOW", ge=0)
+    # A job worker runs one job at a time: its session, the per-PR advisory lock and the queue bookkeeping.
+    worker_db_pool_size: int = Field(3, alias="WORKER_DB_POOL_SIZE", ge=1)
 
     # --- webhook / callback authentication -------------------------------------------------
     webhook_secret: SecretStr = Field(SecretStr(""), alias="WEBHOOK_SECRET")
@@ -79,13 +84,16 @@ class Settings(BaseSettings):
     slack_bot_password: SecretStr | None = Field(None, alias="SLACK_BOT_PASSWORD")
     slack_bot_netrc_machine: str = Field("slack_bot.netdef.org", alias="SLACK_BOT_NETRC_MACHINE")
     slack_bot_verify_tls: bool = Field(True, alias="SLACK_BOT_VERIFY_TLS")
+    # Notifications are sent in the middle of the CI flows: a slow or unreachable bot must not hold them for long.
+    slack_timeout_seconds: float = Field(5.0, alias="SLACK_TIMEOUT_SECONDS", gt=0)
 
     # --- HTTP clients -------------------------------------------------------------------------
     http_timeout_seconds: float = Field(30.0, alias="HTTP_TIMEOUT_SECONDS", gt=0)
 
-    # --- background jobs (5 attempts, 5 min lock, 5 s polling) ------------
+    # --- background jobs (5 attempts, 5 min lock) ------------
     job_max_attempts: int = Field(5, alias="JOB_MAX_ATTEMPTS", ge=1)
     job_max_run_time_seconds: int = Field(300, alias="JOB_MAX_RUN_TIME_SECONDS", ge=1)
+    # Longest idle sleep: workers wake earlier when their next job is due or (PostgreSQL) a job is enqueued.
     job_sleep_delay_seconds: float = Field(5.0, alias="JOB_SLEEP_DELAY_SECONDS", gt=0)
     status_debounce_seconds: int = Field(30, alias="STATUS_DEBOUNCE_SECONDS", ge=0)
     create_execution_delay_seconds: int = Field(5, alias="CREATE_EXECUTION_DELAY_SECONDS", ge=0)
@@ -94,15 +102,23 @@ class Settings(BaseSettings):
     running_plan_poll_seconds: float = Field(3.0, alias="RUNNING_PLAN_POLL_SECONDS", gt=0)
     timeout_check_minutes: int = Field(10, alias="TIMEOUT_CHECK_MINUTES", ge=1)
     timeout_hang_hours: int = Field(2, alias="TIMEOUT_HANG_HOURS", ge=1)
+    # The watch dog only reconciles suites created within this window; older ones need `single-sync`.
+    watch_dog_max_age_hours: int = Field(168, alias="WATCH_DOG_MAX_AGE_HOURS", ge=1)
     # How long a new execution waits for Bamboo to confirm that the previous one of the same PR stopped.
     execution_cancel_wait_max_seconds: int = Field(60, alias="EXECUTION_CANCEL_WAIT_MAX_SECONDS", ge=0)
     execution_cancel_poll_seconds: float = Field(5.0, alias="EXECUTION_CANCEL_POLL_SECONDS", gt=0)
+
+    # Queues of the flows that start Bamboo plans (create_execution_by_*, retry_execution) are split by
+    # `github_pr_id % N` into `<queue>_<k>`, one worker each: different PRs run in parallel, one PR stays in order.
+    execution_queue_partitions: int = Field(1, alias="EXECUTION_QUEUE_PARTITIONS", ge=1)
 
     web_workers: int = Field(1, alias="WEB_WORKERS", ge=1)  # reported by the puma_workers_total metric
 
     # --- metrics ------------------------------------------------------------------------------
     prometheus_multiproc_dir: str = Field("/tmp/prometheus_metrics", alias="PROMETHEUS_MULTIPROC_DIR")  # noqa: S108
     ci_metrics_window_hours: int = Field(24, alias="CI_METRICS_WINDOW_HOURS", ge=1)
+    # Series of `delayed_jobs_table` per scrape (the jobs that run soonest).
+    metrics_jobs_table_limit: int = Field(100, alias="METRICS_JOBS_TABLE_LIMIT", ge=0)
 
     @field_validator("ci_url")
     @classmethod
@@ -115,14 +131,10 @@ class Settings(BaseSettings):
 
     # ------------------------------------------------------------------------------------------
     def github_apps(self) -> list[GitHubAppConfig]:
-        """Load the GitHub App list from the TOML file (`[[github_apps]]` with login/cert/repo)."""
+        """The GitHub App list of the TOML file (`[[github_apps]]` with login/cert/repo), read once per file."""
         if not self.github_apps_file:
             return []
-        data = tomllib.loads(Path(self.github_apps_file).read_text(encoding="utf-8"))
-        apps = []
-        for entry in data.get("github_apps", []):
-            apps.append(GitHubAppConfig(login=str(entry["login"]), cert=str(entry["cert"]), repo=entry.get("repo")))
-        return apps
+        return list(_load_github_apps(self.github_apps_file))
 
     def bamboo_credentials(self) -> Credentials | None:
         return _credentials(self.bamboo_username, self.bamboo_password, self.bamboo_netrc_machine)
@@ -132,6 +144,16 @@ class Settings(BaseSettings):
 
     def browse_url(self, reference: str | None) -> str:
         return f"https://{self.ci_url}/browse/{reference}"
+
+
+@lru_cache(maxsize=8)
+def _load_github_apps(path: str) -> tuple[GitHubAppConfig, ...]:
+    # Every GitHub client is built from this list (dozens of times per job): parse the file only once.
+    data = tomllib.loads(Path(path).read_text(encoding="utf-8"))
+    return tuple(
+        GitHubAppConfig(login=str(entry["login"]), cert=str(entry["cert"]), repo=entry.get("repo"))
+        for entry in data.get("github_apps", [])
+    )
 
 
 def _credentials(username: str | None, password: SecretStr | None, machine: str) -> Credentials | None:
@@ -154,3 +176,4 @@ def get_settings() -> Settings:
 
 def reset_settings_cache() -> None:
     get_settings.cache_clear()
+    _load_github_apps.cache_clear()

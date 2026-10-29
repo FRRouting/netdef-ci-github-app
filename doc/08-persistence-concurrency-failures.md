@@ -18,7 +18,7 @@
 | Timeout        | 5 min alarm in the worker process (`SIGALRM`), the job fails and is rescheduled; an expired lock also lets another worker take over |
 | Debounce       | `replace_pending(handler, dedupe_key, queue)` removes only **unstarted** jobs and schedules +30 s                                   |
 
-Asynchronous flows: `create_execution_by_plan|comment|command`, `ci_job_status`, `timeout_execution`, `fetch_topotest_failures`, `slack_username_to_id`.
+Asynchronous flows: `create_execution_by_plan|comment|command`, `retry_execution`, `ci_job_status`, `finished_execution`, `timeout_execution`, `fetch_topotest_failures`, `slack_username_to_id`.
 Their delays, re-schedules and the periodic timers are listed in `09-operations.md` ("Background job schedule").
 
 ## Concurrency
@@ -33,7 +33,7 @@ Their delays, re-schedules and the periodic timers are listed in `09-operations.
 | Operation                                                       |          Idempotent?           | Policy                                                                                                                                                                                               |
 |-----------------------------------------------------------------|:------------------------------:|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Check run `PATCH`, `GET`s, reactions                            |              yes               | up to `GITHUB_MAX_RETRIES` retries on transient failure; check run "not yet visible" (404) retried 3× with 5/10/15/20 s                                                                              |
-| Check run `POST`, plan `POST` in Bamboo, comments               |               no               | **no automatic retry**; `create_execution_by_*` with 1 attempt                                                                                                                                       |
+| Check run `POST`, plan `POST` in Bamboo, comments               |               no               | **no automatic retry**; `create_execution_by_*` and `retry_execution` with 1 attempt                                                                                                                 |
 | `/update/status` callback                                       | yes (304 guard per transition) | Bamboo can resend without a duplicate effect                                                                                                                                                         |
 | `ci_job_status`, `timeout_execution`, `fetch_topotest_failures` | yes (recompute from the state) | 5 attempts with back-off                                                                                                                                                                             |
 | Duplicate webhook                                               |           partially            | no protection by default; `WEBHOOK_DEDUPE_TTL_SECONDS` enables deduplication by `X-GitHub-Delivery`. A repeated `synchronize` creates a new execution and cancels the previous one (the newest wins) |

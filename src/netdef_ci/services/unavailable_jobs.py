@@ -24,14 +24,21 @@ class UnavailableJobs:
         self.log = Log("github_unavailable_jobs")
         self.github = container.github(check_suite) if check_suite is not None else None
 
-    def update(self, new_check_suite: CheckSuite | None = None) -> None:
+    def update(
+        self, new_check_suite: CheckSuite | None = None, running_plans: dict[str | None, list[str | None]] | None = None
+    ) -> None:
+        """`running_plans` caches the jobs Bamboo lists per execution when several suites are checked in a row."""
         if self.check_suite is None:
             return
         session = object_session(self.check_suite)
         assert session is not None
         assert self.github is not None
         self.log.warning(">>> Check Unavailable Jobs")
-        running = [j["job_ref"] for j in container.bamboo().running_plan(self.check_suite.bamboo_ci_ref)]
+        ref = self.check_suite.bamboo_ci_ref
+        cache = {} if running_plans is None else running_plans
+        if ref not in cache:
+            cache[ref] = [j["job_ref"] for j in container.bamboo().running_plan(ref)]
+        running = cache[ref]
         stmt = (
             select(CiJob)
             .where(CiJob.check_suite_id == self.check_suite.id, CiJob.job_ref.not_in(running))
@@ -45,7 +52,8 @@ class UnavailableJobs:
                     "summary": "This check has been removed from the CI execution plan and in your next commit or "
                     "rebase it will not be executed and will not appear in the Check Run list.",
                 },
+                commit=False,
             )
             if new_check_suite is not None:
                 job.check_suite_id = new_check_suite.id
-                session.commit()
+        session.commit()

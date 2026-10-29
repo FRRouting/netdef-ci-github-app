@@ -168,3 +168,33 @@ def test_reaction_failures_do_not_break_retry(session, clients, github, failing)
     w = finished_world(session)
     github.fail_reactions = failing
     assert RetryComment(session, payloads.issue_comment("ci:retry", number=w.pr.github_pr_id)).start()[0] == 200
+
+
+# ---------------------------------------------------------------------------- retry scheduled from the webhook
+def test_retry_comment_schedules_the_job_and_the_job_reacts(session, clients, bamboo, github) -> None:
+    from netdef_ci.services import retry
+
+    w = finished_world(session)
+    payload = payloads.issue_comment("ci:retry", number=w.pr.github_pr_id)
+    assert RetryComment(session, payload).schedule() == (200, "Retry scheduled")
+    job = session.scalars(select(Job).where(Job.handler == "retry_execution")).one()
+    assert job.args == ["comment", payload] and job.max_attempts == 1
+    assert github.reactions == [] and bamboo.restarted == []  # nothing slow in the webhook
+    assert retry.run(session, *job.args) == (200, "Retrying failure jobs")
+    assert ("org/repo", 99, "+1") in github.reactions and bamboo.restarted == ["PROJ-PLAN-77"]
+
+
+def test_retry_comment_refused_by_the_webhook_reacts_at_once(session, clients, github) -> None:
+    w = f.World(session, statuses=(Status.SUCCESS, Status.SUCCESS))
+    assert RetryComment(session, payloads.issue_comment("ci:retry", number=w.pr.github_pr_id)).schedule() == (
+        404,
+        "Stage not found",
+    )
+    assert github.reactions == [("org/repo", 99, "-1")]
+    assert session.scalars(select(Job)).all() == []
+
+
+def test_retry_job_for_a_stage_that_disappeared(session, clients) -> None:
+    from netdef_ci.services import retry
+
+    assert retry.run(session, "command", payloads.check_run(31337)) == (404, "Stage not found")

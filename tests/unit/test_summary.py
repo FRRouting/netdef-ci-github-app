@@ -171,3 +171,13 @@ def test_bamboo_unavailable_leaves_previous_stage_as_is(session, clients, bamboo
     bamboo.results["PROJ-PLAN-77"] = None
     build(session, w.tests_job)
     assert w.build_job.state == Status.IN_PROGRESS
+
+
+def test_stage_entering_progress_is_patched_once(session, clients, github) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    w.build_stage.status = Status.QUEUED  # its first job just started
+    session.commit()
+    Summary(w.build_job).build_summary()
+    assert [c[0] for c in github.calls_named("in_progress")] == ["501"]
+    Summary(w.build_job).build_summary()  # already in progress: only the output is refreshed
+    assert [c[0] for c in github.calls_named("in_progress")] == ["501", "501"]

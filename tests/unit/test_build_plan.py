@@ -72,6 +72,22 @@ def test_existing_pr_is_updated_and_plans_move_to_the_latest_pr(session, clients
     assert session.scalars(select(GithubUser)).all().__len__() == 1
 
 
+def test_a_new_push_does_not_rewrite_plans_that_already_belong_to_the_pr(session, clients) -> None:
+    from sqlalchemy import event
+
+    f.plan(session)
+    BuildPlan(session, payloads.pull_request(number=7)).create()
+    statements: list[str] = []
+    engine = session.get_bind()
+    listener = lambda *args: statements.append(args[2])  # noqa: E731
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        assert BuildPlan(session, payloads.pull_request(number=7, action="synchronize")).create()[0] == 200
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+    assert not [sql for sql in statements if sql.lstrip().upper().startswith("UPDATE PLANS")]
+
+
 def test_missing_fields_do_not_create_a_pull_request(session, clients) -> None:
     payload = payloads.pull_request()
     del payload["pull_request"]["user"]

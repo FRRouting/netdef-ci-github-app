@@ -111,7 +111,9 @@ def test_failure_cancels_the_rest_and_a_comment_retries_only_what_failed(
 
     comment = payloads.issue_comment("ci:retry", number=7)
     response = system.github("issue_comment", comment)
-    assert (response.status_code, response.text) == (200, "Retrying failure jobs")
+    assert (response.status_code, response.text) == (200, "Retry scheduled")
+    assert bamboo.restarted == []  # the webhook only schedules the retry
+    run_jobs()
     session.expire_all()
     suite = latest_suite(session)
     assert suite.retry == 1 and bamboo.restarted == ["PROJ-PLAN-1"]

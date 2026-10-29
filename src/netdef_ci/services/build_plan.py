@@ -79,7 +79,7 @@ class BuildPlan:
 
     def _add_plans(self, pull_request: PullRequest, repository: str) -> None:
         plans = list(self.session.scalars(select(Plan).where(Plan.github_repo_name == repository).order_by(Plan.id)))
-        pull_request.plans = plans  # re-assigns plans.pull_request_id
+        pull_request.plans = plans  # re-assigns plans.pull_request_id (no UPDATE when they already belong to it)
         self.session.commit()
 
     def _schedule(self, pull_request: PullRequest) -> Response:
@@ -91,7 +91,7 @@ class BuildPlan:
                 self.session,
                 "create_execution_by_plan",
                 [pull_request.id, self.payload, plan.id],
-                queue="create_execution_by_plan",
+                queue=jobs_queue.execution_queue("create_execution_by_plan", pull_request.github_pr_id),
                 delay_seconds=delay,
                 max_attempts=1,  # starts a Bamboo plan: never repeated automatically
             )

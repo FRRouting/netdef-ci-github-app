@@ -39,12 +39,3 @@ class PullRequestCommit:
                 if sha in entry["sha"][:8]:
                     return entry
             page += 1
-
-    def last_commit_in_pr(self) -> dict[str, Any] | None:
-        page, last = 1, None
-        while True:
-            commits = self.github.fetch_pull_request_commits(self.pr_id, self.repo, page)
-            if not commits:
-                return last
-            last = commits[-1]
-            page += 1

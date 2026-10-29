@@ -72,3 +72,18 @@ def test_output_is_truncated_to_github_limit(session, clients) -> None:
     for i in range(3000):
         f.job(session, w.suite, w.build_stage, "j" * 40 + str(i), Status.QUEUED, f"REF-{i}")
     assert len(MessageFormatter().summary_basic_output(w.build_stage)) == MAX_SUMMARY
+
+
+def test_build_log_is_downloaded_once_and_cleared_when_the_job_runs_again(session, clients, bamboo, github) -> None:
+    w = f.World(session)
+    bamboo.job_results[w.build_job.job_ref] = {
+        "artifacts": {"artifact": [{"name": "ErrorLog", "link": {"href": "https://ci/log"}}]}
+    }
+    bamboo.logs["https://ci/log"] = "compile error"
+    MessageFormatter().generate_message("Build", w.build_job)
+    assert w.build_job.build_log == "compile error"
+    bamboo.logs["https://ci/log"] = "changed"  # not downloaded again while the job keeps its result
+    assert MessageFormatter().generate_message("Build", w.build_job).endswith("```\ncompile error\n```\n")
+    w.build_job.enqueue(github)
+    assert w.build_job.build_log is None
+    assert MessageFormatter().generate_message("Build", w.build_job).endswith("```\nchanged\n```\n")
