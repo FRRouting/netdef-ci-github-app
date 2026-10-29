@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 
@@ -17,6 +18,7 @@ import httpx
 
 IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "PATCH", "DELETE"})
 RETRY_STATUS = frozenset({502, 503, 504})
+RETRY_ERRORS = (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, httpx.RemoteProtocolError)
 MAX_RETRY_AFTER_SECONDS = 60.0
 
 Sleeper = Callable[[float], None]
@@ -46,20 +48,32 @@ def request_with_retries(
     *,
     max_retries: int,
     sleep: Sleeper = time.sleep,
+    logger: logging.Logger | None = None,
     **kwargs: object,
 ) -> httpx.Response:
     """Send a request retrying (at most `max_retries` times) on transport errors / 5xx for idempotent methods and on
-    rate-limit responses for every method (the server rejected the request, so repeating it is safe)."""
+    rate-limit responses for every method (the server rejected the request, so repeating it is safe).
+
+    With `logger`, every attempt is logged as `<METHOD> <URL> -> <HTTP status>` (or the transport error)."""
     attempt = 0
     while True:
         try:
             response = client.request(method, url, **kwargs)  # type: ignore[arg-type]
-        except httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout, httpx.RemoteProtocolError:
-            if method.upper() not in IDEMPOTENT_METHODS or attempt >= max_retries:
+        except httpx.HTTPError as error:
+            if logger is not None:
+                logger.warning("%s %s -> %s: %s", method.upper(), url, type(error).__name__, error)
+            if (
+                not isinstance(error, RETRY_ERRORS)
+                or method.upper() not in IDEMPOTENT_METHODS
+                or attempt >= max_retries
+            ):
                 raise
             attempt += 1
             sleep(min(2.0**attempt, 10.0))
             continue
+        if logger is not None:
+            level = logging.WARNING if response.status_code >= 400 else logging.INFO
+            logger.log(level, "%s %s -> %s", method.upper(), response.request.url, response.status_code)
         wait = retry_after_seconds(response)
         retryable = wait is not None or (method.upper() in IDEMPOTENT_METHODS and response.status_code in RETRY_STATUS)
         if retryable and attempt < max_retries:

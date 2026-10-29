@@ -10,7 +10,9 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
+import os
 import re
 import sys
 from logging.handlers import WatchedFileHandler
@@ -78,6 +80,63 @@ def _file_handler(filename: str, fmt: logging.Formatter | None = None) -> loggin
     handler.addFilter(RedactingFilter())
     _file_handlers[filename] = handler
     return handler
+
+
+class SizeRotatingFileHandler(WatchedFileHandler):
+    """Rotates the file by size and keeps `files` files in total (`name`, `name.1`, ...); with `files=1` the file is
+    restarted. Safe with several processes: rotation happens under an `flock` and the other processes reopen the new
+    file on their next write (WatchedFileHandler), unlike `RotatingFileHandler`, whose processes rotate independently."""
+
+    def __init__(self, filename: Path, max_bytes: int, files: int) -> None:
+        super().__init__(filename, encoding="utf-8")
+        self.max_bytes = max_bytes
+        self.files = files
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            if self._too_big():
+                self._rotate()
+        except OSError:
+            self.handleError(record)
+        super().emit(record)
+
+    def _too_big(self) -> bool:
+        try:
+            return os.stat(self.baseFilename).st_size >= self.max_bytes
+        except FileNotFoundError:
+            return False
+
+    def _rotate(self) -> None:
+        with open(f"{self.baseFilename}.lock", "a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            if not self._too_big():  # another process rotated it while we waited for the lock
+                return
+            for index in range(self.files - 2, 0, -1):
+                older = f"{self.baseFilename}.{index}"
+                if os.path.exists(older):
+                    os.replace(older, f"{self.baseFilename}.{index + 1}")
+            if self.files > 1:
+                os.replace(self.baseFilename, f"{self.baseFilename}.1")
+            else:
+                os.remove(self.baseFilename)
+        self.reopenIfNeeded()
+
+
+def github_http_logger() -> logging.Logger:
+    """Logger for the GitHub API calls (`<METHOD> <URL> -> <status>`): `github_http.log` in LOG_DIR, else stdout."""
+    configure_logging()
+    logger = logging.getLogger(f"{ROOT}.github_http")
+    settings = get_settings()
+    if settings.log_dir and not logger.handlers:
+        directory = Path(settings.log_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        files = settings.github_http_log_files or (5 if settings.env == "production" else 1)
+        handler = SizeRotatingFileHandler(directory / "github_http.log", settings.github_http_log_max_bytes, files)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+        handler.addFilter(RedactingFilter())
+        logger.addHandler(handler)
+        logger.propagate = False
+    return logger
 
 
 class Log:

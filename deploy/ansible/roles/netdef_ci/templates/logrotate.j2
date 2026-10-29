@@ -1,5 +1,6 @@
 # {{ ansible_managed }}
-{{ netdef_ci_log_dir }}/*.log {
+# github_http.log is rotated by the application (size based), so it is not listed here.
+{{ netdef_ci_log_dir }}/github_app.log {{ netdef_ci_log_dir }}/pr*.log {
     daily
     rotate {{ netdef_ci_log_retention_days }}
     compress

@@ -23,7 +23,7 @@ import jwt
 from netdef_ci import metrics
 from netdef_ci.clients.http import Sleeper, request_with_retries
 from netdef_ci.config import GitHubAppConfig, Settings
-from netdef_ci.logs import Log
+from netdef_ci.logs import Log, github_http_logger
 
 Json = dict[str, Any]
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
@@ -81,6 +81,7 @@ class AppAuth:
             f"{self.settings.github_api_url}{path}",
             max_retries=self.settings.github_max_retries,
             sleep=self._sleep,
+            logger=github_http_logger(),
             headers=headers,
             **kwargs,
         )
@@ -210,6 +211,7 @@ class GithubCheck:
                 f"{self.settings.github_api_url}{path}",
                 max_retries=self.settings.github_max_retries,
                 sleep=self._sleep,
+                logger=github_http_logger(),
                 headers=headers,
                 **kwargs,
             )

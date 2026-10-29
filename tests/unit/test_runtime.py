@@ -22,7 +22,7 @@ from netdef_ci import container
 from netdef_ci.clients.http import MAX_RETRY_AFTER_SECONDS, request_with_retries, retry_after_seconds
 from netdef_ci.jobs import queue
 from netdef_ci.jobs.registry import HANDLERS, job_handler
-from netdef_ci.logs import Log, redact
+from netdef_ci.logs import Log, SizeRotatingFileHandler, redact
 
 
 # ---------------------------------------------------------------------------- redaction
@@ -60,6 +60,46 @@ def test_pr_logs_go_to_per_pull_request_files(tmp_path, monkeypatch, settings) -
         handler.flush()
     content = (tmp_path / "pr321.log").read_text()
     assert "hello" in content and "abc123" not in content
+
+
+def _write(handler: logging.Handler, message: str) -> None:
+    handler.emit(logging.LogRecord("t", logging.INFO, __file__, 1, message, None, None))
+
+
+def test_size_rotation_keeps_the_configured_number_of_files(tmp_path) -> None:
+    handler = SizeRotatingFileHandler(tmp_path / "github_http.log", max_bytes=10, files=3)
+    for index in range(5):
+        _write(handler, f"line-{index}-0123456789")
+    handler.close()
+    assert sorted(p.name for p in tmp_path.glob("github_http.log*")) == [
+        "github_http.log",
+        "github_http.log.1",
+        "github_http.log.2",
+        "github_http.log.lock",
+    ]
+    assert (tmp_path / "github_http.log").read_text().startswith("line-4")
+    assert (tmp_path / "github_http.log.2").read_text().startswith("line-2")
+
+
+def test_size_rotation_with_a_single_file_restarts_it(tmp_path) -> None:
+    handler = SizeRotatingFileHandler(tmp_path / "github_http.log", max_bytes=10, files=1)
+    _write(handler, "first-0123456789")
+    _write(handler, "second")
+    handler.close()
+    assert sorted(p.name for p in tmp_path.glob("github_http.log*")) == ["github_http.log", "github_http.log.lock"]
+    assert (tmp_path / "github_http.log").read_text().strip() == "second"
+
+
+def test_size_rotation_by_another_process_is_followed(tmp_path) -> None:
+    first = SizeRotatingFileHandler(tmp_path / "github_http.log", max_bytes=10, files=2)
+    second = SizeRotatingFileHandler(tmp_path / "github_http.log", max_bytes=10, files=2)
+    _write(first, "a-0123456789")
+    _write(second, "b")  # rotates; `first` still holds the old (renamed) file open
+    _write(first, "c")
+    first.close()
+    second.close()
+    assert (tmp_path / "github_http.log").read_text().split() == ["b", "c"]
+    assert (tmp_path / "github_http.log.1").read_text().split() == ["a-0123456789"]
 
 
 # ---------------------------------------------------------------------------- HTTP helper
@@ -104,6 +144,23 @@ def test_retries_are_bounded() -> None:
                 == 503
             )
     assert route.call_count == 3
+
+
+def test_every_attempt_is_logged_with_method_url_and_status(caplog) -> None:
+    logger = logging.getLogger("test_http_attempts")
+    with respx.mock() as router:
+        router.get("https://x.test/a").mock(side_effect=[httpx.ConnectError("refused"), httpx.Response(200)])
+        router.post("https://x.test/b").respond(422)
+        with httpx.Client() as client, caplog.at_level(logging.INFO, logger="test_http_attempts"):
+            request_with_retries(client, "GET", "https://x.test/a", max_retries=1, sleep=lambda _s: None, logger=logger)
+            request_with_retries(
+                client, "POST", "https://x.test/b", max_retries=1, sleep=lambda _s: None, params={"x": 1}, logger=logger
+            )
+    assert [(r.levelname, r.getMessage()) for r in caplog.records] == [
+        ("WARNING", "GET https://x.test/a -> ConnectError: refused"),
+        ("INFO", "GET https://x.test/a -> 200"),
+        ("WARNING", "POST https://x.test/b?x=1 -> 422"),
+    ]
 
 
 # ---------------------------------------------------------------------------- wiring

@@ -12,7 +12,8 @@ netdef_ci_config_dir: /etc/netdef-ci
 netdef_ci_keys_dir: "{{ netdef_ci_config_dir }}/keys"
 netdef_ci_env_file: "{{ netdef_ci_config_dir }}/netdef-ci.env"
 netdef_ci_apps_file: "{{ netdef_ci_config_dir }}/github_apps.toml"
-netdef_ci_log_dir: /var/log/netdef-ci
+netdef_ci_log_root: /var/log/netdef-ci
+netdef_ci_log_dir: "{{ netdef_ci_log_root }}/{{ 'prd' if netdef_ci_env == 'production' else 'dev' }}"
 netdef_ci_runtime_dir_name: netdef-ci   # /run/netdef-ci (holds the Prometheus multiprocess files)
 netdef_ci_keep_releases: 5
 
@@ -59,6 +60,9 @@ netdef_ci_timer_commands:
 netdef_ci_settings: {}
 netdef_ci_file_logging: true            # per-PR/main log files in netdef_ci_log_dir (rotated by logrotate); false = journald only
 netdef_ci_log_retention_days: 14
+# github_http.log (one line per GitHub API call: method, URL, HTTP status) is rotated by the app itself, not logrotate.
+netdef_ci_github_http_log_max_bytes: 1073741824                                    # 1 GiB
+netdef_ci_github_http_log_files: "{{ 5 if netdef_ci_env == 'production' else 1 }}"  # files kept, current one included
 
 # --- secrets (come from the Ansible Vault file of the inventory) -----------------------------------------------------------
 netdef_ci_database_url: "{{ vault_netdef_ci_database_url | default('') }}"
