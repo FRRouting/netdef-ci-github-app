@@ -10,31 +10,108 @@
 
 from __future__ import annotations
 
+import atexit
+import functools
 import json
+import queue
+import threading
+import time
 from typing import Any
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.orm import object_session
+from sqlalchemy import event, select
+from sqlalchemy.orm import Session, object_session
 
 from netdef_ci import metrics
 from netdef_ci.config import Settings
 from netdef_ci.logs import Log
 from netdef_ci.models import CheckSuite, CiJob, PullRequest, PullRequestSubscription, Stage
 
+_CACHE_KEY = "netdef_slack_cache"
+
+
+def _cache(session: Session) -> dict[Any, Any]:
+    """Per-session memo of the lookups every notification needs (is this the current suite of the PR, who subscribed).
+    A loop that notifies about many jobs runs them once; the memo is dropped at every commit/rollback, so it never
+    outlives the data it was read from by more than one unit of work."""
+    return session.info.setdefault(_CACHE_KEY, {})  # type: ignore[no-any-return]
+
+
+@event.listens_for(Session, "after_commit")
+@event.listens_for(Session, "after_rollback")
+def _drop_cache(session: Session) -> None:
+    session.info.pop(_CACHE_KEY, None)
+
+
+OUTBOX_SIZE = 10_000
+FLUSH_AT_EXIT_SECONDS = 10.0
+
 
 class SlackBot:
-    def __init__(self, settings: Settings, *, transport: httpx.BaseTransport | None = None) -> None:
+    """Notifications are handed to one background sender thread per process (in order), so a slow or unreachable
+    bot never holds the CI flows; `asynchronous=False` posts inline (tests). Pending notifications are flushed at
+    interpreter exit (bounded); a process that dies abruptly loses the ones not sent yet."""
+
+    def __init__(
+        self,
+        settings: Settings,
+        *,
+        transport: httpx.BaseTransport | None = None,
+        asynchronous: bool = True,
+    ) -> None:
         self.settings = settings
+        self._asynchronous = asynchronous
+        self._outbox: queue.Queue[tuple[str, str, str]] = queue.Queue(maxsize=OUTBOX_SIZE)
+        self._sender: threading.Thread | None = None
+        self._sender_lock = threading.Lock()
         self.log = Log("slack_bot")
         credentials = settings.slack_credentials()
         self._auth = (credentials.username, credentials.password) if credentials else None
         self._client = httpx.Client(
             verify=settings.slack_bot_verify_tls,
-            timeout=settings.http_timeout_seconds,
+            timeout=settings.slack_timeout_seconds,
             transport=transport,
             auth=self._auth,
         )
+
+    # ------------------------------------------------------------------ delivery
+    def _deliver(self, kind: str, path: str, body: str) -> None:
+        if not self._asynchronous:
+            metrics.track_slack(kind, lambda: self._post(path, body))
+            return
+        self._start_sender()
+        try:
+            self._outbox.put_nowait((kind, path, body))
+        except queue.Full:
+            metrics.SLACK_NOTIFICATIONS.labels(type=kind, status="error").inc()
+            self.log.error("Slack outbox full (%s pending); %s notification dropped", OUTBOX_SIZE, kind)
+
+    def _start_sender(self) -> None:
+        if self._sender is not None:
+            return
+        with self._sender_lock:
+            if self._sender is None:
+                self._sender = threading.Thread(target=self._send_forever, name="slack-sender", daemon=True)
+                self._sender.start()
+                atexit.register(self.flush, FLUSH_AT_EXIT_SECONDS)
+
+    def _send_forever(self) -> None:
+        while True:
+            kind, path, body = self._outbox.get()
+            try:
+                metrics.track_slack(kind, functools.partial(self._post, path, body))
+            finally:
+                self._outbox.task_done()
+
+    def flush(self, timeout: float) -> bool:
+        """Wait (at most `timeout` seconds) until every queued notification was sent; False when some are left."""
+        deadline = time.monotonic() + timeout
+        while self._outbox.unfinished_tasks:
+            if time.monotonic() >= deadline:
+                self.log.warning("%s Slack notification(s) not sent", self._outbox.unfinished_tasks)
+                return False
+            time.sleep(0.01)
+        return True
 
     # ------------------------------------------------------------------ transport
     def _base(self) -> str | None:
@@ -71,8 +148,14 @@ class SlackBot:
     def _current_execution(check_suite: CheckSuite) -> bool:
         pull_request = check_suite.pull_request
         assert pull_request is not None
-        last = pull_request.last_check_suite()
-        return check_suite.id >= (last.id if last is not None else 0)
+        session = object_session(pull_request)
+        assert session is not None
+        cache = _cache(session)
+        key = ("last_suite", pull_request.id)
+        if key not in cache:
+            last = pull_request.last_check_suite()
+            cache[key] = last.id if last is not None else 0
+        return check_suite.id >= cache[key]
 
     @staticmethod
     def _subscriptions(
@@ -80,6 +163,10 @@ class SlackBot:
     ) -> list[PullRequestSubscription]:
         session = object_session(pull_request)
         assert session is not None
+        cache = _cache(session)
+        key = ("subscriptions", pull_request.id, notifications)
+        if key in cache:
+            return list(cache[key])
         stmt = select(PullRequestSubscription).where(
             PullRequestSubscription.target.in_([str(pull_request.github_pr_id), pull_request.author])
         )
@@ -88,11 +175,12 @@ class SlackBot:
         unique: dict[str, PullRequestSubscription] = {}
         for subscription in session.scalars(stmt.order_by(PullRequestSubscription.id)):
             unique.setdefault(subscription.slack_user_id, subscription)
-        return list(unique.values())
+        cache[key] = list(unique.values())
+        return list(cache[key])
 
     def _send_user(self, kind: str, message: str, slack_user_id: str, **extra: Any) -> None:
         body = json.dumps({"message": message, **extra, "slack_user_id": slack_user_id})
-        metrics.track_slack(kind, lambda: self._post("/github/user", body))
+        self._deliver(kind, "/github/user", body)
 
     def _pr_url(self, pr: PullRequest) -> str:
         return f"https://github.com/{pr.repository}/pull/{pr.github_pr_id}"
@@ -117,7 +205,7 @@ class SlackBot:
         if not self._current_execution(stage.check_suite):
             return None
         reason = self._invalid_rerun_message(stage)
-        metrics.track_slack("invalid_rerun_comment", lambda: self._post("/github/comment", reason))
+        self._deliver("invalid_rerun_comment", "/github/comment", reason)
         return reason
 
     def invalid_rerun_dm(self, stage: Stage, subscription: PullRequestSubscription) -> None:

@@ -60,7 +60,7 @@ def dispatch(session: Session, event: str | None, payload: dict[str, Any]) -> Re
         log.debug("Check Run %s - %s", (payload.get("check_run") or {}).get("id"), action)
         if action.lower() != "rerequested":
             return 200, "OK"
-        return RetryCommand(session, payload).start()
+        return RetryCommand(session, payload).schedule()
     if event == "installation":
         log.debug(">>> Received a new installation policy")
         return 202, "Updated"
@@ -70,7 +70,7 @@ def dispatch(session: Session, event: str | None, payload: dict[str, Any]) -> Re
             return 404, "Action not found"
         body = str(comment.get("body") or "").lower()
         if re.search(r"ci:retry", body):
-            return RetryComment(session, payload).start()
+            return RetryComment(session, payload).schedule()
         if re.search(r"ci:rerun", body):
             return ReRunComment(session, payload).start()
         log.debug(">>> Just a comment")

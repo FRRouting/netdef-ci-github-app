@@ -15,10 +15,11 @@ import logging
 import os
 import re
 import sys
+from collections import OrderedDict
 from collections.abc import MutableMapping
 from logging.handlers import WatchedFileHandler
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from netdef_ci.config import get_settings
 
@@ -41,8 +42,12 @@ def redact(text: str) -> str:
 
 class RedactingFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
+        # The same record reaches several handlers (stdout, main file, pull request file): redact it only once.
+        if getattr(record, "_netdef_redacted", False):
+            return True
         record.msg = redact(record.getMessage())
         record.args = None
+        record._netdef_redacted = True
         return True
 
 
@@ -84,6 +89,63 @@ def _file_handler(filename: str, fmt: logging.Formatter | None = None) -> loggin
     return handler
 
 
+class PullRequestFilesHandler(logging.Handler):
+    """Writes each record to the `pr<N>.log` of its pull request (`record.pr_id`). One handler per process keeps at
+    most `max_open` files open (the least recently used is closed and reopened on its next line) and, like
+    WatchedFileHandler, reopens a file that logrotate moved away. No logger or handler object per pull request."""
+
+    def __init__(self, directory: Path, max_open: int) -> None:
+        super().__init__()
+        self.directory = directory
+        self.max_open = max_open
+        self._streams: OrderedDict[str, tuple[TextIO, int, int]] = OrderedDict()
+
+    def emit(self, record: logging.LogRecord) -> None:  # called under self.lock (Handler.handle)
+        try:
+            stream = self._stream(str(getattr(record, "pr_id", "-")))
+            stream.write(self.format(record) + "\n")
+            stream.flush()
+        except Exception:
+            self.handleError(record)
+
+    def _stream(self, pr_id: str) -> TextIO:
+        path = self.directory / f"pr{pr_id}.log"
+        entry = self._streams.get(pr_id)
+        if entry is not None:
+            stream, dev, ino = entry
+            try:
+                current = os.stat(path)
+                rotated = (current.st_dev, current.st_ino) != (dev, ino)
+            except FileNotFoundError:
+                rotated = True
+            if not rotated:
+                self._streams.move_to_end(pr_id)
+                return stream
+            del self._streams[pr_id]
+            stream.close()
+        stream = open(path, "a", encoding="utf-8")  # noqa: SIM115 - kept open across records
+        opened = os.fstat(stream.fileno())
+        self._streams[pr_id] = (stream, opened.st_dev, opened.st_ino)
+        while len(self._streams) > self.max_open:
+            _oldest, (old, _dev, _ino) = self._streams.popitem(last=False)
+            old.close()
+        return stream
+
+    @property
+    def open_files(self) -> int:
+        return len(self._streams)
+
+    def close(self) -> None:
+        self.acquire()
+        try:
+            for stream, _dev, _ino in self._streams.values():
+                stream.close()
+            self._streams.clear()
+        finally:
+            self.release()
+        super().close()
+
+
 class SizeRotatingFileHandler(WatchedFileHandler):
     """Rotates the file by size and keeps `files` files in total (`name`, `name.1`, ...); with `files=1` the file is
     restarted. Safe with several processes: rotation happens under an `flock` and the other processes reopen the new
@@ -93,14 +155,21 @@ class SizeRotatingFileHandler(WatchedFileHandler):
         super().__init__(filename, encoding="utf-8")
         self.max_bytes = max_bytes
         self.files = files
+        # The size is checked (one stat) after this process wrote ~1/1000 of the limit (at most 1 MiB), not on every
+        # line: the file may grow past the limit by that much per process before it rotates.
+        self._check_every = max(1, min(max_bytes // 1000, 1024**2))
+        self._unchecked = self._check_every  # check on the first record
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            if self._too_big():
-                self._rotate()
+            if self._unchecked >= self._check_every:
+                self._unchecked = 0
+                if self._too_big():
+                    self._rotate()
         except OSError:
             self.handleError(record)
         super().emit(record)
+        self._unchecked += len(record.getMessage()) + 64  # message plus timestamp/level prefix, approximately
 
     def _too_big(self) -> bool:
         try:
@@ -153,27 +222,38 @@ def github_http_logger(pr_id: int | str | None = None) -> PullRequestAdapter:
     return PullRequestAdapter(logger, pr_id)
 
 
+def _pr_logger() -> logging.Logger | None:
+    """The one logger behind every `pr<N>.log` (None without LOG_DIR: the component logger already reaches stdout,
+    and a per-PR copy would print every line twice)."""
+    settings = get_settings()
+    if not settings.log_dir:
+        return None
+    logger = logging.getLogger(f"{ROOT}.pull_requests")
+    if not any(isinstance(handler, PullRequestFilesHandler) for handler in logger.handlers):
+        directory = Path(settings.log_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        handler = PullRequestFilesHandler(directory, settings.pr_log_open_files)
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s [%(component)s] %(message)s"))
+        handler.addFilter(RedactingFilter())
+        logger.addHandler(handler)
+        logger.propagate = False
+    return logger
+
+
 class Log:
-    """Component logger that also mirrors into `pr<N>.log` when a pull request id is known."""
+    """Component logger that also mirrors into `pr<N>.log` when a pull request id is known and LOG_DIR is set."""
 
     def __init__(self, component: str, pr_id: int | str | None = None) -> None:
         configure_logging()
-        self._loggers = [logging.getLogger(f"{ROOT}.{component}")]
-        if pr_id is not None:
-            self._loggers.append(self._pr_logger(pr_id))
+        self._logger = logging.getLogger(f"{ROOT}.{component}")
+        self._pr_id = pr_id
+        self._pr = _pr_logger() if pr_id is not None else None
 
-    @staticmethod
-    def _pr_logger(pr_id: int | str) -> logging.Logger:
-        logger = logging.getLogger(f"{ROOT}.pr.{pr_id}")
-        settings = get_settings()
-        if settings.log_dir and not logger.handlers:
-            logger.addHandler(_file_handler(f"pr{pr_id}.log"))
-            logger.propagate = False
-        return logger
-
-    def _emit(self, level: int, msg: str, *args: object) -> None:
-        for logger in self._loggers:
-            logger.log(level, msg, *args)
+    def _emit(self, level: int, msg: str, *args: object, exc_info: bool = False) -> None:
+        self._logger.log(level, msg, *args, exc_info=exc_info)
+        if self._pr is not None:
+            extra = {"pr_id": self._pr_id, "component": self._logger.name}
+            self._pr.log(level, msg, *args, exc_info=exc_info, extra=extra)
 
     def debug(self, msg: str, *args: object) -> None:
         self._emit(logging.DEBUG, msg, *args)
@@ -188,5 +268,4 @@ class Log:
         self._emit(logging.ERROR, msg, *args)
 
     def exception(self, msg: str, *args: object) -> None:
-        for logger in self._loggers:
-            logger.exception(msg, *args)
+        self._emit(logging.ERROR, msg, *args, exc_info=True)

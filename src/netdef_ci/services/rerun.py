@@ -59,7 +59,7 @@ class ReRunCommand:
                 self.session,
                 "create_execution_by_command",
                 [plan.id, check_suite.id, self.payload],
-                queue="create_execution_by_command",
+                queue=jobs_queue.execution_queue("create_execution_by_command", check_suite.pull_request.github_pr_id),
                 delay_seconds=get_settings().rerun_delay_seconds,
                 max_attempts=1,
             )
@@ -93,7 +93,7 @@ class ReRunComment:
                 self.session,
                 "create_execution_by_comment",
                 [pull_request.id, self.payload, plan.id, rocket_id],
-                queue="create_execution_by_comment",
+                queue=jobs_queue.execution_queue("create_execution_by_comment", pull_request.github_pr_id),
                 delay_seconds=get_settings().rerun_delay_seconds,
                 max_attempts=1,
             )

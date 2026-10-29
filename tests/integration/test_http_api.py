@@ -133,12 +133,25 @@ def test_update_status_routes_by_status(api, session) -> None:
     assert api.status({"status": "success", "bamboo_ref": "NOPE"}).text == "CI JOB not found"
 
 
-def test_finished_status_delegates_to_reconciliation(api, session, bamboo) -> None:
-    f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+def test_finished_status_schedules_the_reconciliation_on_the_pr_queue(api, session, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
     bamboo.statuses["PROJ-PLAN-77"] = {"currentStage": "Tests", "finished": False}
     response = api.status({"status": "finished", "bamboo_ref": "PROJ-PLAN-77"})
-    assert (response.status_code, response.text) == (200, "Still running")
+    assert (response.status_code, response.text) == (200, "Finished scheduled")
+    job = session.scalars(select(Job).where(Job.handler == "finished_execution")).one()
+    assert job.queue == str(w.pr.github_pr_id % 10) and job.args == [
+        {"status": "finished", "bamboo_ref": "PROJ-PLAN-77"}
+    ]
     assert api.status({"status": "finished", "bamboo_ref": "NOPE-1"}).status_code == 404
+
+
+def test_retry_webhook_only_schedules_the_retry(api, session, bamboo) -> None:
+    w = f.World(session, statuses=(Status.SUCCESS, Status.FAILURE))
+    response = api.github("check_run", payloads.check_run(int(w.tests_stage.check_ref)))
+    assert (response.status_code, response.text) == (200, "Retry scheduled")
+    job = session.scalars(select(Job).where(Job.handler == "retry_execution")).one()
+    assert (job.queue, job.max_attempts, job.args[0]) == ("retry_execution", 1, "command")
+    assert bamboo.restarted == [] and bamboo.stopped == []
 
 
 def test_unexpected_errors_are_500_json_without_details(api, monkeypatch) -> None:

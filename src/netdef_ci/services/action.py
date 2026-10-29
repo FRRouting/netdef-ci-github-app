@@ -45,18 +45,29 @@ class Action:
 
     # ------------------------------------------------------------------
     def _create_jobs(self, rerun: bool) -> None:
-        for job in self.jobs:
-            ci_job = self._create_ci_job(job)
-            if ci_job is None:
-                continue
+        # Hundreds of jobs per execution: look configurations and stages up in memory and commit in two batches
+        # (the jobs, then their audit entries) instead of a round trip and a commit per job.
+        configs: dict[str, StageConfiguration] = {}
+        for config in self.stage_configs:
+            configs.setdefault(config.bamboo_stage_name, config)
+        stages: dict[str, Stage] = {}
+        for stage in self.session.scalars(
+            select(Stage).where(Stage.check_suite_id == self.check_suite.id).order_by(Stage.id)
+        ):
+            stages.setdefault(stage.name, stage)
+        created = [ci_job for job in self.jobs if (ci_job := self._create_ci_job(job, configs, stages)) is not None]
+        self.session.add_all(created)
+        self.session.commit()
+        queued = []
+        for ci_job in created:
             if rerun:
-                stage = ci_job.stage
-                if stage is None or stage.configuration is None or not stage.configuration.can_retry:
+                job_stage = ci_job.stage
+                if job_stage is None or job_stage.configuration is None or not job_stage.configuration.can_retry:
                     continue
-                url = self.settings.browse_url(ci_job.job_ref)
-                ci_job.enqueue(self.github, {"title": ci_job.name, "summary": f"Details at [{url}]({url})"})
-            else:
-                ci_job.create_check_run()
+            ci_job.create_check_run(commit=False)
+            queued.append(ci_job)
+        self.session.commit()
+        for ci_job in queued:
             self._stage_with_start_in_progress(ci_job)
 
     def _create_timeout_worker(self) -> None:
@@ -76,29 +87,18 @@ class Action:
         ci_job.in_progress(self.github)
         stage.in_progress(self.github, output={})
 
-    def _create_ci_job(self, job: dict) -> CiJob | None:
-        config = self.session.scalars(
-            select(StageConfiguration)
-            .where(StageConfiguration.bamboo_stage_name == job.get("stage"))
-            .order_by(StageConfiguration.id)
-        ).first()
+    def _create_ci_job(
+        self, job: dict, configs: dict[str, StageConfiguration], stages: dict[str, Stage]
+    ) -> CiJob | None:
+        config = configs.get(job.get("stage") or "")
         if config is None:
             return None
-        stage = self.session.scalars(
-            select(Stage)
-            .where(Stage.check_suite_id == self.check_suite.id, Stage.name == self._stage_name(config))
-            .order_by(Stage.id)
-        ).first()
+        stage = stages.get(self._stage_name(config))
         self.log.info("create_jobs - %s -> stage %s", job, stage.id if stage else None)
-        ci_job = CiJob(
-            check_suite_id=self.check_suite.id, name=job.get("name"), job_ref=job.get("job_ref"), stage=stage
-        )
-        if not ci_job.name or not ci_job.job_ref:
+        if not job.get("name") or not job.get("job_ref"):
             self.log.error("Job without name/job_ref ignored: %s", job)  # required fields
             return None
-        self.session.add(ci_job)
-        self.session.commit()
-        return ci_job
+        return CiJob(check_suite_id=self.check_suite.id, name=job.get("name"), job_ref=job.get("job_ref"), stage=stage)
 
     def _create_check_run_stage(self, stage_config: StageConfiguration) -> None:
         self.log.info("create_check_run_stage - %s - %s", stage_config.github_check_run_name, self.name)

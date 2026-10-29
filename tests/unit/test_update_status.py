@@ -134,3 +134,24 @@ def test_unexpected_errors_become_500(session, clients, github) -> None:
 def test_payload_without_summary_is_tolerated(session, clients, extra) -> None:
     w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
     assert update(session, {"status": "failure", "bamboo_ref": w.build_job.job_ref, **extra})[0] == 200
+
+
+@pytest.mark.parametrize("status", ["in_progress", "success", "failure"])
+def test_each_callback_is_stored_in_one_commit(session, clients, status) -> None:
+    from sqlalchemy import event
+
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    if status == "in_progress":
+        w.build_job.status = Status.QUEUED
+        session.commit()
+    commits: list[bool] = []
+    listener = lambda _session: commits.append(True)  # noqa: E731
+    event.listen(session, "after_commit", listener)
+    try:
+        assert update(session, {"status": status, "bamboo_ref": w.build_job.job_ref}) == (200, "Success")
+    finally:
+        event.remove(session, "after_commit", listener)
+    assert len(commits) == 1
+    handlers = {job.handler for job in session.scalars(select(Job))}
+    assert "ci_job_status" in handlers  # the debounced status job went in with the transition
+    assert (status == "failure") == ("fetch_topotest_failures" in handlers)

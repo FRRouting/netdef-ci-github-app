@@ -27,7 +27,7 @@ from netdef_ci.jobs import handlers as _handlers  # noqa: F401  (registers job h
 from netdef_ci.logs import Log, configure_logging
 from netdef_ci.security import check_basic, verify_hmac
 from netdef_ci.services import slack_commands
-from netdef_ci.services.finished import Finished
+from netdef_ci.services.finished import schedule_finished
 from netdef_ci.services.update_status import UpdateStatus
 from netdef_ci.web import webhooks
 
@@ -200,7 +200,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         def work() -> tuple[int, str]:
             with session_scope() as session:
                 if payload.get("status") == "finished":
-                    return Finished(session, payload).finished()
+                    return schedule_finished(session, payload)
                 return UpdateStatus(session, payload).update()
 
         status, body = await run_in_threadpool(work)

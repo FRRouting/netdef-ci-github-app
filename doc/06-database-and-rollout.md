@@ -15,10 +15,11 @@ Status values are stored as integers (`queued` 0 … `skipped` -3) and audit row
 
 ### Migrations
 
-| Revision              | What it does                                                                                                  | Downgrade                                                           |
-|-----------------------|---------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
-| `0001_initial_schema` | Creates the domain tables **only if they are absent**; on a database that already has them it changes nothing | Not supported by design (raises an error: the tables hold the data) |
-| `0002_python_tables`  | Adds `jobs` and `webhook_deliveries`                                                                          | Drops `webhook_deliveries` and `jobs`                               |
+| Revision                   | What it does                                                                                                                                      | Downgrade                                                           |
+|----------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------|
+| `0001_initial_schema`      | Creates the domain tables **only if they are absent**; on a database that already has them it changes nothing                                     | Not supported by design (raises an error: the tables hold the data) |
+| `0002_python_tables`       | Adds `jobs` and `webhook_deliveries`                                                                                                              | Drops `webhook_deliveries` and `jobs`                               |
+| `0003_performance_indexes` | Adds `ci_jobs.build_log` and the lookup indexes (see 07), built with `CREATE INDEX CONCURRENTLY` (no write lock; it takes longer on large tables) | Drops the indexes and `ci_jobs.build_log`                           |
 
 Commands:
 

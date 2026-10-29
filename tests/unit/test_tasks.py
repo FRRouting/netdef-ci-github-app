@@ -30,6 +30,11 @@ def test_ci_job_status_builds_summary_and_reconciles_when_job_finished(session, 
     tasks.ci_job_status(session, "PROJ-PLAN-77", w.build_job.id)
     session.refresh(w.build_stage)
     assert w.build_stage.state == Status.SUCCESS
+    # The reconciliation is a job shared (deduplicated) with Bamboo's `finished` callback.
+    job = session.scalars(select(Job).where(Job.handler == "finished_execution")).one()
+    assert job.args == [{"bamboo_ref": "PROJ-PLAN-77"}] and job.dedupe_key == f"suite-{w.suite.id}"
+    tasks.ci_job_status(session, "PROJ-PLAN-77", w.build_job.id)
+    assert len(session.scalars(select(Job).where(Job.handler == "finished_execution")).all()) == 1
 
 
 def test_ci_job_status_for_a_running_job_does_not_call_bamboo_status(session, clients, bamboo) -> None:
@@ -142,6 +147,13 @@ def test_watch_dog_reconciles_only_suites_with_running_stages(session, clients, 
     assert tasks.watch_dog(session) == 1
     session.refresh(running.build_job)
     assert running.build_job.state == Status.SUCCESS
+
+
+def test_watch_dog_ignores_suites_older_than_its_window(session, clients, bamboo, settings) -> None:
+    old = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    old.suite.created_at = utcnow() - timedelta(hours=settings.watch_dog_max_age_hours + 1)
+    session.commit()
+    assert tasks.watch_dog(session) == 0
 
 
 def test_watch_dog_survives_a_broken_suite(session, clients, bamboo) -> None:

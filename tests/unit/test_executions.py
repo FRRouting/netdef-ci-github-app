@@ -160,6 +160,7 @@ def test_old_checks_of_this_app_are_skipped_but_foreign_ones_are_not(session, re
     CreateExecutionByPlan.run(session, pr.id, payloads.pull_request(), plan.id)
     skipped = github.calls_named("skipped")
     assert [c[0] for c in skipped] == [1]
+    assert [c[2] for c in github.calls_named("check_runs_for_ref")] == [None]  # one listing, every status
     assert skipped[0][1] == {"title": "[CI] Removed stage summary", "summary": "Old test suite, skipping..."}
 
 

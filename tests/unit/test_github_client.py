@@ -59,19 +59,26 @@ def make(suite, sleeps: list[float] | None = None) -> GithubCheck:
 
 def test_app_jwt_is_rs256_with_10_minute_limit_and_issuer(suite, mock_api, rsa_key) -> None:
     check = make(suite)
-    token = check._auth.app_jwt()
+    token = check._app_auth().app_jwt()
     claims = jwt.decode(token, rsa_key.public_key(), algorithms=["RS256"])
     assert claims["iss"] == "12345"
     assert claims["exp"] - claims["iat"] <= 600
     assert claims["iat"] <= time.time()
 
 
+def test_authentication_waits_for_the_first_api_call(suite, mock_api) -> None:
+    check = make(suite)
+    assert mock_api["token"].call_count == 0  # building a client costs no HTTP call
+    check._app_auth()
+    assert mock_api["token"].call_count == 1
+
+
 def test_installation_token_is_cached_and_renewed_before_expiry(suite, mock_api) -> None:
-    make(suite)
-    make(suite)  # second client: no new token request
+    make(suite)._app_auth()
+    make(suite)._app_auth()  # second client: no new token request
     token_route = mock_api["token"]
     assert token_route.call_count == 1
-    auth = make(suite)._auth
+    auth = make(suite)._app_auth()
     auth._expires_at = datetime.now(UTC) + timedelta(minutes=2)  # inside the 5 minute renewal margin
     auth.token()
     assert token_route.call_count == 2
@@ -163,14 +170,14 @@ def test_completed_checks_conclusion_and_retries_when_not_found(suite, mock_api)
         httpx.Response(200, json={"conclusion": "success"}),
     ]
     assert make(suite, sleeps).success(9)["conclusion"] == "success"
-    assert sleeps == [5, 10]
+    assert sleeps == [1, 2]
 
 
 def test_completed_gives_up_after_bounded_retries(suite, mock_api) -> None:
     sleeps: list[float] = []
     route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(404, json={})
     assert make(suite, sleeps).failure(9) == {}
-    assert route.call_count == 4 and sleeps == [5, 10, 15, 20]
+    assert route.call_count == 4 and sleeps == [1, 2, 4]  # no sleep after the last attempt
 
 
 def test_completed_without_check_ref_is_a_noop(suite, mock_api) -> None:
@@ -216,7 +223,7 @@ def test_authentication_fails_without_installation(suite) -> None:
     with respx.mock() as router:
         router.get(f"{API}/app/installations").respond(200, json=[])
         with pytest.raises(GithubAuthError):
-            make(suite)
+            make(suite).pull_request_info(5, "org/repo")
 
 
 def test_username_lookup_uses_id_or_login_and_swallows_errors(suite, mock_api) -> None:
@@ -233,7 +240,7 @@ def test_reactions_and_check_run_listing(suite, mock_api) -> None:
     import json
 
     up = mock_api.post(f"{API}/repos/org/repo/issues/comments/3/reactions").respond(201, json={})
-    mock_api.get(f"{API}/repos/org/repo/commits/abc/check-runs").respond(200, json={"check_runs": [{"id": 1}]})
+    runs = mock_api.get(f"{API}/repos/org/repo/commits/abc/check-runs").respond(200, json={"check_runs": [{"id": 1}]})
     check = make(suite)
     check.comment_reaction_thumb_up("org/repo", 3)
     assert json.loads(up.calls.last.request.content) == {"content": "+1"}
@@ -243,7 +250,20 @@ def test_reactions_and_check_run_listing(suite, mock_api) -> None:
     check.delete_comment_reaction("org/repo", 3, 55)
     assert delete.called
     assert check.check_runs_for_ref("org/repo", "abc", status="queued")["check_runs"] == [{"id": 1}]
+    assert runs.calls.last.request.url.params["status"] == "queued"
+    check.check_runs_for_ref("org/repo", "abc", status=None)
+    assert "status" not in runs.calls.last.request.url.params  # every status in one listing
 
 
 def test_signature_is_the_webhook_secret(suite, mock_api) -> None:
     assert make(suite).signature() == "test-secret"
+
+
+def test_pull_requests_follow_every_page(suite, mock_api) -> None:
+    route = mock_api.get(f"{API}/repos/org/repo/pulls")
+    route.side_effect = [
+        httpx.Response(200, json=[{"number": n} for n in range(100)]),
+        httpx.Response(200, json=[{"number": 100}]),
+    ]
+    assert len(make(suite).pull_requests("org/repo")) == 101
+    assert [call.request.url.params["page"] for call in route.calls] == ["1", "2"]

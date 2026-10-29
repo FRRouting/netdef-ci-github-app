@@ -29,6 +29,7 @@ Json = dict[str, Any]
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
 JWT_LIFETIME_SECONDS = 9 * 60
 MAX_SUMMARY = 65_535
+COMPLETED_RETRIES = 3
 
 
 class GithubError(Exception):
@@ -177,13 +178,21 @@ class GithubCheck:
         self._client = client or httpx.Client(timeout=settings.http_timeout_seconds)
         self._auth: AppAuth | None = None
         self._pr_id: int | None = getattr(getattr(check_suite, "pull_request", None), "github_pr_id", None)
-        self._authenticate()
+        # Authentication waits for the first API call: most clients are built by flows that never call GitHub (a
+        # Bamboo callback for a job without a check run), and renewing an expired token costs two HTTP calls.
 
     # ------------------------------------------------------------------ authentication
     @property
     def repository(self) -> str | None:
         pull_request = getattr(self.check_suite, "pull_request", None)
         return getattr(pull_request, "repository", None)
+
+    def _app_auth(self) -> AppAuth:
+        """The App that authenticates this client, chosen on first use."""
+        if self._auth is None:
+            self._authenticate()
+        assert self._auth is not None
+        return self._auth
 
     def _authenticate(self) -> None:
         apps = self.settings.github_apps()
@@ -204,10 +213,10 @@ class GithubCheck:
     # ------------------------------------------------------------------ transport
     def _request(self, method: str, path: str, *, pr_id: int | None = None, **kwargs: Any) -> Any:
         """`pr_id` overrides the check suite's pull request in `github_http.log` (calls that name a pull request)."""
-        assert self._auth is not None
+        auth = self._app_auth()
         http_log = github_http_logger(pr_id if pr_id is not None else self._pr_id)
         for attempt in (0, 1):
-            token = self._auth.token(http_log)
+            token = auth.token(http_log)
             headers = {"Authorization": f"Bearer {token}", **_base_headers()}
             response = request_with_retries(
                 self._client,
@@ -220,7 +229,7 @@ class GithubCheck:
                 **kwargs,
             )
             if response.status_code == 401 and attempt == 0:
-                self._auth.invalidate()  # expired/revoked installation token: renew once
+                auth.invalidate()  # expired/revoked installation token: renew once
                 continue
             metrics.GITHUB_API_REQUESTS.labels(method=method, status=f"{response.status_code // 100}xx").inc()
             if response.status_code >= 400:
@@ -240,13 +249,22 @@ class GithubCheck:
             "GET", f"/repos/{repo}/pulls/{pr_id}/commits", pr_id=pr_id, params={"per_page": 100, "page": page}
         )
 
-    def pull_requests(self, repo: str, state: str = "open") -> list[Json]:
-        return self._request("GET", f"/repos/{repo}/pulls", params={"state": state, "per_page": 100})
+    def pull_requests(self, repo: str, state: str = "open", max_pages: int = 20) -> list[Json]:
+        """Every pull request in `state` (pages of 100, at most `max_pages`), not only the first page."""
+        pulls: list[Json] = []
+        for page in range(1, max_pages + 1):
+            batch = self._request("GET", f"/repos/{repo}/pulls", params={"state": state, "per_page": 100, "page": page})
+            pulls.extend(batch)
+            if len(batch) < 100:
+                break
+        return pulls
 
-    def check_runs_for_ref(self, repo: str, sha: str, status: str = "queued") -> Json:
-        return self._request(
-            "GET", f"/repos/{repo}/commits/{sha}/check-runs", params={"status": status, "per_page": 100}
-        )
+    def check_runs_for_ref(self, repo: str, sha: str, status: str | None = "queued") -> Json:
+        """Check runs of a commit; `status=None` lists every status in one call."""
+        params: dict[str, str | int] = {"per_page": 100}
+        if status is not None:
+            params["status"] = status
+        return self._request("GET", f"/repos/{repo}/commits/{sha}/check-runs", params=params)
 
     def get_check_run(self, check_ref: str | int) -> Json:
         return self._request("GET", f"/repos/{self._repo()}/check-runs/{check_ref}")
@@ -260,8 +278,7 @@ class GithubCheck:
             return None
 
     def installation_id(self) -> int:
-        assert self._auth is not None
-        return self._auth.installation_id(github_http_logger(self._pr_id))
+        return self._app_auth().installation_id(github_http_logger(self._pr_id))
 
     def signature(self) -> str:
         return self.settings.webhook_secret.get_secret_value()
@@ -353,10 +370,10 @@ class GithubCheck:
                 self.log.info("completed: %s, conclusion: %s", check_ref, conclusion)
                 return response
             except GithubNotFound, GithubUpdateMismatch:
-                # The check run may not be visible yet (eventual consistency): bounded retries, 5 s steps.
+                # The check run may not be visible yet (eventual consistency, usually under a second): up to 3 retries
+                # 1, 2 and 4 s apart. The caller's job (and its database connection) waits meanwhile, so keep it short.
+                if retries >= COMPLETED_RETRIES:
+                    self.log.error("%s not found at GitHub", check_ref)
+                    return {}
                 retries += 1
-                self._sleep(retries * 5)
-                if retries <= 3:
-                    continue
-                self.log.error("%s not found at GitHub", check_ref)
-                return {}
+                self._sleep(2.0 ** (retries - 1))

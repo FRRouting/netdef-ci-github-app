@@ -34,6 +34,8 @@ def test_github_apps_file_keys(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     apps = make(GITHUB_APPS_FILE=str(file)).github_apps()
     assert [(a.login, a.cert, a.repo) for a in apps] == [("1234567", "/k.pem", "org/a"), ("99", "/k2.pem", None)]
     assert make().github_apps() == []
+    file.write_text('[[github_apps]]\nlogin = "1"\ncert = "/c.pem"\n')
+    assert make(GITHUB_APPS_FILE=str(file)).github_apps() == apps  # parsed once per file and process
 
 
 def test_credentials_prefer_env_then_netrc(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

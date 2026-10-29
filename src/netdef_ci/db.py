@@ -33,8 +33,10 @@ def build_engine(url: str | None = None, **kwargs: Any) -> Engine:
     settings = get_settings()
     url = url or settings.database_url
     options: dict[str, Any] = {"pool_pre_ping": True, "future": True}
-    if not url.startswith("sqlite"):
-        options.update(pool_size=settings.db_pool_size, max_overflow=5)
+    if url.startswith("sqlite"):
+        kwargs = {k: v for k, v in kwargs.items() if k not in ("pool_size", "max_overflow")}
+    else:
+        options.update(pool_size=settings.db_pool_size, max_overflow=settings.db_max_overflow)
     options.update(kwargs)
     return create_engine(url, **options)
 

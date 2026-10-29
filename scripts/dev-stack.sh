@@ -23,6 +23,7 @@ export METRICS_USERNAME=${METRICS_USERNAME:-prometheus} METRICS_PASSWORD=${METRI
 export PROMETHEUS_MULTIPROC_DIR="$PWD/$RUN_DIR/prometheus"
 export LOG_DIR="$PWD/$RUN_DIR/logs"
 export STATUS_DEBOUNCE_SECONDS=${STATUS_DEBOUNCE_SECONDS:-5} CREATE_EXECUTION_DELAY_SECONDS=${CREATE_EXECUTION_DELAY_SECONDS:-1}
+export EXECUTION_QUEUE_PARTITIONS=1  # the worker list below uses the plain queue names
 export WEB_WORKERS=2
 export JOB_SLEEP_DELAY_SECONDS=${JOB_SLEEP_DELAY_SECONDS:-1}
 
@@ -66,12 +67,13 @@ PY
 start() { name=$1; shift; "$@" >"$RUN_DIR/logs/$name.out" 2>&1 & pids+=($!); echo "   started $name (pid $!)"; }
 echo ">> processes (output in $RUN_DIR/logs/*.out)"
 start web "$PYTHON" -m uvicorn --factory netdef_ci.web.app:app_factory --host 127.0.0.1 --port "$PORT" --workers 2
-start worker-q0-3 "$PYTHON" -m netdef_ci worker --queues 0,1,2,3
-start worker-q4-6 "$PYTHON" -m netdef_ci worker --queues 4,5,6
-start worker-q7-9 "$PYTHON" -m netdef_ci worker --queues 7,8,9
+start worker-q0-4 "$PYTHON" -m netdef_ci worker --queues 0,1,2,3,4
+start worker-q5-9 "$PYTHON" -m netdef_ci worker --queues 5,6,7,8,9
+# EXECUTION_QUEUE_PARTITIONS is 1 here: the plan-starting queues keep their plain names.
 start worker-create-by-plan "$PYTHON" -m netdef_ci worker --queues create_execution_by_plan
 start worker-create-by-comment "$PYTHON" -m netdef_ci worker --queues create_execution_by_comment
 start worker-create-by-command "$PYTHON" -m netdef_ci worker --queues create_execution_by_command
+start worker-retry "$PYTHON" -m netdef_ci worker --queues retry_execution
 start worker-timeout "$PYTHON" -m netdef_ci worker --queues timeout_execution
 start worker-topotest "$PYTHON" -m netdef_ci worker --queues fetch_topotest_failures
 ( while sleep "$WATCHDOG_INTERVAL"; do "$PYTHON" -m netdef_ci watch-dog >>"$RUN_DIR/logs/watch-dog.out" 2>&1 || true; done ) &

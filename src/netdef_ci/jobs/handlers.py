@@ -14,7 +14,8 @@ from typing import Any
 
 from netdef_ci.db import session_scope
 from netdef_ci.jobs.registry import HANDLERS, job_handler
-from netdef_ci.services import executions, tasks
+from netdef_ci.services import executions, retry, tasks
+from netdef_ci.services.finished import BambooUnavailable, Finished
 
 
 @job_handler("create_execution_by_plan")
@@ -41,6 +42,20 @@ def create_execution_by_command(plan_id: int, check_suite_id: int, payload: dict
 def ci_job_status(bamboo_ci_ref: str, ci_job_id: int) -> None:
     with session_scope() as session:
         tasks.ci_job_status(session, bamboo_ci_ref, ci_job_id)
+
+
+@job_handler("finished_execution")
+def finished_execution(payload: dict[str, Any]) -> None:
+    with session_scope() as session:
+        status, _body = Finished(session, payload).finished()
+    if status == 503:
+        raise BambooUnavailable(f"Bamboo unavailable while finishing {payload.get('bamboo_ref')}")
+
+
+@job_handler("retry_execution")
+def retry_execution(kind: str, payload: dict[str, Any]) -> None:
+    with session_scope() as session:
+        retry.run(session, kind, payload)
 
 
 @job_handler("timeout_execution")

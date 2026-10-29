@@ -31,4 +31,4 @@ podman exec netdef-converge sh -c 'RELEASE=second /test/converge.sh > /tmp/run3.
 podman exec netdef-converge sh -c 'RELEASE=second /test/converge.sh > /tmp/run4.log 2>&1'; recap /tmp/run4.log
 echo "== 4) rollback"
 podman exec netdef-converge sh -c 'cd /ansible && ANSIBLE_CONFIG=/ansible/ansible.cfg ansible-playbook -i /test/inventory.yml playbooks/rollback.yml -e @/test/vault.yml -e netdef_ci_env=development -e netdef_ci_listen_port=9292 -e netdef_ci_web_workers=2 > /tmp/run5.log 2>&1'; recap /tmp/run5.log
-podman exec netdef-converge sh -c 'readlink /opt/netdef-ci/current; curl -fsS http://127.0.0.1:9292/readyz; echo; systemctl is-active netdef-ci-web netdef-ci-worker-q0-3'
+podman exec netdef-converge sh -c 'readlink /opt/netdef-ci/current; curl -fsS http://127.0.0.1:9292/readyz; echo; systemctl is-active netdef-ci-web netdef-ci-worker-q0-1'

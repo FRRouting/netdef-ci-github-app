@@ -141,7 +141,7 @@ class CreateExecutionByPlan:
         self.log.info("Stopping previous execution %s", last.id)
         for ci_job in last.running_jobs():
             self.log.warning("Cancelling Job %s", ci_job.id)
-            ci_job.cancelled(self.github)
+            ci_job.cancelled(self.github, commit=False)
         last.stopped_in_stage_id = getattr(_last_in_progress_stage(self.session, last), "id", None)
         self.session.commit()
         for stage in [s for s in last.stages if s.state in (Status.QUEUED, Status.IN_PROGRESS)]:
@@ -232,9 +232,9 @@ class RerunBase:
         else:
             check_suite.cancelled_previous_check_suite_id = self.last_check_suite.id
             self.last_check_suite.stopped_in_stage_id = stage
-        self.session.commit()
         for ci_job in [j for j in check_suite.ci_jobs if j.state != Status.SKIPPED]:
-            ci_job.cancelled(self.github)
+            ci_job.cancelled(self.github, commit=False)
+        self.session.commit()
         # A rerun reuses the commit, so an open stage finished later by a late Bamboo callback would create a newer
         # check run with the same name and hide the queued one of the new execution.
         github = container.github(check_suite)
@@ -277,6 +277,7 @@ class RerunBase:
             )
             return
         Action(check_suite, self.github, jobs, plan.name).create_summary(rerun=True)
+        running_plans: dict[str | None, list[str | None]] = {}
         for suite in list(
             self.session.scalars(
                 select(CheckSuite)
@@ -284,7 +285,7 @@ class RerunBase:
                 .order_by(CheckSuite.id)
             )
         ):
-            UnavailableJobs(suite).update(new_check_suite=check_suite)
+            UnavailableJobs(suite).update(new_check_suite=check_suite, running_plans=running_plans)
 
     def copy_check_suite(self, source: CheckSuite, pull_request: PullRequest | None = None) -> CheckSuite:
         suite = CheckSuite(
@@ -412,7 +413,7 @@ class CreateExecutionByComment(RerunBase):
         stmt = (
             select(CheckSuite)
             .join(PullRequest, CheckSuite.pull_request_id == PullRequest.id)
-            .where(CheckSuite.commit_sha_ref.ilike(f"{sha}%"), PullRequest.repository == self.repo)
+            .where(CheckSuite.commit_sha_ref.startswith(sha, autoescape=True), PullRequest.repository == self.repo)
             .order_by(CheckSuite.id.desc())
             .limit(1)
         )
@@ -429,18 +430,18 @@ class CreateExecutionByComment(RerunBase):
         from netdef_ci.services.commits import PullRequestCommit
 
         assert self.pr_id is not None and self.repo is not None
-        parser = PullRequestCommit(self.session, self.repo, self.pr_id)
-        commit = parser.find_by_sha(self.sha)
-        if not (commit and re.search(r"ci:rerun\s+#", self.action, re.I)):
-            commit = parser.last_commit_in_pr()
-        if commit is None:
-            return None
+        commit = PullRequestCommit(self.session, self.repo, self.pr_id).find_by_sha(self.sha)
         github = container.github(self.pull_request.last_check_suite())
         info = github.pull_request_info(self.pr_id, self.repo)
+        # Without an explicit sha: the head of the PR is its last commit (no paging through the commit list).
+        explicit = commit and re.search(r"ci:rerun\s+#", self.action, re.I)
+        sha = commit["sha"] if commit and explicit else dig(info, "head", "sha")
+        if not sha:
+            return None
         check_suite = CheckSuite(
             pull_request_id=self.pull_request.id,
             author=dig(self.payload, "comment", "user", "login"),
-            commit_sha_ref=commit["sha"],
+            commit_sha_ref=sha,
             work_branch=dig(info, "head", "ref"),
             base_sha_ref=dig(info, "base", "sha"),
             merge_branch=dig(info, "base", "ref"),

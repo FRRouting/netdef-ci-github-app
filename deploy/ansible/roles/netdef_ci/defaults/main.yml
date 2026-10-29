@@ -35,16 +35,28 @@ netdef_ci_listen_host: 0.0.0.0
 netdef_ci_listen_port: 4667
 netdef_ci_web_workers: 4
 # One systemd unit per entry. Numeric queues are chosen by pull request id (github_pr_id % 10) so every update of a PR is
-# processed by the same worker. Each named queue has its own worker: creating an execution can wait for Bamboo for up
-# to ~2 minutes, and must not be held behind (or hold) the timeout and topotest jobs or the other creation flows.
+# processed by the same worker; never list a numeric queue in two units. Each named queue has its own worker: creating
+# an execution can wait for Bamboo for up to ~2 minutes, and must not be held behind (or hold) the timeout and topotest
+# jobs or the other creation flows.
+# The flows that start Bamboo plans are split into `netdef_ci_execution_queue_partitions` queues `<name>_<k>`
+# (github_pr_id % N), one unit each: executions of different PRs start in parallel, those of one PR stay in order.
+# The list below must name every partition (`_0` .. `_<N-1>`) when the number of partitions changes.
 # Worker units that are no longer listed here are stopped and removed on the next deploy.
+netdef_ci_execution_queue_partitions: 2
 netdef_ci_job_workers:
-  - {name: q0-3, queues: "0,1,2,3"}
-  - {name: q4-6, queues: "4,5,6"}
-  - {name: q7-9, queues: "7,8,9"}
-  - {name: create-by-plan, queues: "create_execution_by_plan"}
-  - {name: create-by-comment, queues: "create_execution_by_comment"}
-  - {name: create-by-command, queues: "create_execution_by_command"}
+  - {name: q0-1, queues: "0,1"}
+  - {name: q2-3, queues: "2,3"}
+  - {name: q4-5, queues: "4,5"}
+  - {name: q6-7, queues: "6,7"}
+  - {name: q8-9, queues: "8,9"}
+  - {name: create-by-plan-0, queues: "create_execution_by_plan_0"}
+  - {name: create-by-plan-1, queues: "create_execution_by_plan_1"}
+  - {name: create-by-comment-0, queues: "create_execution_by_comment_0"}
+  - {name: create-by-comment-1, queues: "create_execution_by_comment_1"}
+  - {name: create-by-command-0, queues: "create_execution_by_command_0"}
+  - {name: create-by-command-1, queues: "create_execution_by_command_1"}
+  - {name: retry-0, queues: "retry_execution_0"}
+  - {name: retry-1, queues: "retry_execution_1"}
   - {name: timeout, queues: "timeout_execution"}
   - {name: topotest, queues: "fetch_topotest_failures"}
 # Periodic tasks (systemd timers). Choose the calendar that fits your reconciliation needs.

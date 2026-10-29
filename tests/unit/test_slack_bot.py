@@ -41,7 +41,7 @@ def rec() -> Recorder:
 
 @pytest.fixture
 def bot(rec) -> SlackBot:
-    return SlackBot(get_settings(), transport=httpx.MockTransport(rec))
+    return SlackBot(get_settings(), transport=httpx.MockTransport(rec), asynchronous=False)
 
 
 def subscribe(session, w, target, user, notification=None, rule="notify") -> None:
@@ -115,3 +115,61 @@ def test_delivery_failures_never_raise_and_are_counted(session, bot, rec) -> Non
 def test_username_translation(bot, rec) -> None:
     assert bot.find_user_id_by_name("alice") == "U123"
     assert str(rec.requests[0].url) == "https://slack-bot.example.test/github/translate/alice"
+
+
+def test_lookups_are_memoized_until_the_next_commit(session, bot, rec) -> None:
+    from sqlalchemy import event
+
+    w = f.World(session)
+    subscribe(session, w, w.pr.github_pr_id, "U1", notification="all")
+    statements: list[str] = []
+    engine = session.get_bind()
+    listener = lambda *args: statements.append(args[2])  # noqa: E731
+    event.listen(engine, "before_cursor_execute", listener)
+    try:
+        for _ in range(3):
+            bot.notify_success(w.build_job)
+        assert len(rec.bodies()) == 3
+        assert len(statements) == 2  # last suite + subscriptions, once for the three notifications
+        session.commit()  # a new unit of work reads them again
+        bot.notify_success(w.build_job)
+        assert len(statements) == 4
+    finally:
+        event.remove(engine, "before_cursor_execute", listener)
+
+
+def test_notifications_are_sent_in_the_background_in_order(session) -> None:
+    import threading
+
+    release = threading.Event()
+    sent: list[str] = []
+
+    def slow_bot(request: httpx.Request) -> httpx.Response:
+        release.wait(5)  # the bot is slow: the caller must not wait for it
+        sent.append(json.loads(request.content)["slack_user_id"])
+        return httpx.Response(200, json={})
+
+    w = f.World(session)
+    for user in ("U1", "U2", "U3"):
+        subscribe(session, w, w.pr.github_pr_id, user)
+    bot = SlackBot(get_settings(), transport=httpx.MockTransport(slow_bot))
+    bot.execution_started_notification(w.suite)  # returns while the first post is still blocked
+    assert sent == []
+    release.set()
+    assert bot.flush(5)
+    assert sent == ["U1", "U2", "U3"]
+
+
+def test_flush_reports_notifications_left_behind(session) -> None:
+    import threading
+
+    stuck = threading.Event()
+    bot = SlackBot(
+        get_settings(), transport=httpx.MockTransport(lambda _r: stuck.wait(5) and httpx.Response(200, json={}))
+    )
+    w = f.World(session)
+    subscribe(session, w, w.pr.github_pr_id, "U1")
+    bot.execution_started_notification(w.suite)
+    assert bot.flush(0.05) is False
+    stuck.set()
+    assert bot.flush(5)

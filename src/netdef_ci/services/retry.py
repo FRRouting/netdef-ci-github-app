@@ -19,6 +19,8 @@ from sqlalchemy.orm import Session
 from netdef_ci import container, metrics
 from netdef_ci.config import get_settings
 from netdef_ci.enums import Status
+from netdef_ci.jobs import queue as jobs_queue
+from netdef_ci.jobs.locks import pull_request_lock
 from netdef_ci.logs import Log
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, PullRequestSubscription, Stage, StageConfiguration
 from netdef_ci.services.common import find_pull_request
@@ -65,13 +67,15 @@ class BuildRetry:
             if ci_job.stage is None or ci_job.stage.configuration is None or not ci_job.stage.configuration.can_retry:
                 continue
             self.log.warning("Enqueue CiJob: %s", ci_job.id)
-            ci_job.enqueue(self.github)
+            ci_job.enqueue(self.github, commit=False)
             ci_job.retry = (ci_job.retry or 0) + 1
             self.audit_retry.ci_jobs.append(ci_job)
-            self.session.commit()
+        self.session.commit()
 
 
 class RetryBase:
+    KIND = ""  # `retry_execution` job argument that rebuilds this class (see `run`)
+
     def __init__(self, session: Session, payload: dict[str, Any]) -> None:
         self.session = session
         self.payload = payload
@@ -80,7 +84,7 @@ class RetryBase:
         self.comment_id: int | None = None
         self.log = Log("github_retry")
 
-    def start(self) -> Response:
+    def _refusal(self) -> Response | None:
         if not self.payload:
             return 422, "Payload can not be blank"
         self.log.debug("Running stage %s", self.stage.id if self.stage else None)
@@ -88,6 +92,31 @@ class RetryBase:
             return 404, "Stage not found"
         if self.stage.state in (Status.QUEUED, Status.IN_PROGRESS):
             return 406, "Already enqueued this execution"
+        return None
+
+    def schedule(self) -> Response:
+        """Webhook side: answer the requests that cannot be retried right away and leave the retry (Bamboo stop and
+        restart, check runs, Slack) to a `retry_execution` job; it restarts a Bamboo plan, so it runs only once."""
+        refusal = self._refusal()
+        if refusal is not None:
+            return refusal
+        assert self.stage is not None
+        suite = self.stage.check_suite
+        pr_id = suite.pull_request.github_pr_id if suite is not None and suite.pull_request is not None else None
+        jobs_queue.enqueue(
+            self.session,
+            "retry_execution",
+            [self.KIND, self.payload],
+            queue=jobs_queue.execution_queue("retry_execution", pr_id),
+            max_attempts=1,
+        )
+        return 200, "Retry scheduled"
+
+    def start(self) -> Response:
+        refusal = self._refusal()
+        if refusal is not None:
+            return refusal
+        assert self.stage is not None
         self.check_suite = self.stage.check_suite
         assert self.check_suite is not None
         if self.check_suite.is_in_progress():
@@ -175,6 +204,8 @@ class RetryBase:
 class RetryCommand(RetryBase):
     """check_run `rerequested` (Re-run button of a single check run)."""
 
+    KIND = "command"
+
     def __init__(self, session: Session, payload: dict[str, Any]) -> None:
         super().__init__(session, payload)
         check_ref = dig(payload, "check_run", "id")
@@ -186,6 +217,8 @@ class RetryCommand(RetryBase):
 
 class RetryComment(RetryBase):
     """`ci:retry` comment."""
+
+    KIND = "comment"
 
     def __init__(self, session: Session, payload: dict[str, Any]) -> None:
         super().__init__(session, payload)
@@ -205,5 +238,24 @@ class RetryComment(RetryBase):
         self._reaction(self.comment_id, up=output[0] not in (404, 406, 422))
         return output
 
+    def schedule(self) -> Response:
+        output = super().schedule()
+        if output[0] in (404, 406, 422):  # refused now; the job reacts to the outcome of a scheduled retry
+            self._reaction(self.comment_id, up=False)
+        return output
 
-__all__ = ["CiJob", "RetryCommand", "RetryComment"]
+
+def run(session: Session, kind: str, payload: dict[str, Any]) -> Response:
+    """`retry_execution` job: the retry itself, serialized with the executions of the same pull request."""
+    retry: RetryBase = {RetryCommand.KIND: RetryCommand, RetryComment.KIND: RetryComment}[kind](session, payload)
+    suite = retry.stage.check_suite if retry.stage is not None else None
+    if suite is None or suite.pull_request_id is None:
+        output = retry.start()
+    else:
+        with pull_request_lock(suite.pull_request_id):
+            output = retry.start()
+    retry.log.info("Retry (%s) finished with %s", kind, output)
+    return output
+
+
+__all__ = ["CiJob", "RetryCommand", "RetryComment", "run"]

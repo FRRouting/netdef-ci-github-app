@@ -96,7 +96,9 @@ def _worker(args: argparse.Namespace) -> int:
     from netdef_ci.jobs import handlers  # noqa: F401 - registers handlers
     from netdef_ci.jobs.queue import Worker
 
-    init_engine()
+    settings = get_settings()
+    # One job at a time: the web-sized pool would only keep idle connections open on the database.
+    init_engine(pool_size=settings.worker_db_pool_size, max_overflow=1)
     metrics.cleanup_stale_metric_files()
     queues = [q.strip() for q in args.queues.split(",") if q.strip()] or None
     worker = Worker(queues=queues)

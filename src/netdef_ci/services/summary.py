@@ -41,8 +41,8 @@ class Summary:
         self.log.info("build_summary: stage %s job %s", current.id, self.job.id)
         if current.state == Status.CANCELLED:
             return
-        self._update_summary(current)
-        self._finished_summary(current)
+        output = self._update_summary(current)
+        self._finished_summary(current, output)
         self._must_cancel_next_stages(current)
         self._must_continue_next_stage(current)
         self._sync_previous_stages_with_bamboo(current)
@@ -149,16 +149,18 @@ class Summary:
         self.log.info("cancelling_next_stage - pending_stage: %s", pending.id)
         pending.cancelled(self.github, output=output)
         for job in pending.all_jobs():
-            job.cancelled(self.github)
+            job.cancelled(self.github, commit=False)
+        self.session.commit()
 
-    def _finished_summary(self, stage: Stage) -> None:
+    def _finished_summary(self, stage: Stage, output: dict[str, str]) -> None:
         if self.job.state == Status.IN_PROGRESS or stage.is_running():
             return
-        self._finished_stage_summary(stage)
+        self._finished_stage_summary(stage, output)
 
-    def _finished_stage_summary(self, stage: Stage) -> None:
-        url = self.settings.browse_url(self.check_suite.bamboo_ci_ref)
-        output = {"title": f"{stage.name} summary", "summary": self.formatter.summary_with_footer(stage, url)}
+    def _finished_stage_summary(self, stage: Stage, output: dict[str, str] | None = None) -> None:
+        """`output`: the summary just formatted for this stage, when its jobs did not change since."""
+        if output is None:
+            output = self._stage_output(stage)
         if not stage.failed_jobs():
             self.log.warning("Stage: %s finished - success", stage.name)
             stage.success(self.github, output=output, agent=self.agent)
@@ -167,12 +169,18 @@ class Summary:
             stage.failure(self.github, output=output, agent=self.agent)
         stage.update_execution_time()
 
-    def _update_summary(self, stage: Stage) -> None:
+    def _stage_output(self, stage: Stage) -> dict[str, str]:
         url = self.settings.browse_url(self.check_suite.bamboo_ci_ref)
-        output = {"title": f"{stage.name} summary", "summary": self.formatter.summary_with_footer(stage, url)}
+        return {"title": f"{stage.name} summary", "summary": self.formatter.summary_with_footer(stage, url)}
+
+    def _update_summary(self, stage: Stage) -> dict[str, str]:
+        output = self._stage_output(stage)
         self.log.warning("Updating stage: %s to in_progress", stage.name)
-        stage.in_progress(self.github, output=output)
-        stage.update_output(self.github, output=output)
+        if stage.state == Status.IN_PROGRESS:
+            stage.update_output(self.github, output=output)
+        else:
+            stage.in_progress(self.github, output=output)  # already sends this output with the new status
+        return output
 
     def _fetch_parent_stage(self) -> Stage:
         jobs = container.bamboo().running_plan(self.check_suite.bamboo_ci_ref)

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import re
+import reprlib
 import time
 from collections.abc import Callable, Iterable
 from datetime import timedelta
@@ -142,6 +143,15 @@ def _booted_web_workers() -> int:
     directory = Path(os.environ["PROMETHEUS_MULTIPROC_DIR"])
     pids = {m.group(1) for p in directory.glob("gauge_livesum_*.db") if (m := re.search(r"_(\d+)\.db$", p.name))}
     return sum(1 for pid in pids if _alive(int(pid)))
+
+
+# Job arguments may hold whole webhook payloads: a bounded repr keeps the label cheap to build.
+_ARGS_REPR = reprlib.Repr(maxlevel=2, maxdict=4, maxlist=4, maxstring=40, maxother=40)
+
+
+def _job_args_label(args: list[Any]) -> str:
+    text = ", ".join(_ARGS_REPR.repr(a) if isinstance(a, dict | list) else str(a) for a in args)
+    return text if len(text) <= 80 else f"{text[:77]}..."
 
 
 _SQL_OPS = {"SELECT", "INSERT", "UPDATE", "DELETE"}
@@ -285,13 +295,15 @@ class DatabaseCollector:
             for family, values in counts:
                 for queue in sorted(queues):
                     family.add_metric([queue], values.get(queue, 0))
+            # One series per job: bounded to the jobs that run soonest, so a long queue cannot flood Prometheus.
             for job in session.scalars(
-                select(Job).where(Job.run_at > now, Job.locked_at.is_(None), Job.failed_at.is_(None))
+                select(Job)
+                .where(Job.run_at > now, Job.locked_at.is_(None), Job.failed_at.is_(None))
+                .order_by(Job.run_at, Job.id)
+                .limit(settings.metrics_jobs_table_limit)
             ):
-                args = ", ".join(str(a) for a in job.args)
-                args = args if len(args) <= 80 else f"{args[:77]}..."
                 table.add_metric(
-                    [str(job.id), str(job.queue or ""), job.handler, args, job.run_at.isoformat()],
+                    [str(job.id), str(job.queue or ""), job.handler, _job_args_label(job.args), job.run_at.isoformat()],
                     job.run_at.timestamp(),
                 )
             since = now - timedelta(hours=settings.ci_metrics_window_hours)
