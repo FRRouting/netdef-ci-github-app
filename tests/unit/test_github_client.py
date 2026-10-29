@@ -85,23 +85,43 @@ def test_requests_use_installation_token_and_api_headers(suite, mock_api) -> Non
     assert sent.headers["x-github-api-version"] == "2022-11-28"
 
 
-def test_github_calls_are_logged_to_github_http_log(suite, mock_api, settings, monkeypatch, tmp_path) -> None:
+@pytest.fixture
+def github_http_log(settings, monkeypatch, tmp_path):
     import logging
 
     monkeypatch.setattr(settings, "log_dir", str(tmp_path))
     logger = logging.getLogger("netdef_ci.github_http")
     monkeypatch.setattr(logger, "handlers", [])
     monkeypatch.setattr(logger, "propagate", True)
+
+    def lines() -> list[str]:
+        for handler in logger.handlers:
+            handler.flush()
+        return (tmp_path / "github_http.log").read_text().splitlines()
+
+    return lines
+
+
+def test_github_calls_are_logged_with_their_pull_request(suite, mock_api, github_http_log) -> None:
+    pr = suite.pull_request.github_pr_id
     mock_api.get(f"{API}/repos/org/repo/pulls/5").respond(404)
+    mock_api.get(f"{API}/repos/{suite.pull_request.repository}/check-runs/9").respond(200, json={"id": 9})
+    github = make(suite)
     with pytest.raises(gh.GithubNotFound):
-        make(suite).pull_request_info(5, "org/repo")
-    for handler in logger.handlers:
-        handler.close()
-    lines = (tmp_path / "github_http.log").read_text().splitlines()
-    assert lines[0].endswith(f"INFO GET {API}/app/installations -> 200")
-    assert lines[1].endswith(f"INFO POST {API}/app/installations/7/access_tokens -> 201")
-    assert lines[2].endswith(f"WARNING GET {API}/repos/org/repo/pulls/5 -> 404")
+        github.pull_request_info(5, "org/repo")
+    github.get_check_run(9)
+    lines = github_http_log()
+    assert lines[0].endswith(f"INFO [PR {pr}] GET {API}/app/installations -> 200")
+    assert lines[1].endswith(f"INFO [PR {pr}] POST {API}/app/installations/7/access_tokens -> 201")
+    assert lines[2].endswith(f"WARNING [PR 5] GET {API}/repos/org/repo/pulls/5 -> 404")
+    assert lines[3].endswith(f"INFO [PR {pr}] GET {API}/repos/{suite.pull_request.repository}/check-runs/9 -> 200")
     assert "ghs_tokentoken" not in "".join(lines)
+
+
+def test_github_calls_without_a_pull_request_are_logged_as_unknown(mock_api, github_http_log) -> None:
+    mock_api.get(f"{API}/users/octocat").respond(200, json={"login": "octocat"})
+    GithubCheck(None, get_settings(), client=httpx.Client(), sleep=lambda _s: None).fetch_username("octocat")
+    assert github_http_log()[-1].endswith(f"INFO [PR -] GET {API}/users/octocat -> 200")
 
 
 def test_create_check_run_posts_name_and_head_sha(suite, mock_api) -> None:

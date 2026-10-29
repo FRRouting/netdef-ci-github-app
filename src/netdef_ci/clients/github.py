@@ -23,7 +23,7 @@ import jwt
 from netdef_ci import metrics
 from netdef_ci.clients.http import Sleeper, request_with_retries
 from netdef_ci.config import GitHubAppConfig, Settings
-from netdef_ci.logs import Log, github_http_logger
+from netdef_ci.logs import Log, PullRequestAdapter, github_http_logger
 
 Json = dict[str, Any]
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
@@ -73,7 +73,7 @@ class AppAuth:
         payload = {"iat": now - 60, "exp": now + JWT_LIFETIME_SECONDS, "iss": self.config.login}
         return jwt.encode(payload, self._private_key, algorithm="RS256")
 
-    def _call(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    def _call(self, method: str, path: str, http_log: PullRequestAdapter | None, **kwargs: Any) -> httpx.Response:
         headers = {"Authorization": f"Bearer {self.app_jwt()}", **_base_headers()}
         return request_with_retries(
             self._client,
@@ -81,29 +81,30 @@ class AppAuth:
             f"{self.settings.github_api_url}{path}",
             max_retries=self.settings.github_max_retries,
             sleep=self._sleep,
-            logger=github_http_logger(),
+            logger=http_log or github_http_logger(),
             headers=headers,
             **kwargs,
         )
 
-    def installation_id(self) -> int:
+    def installation_id(self, http_log: PullRequestAdapter | None = None) -> int:
         if self._installation_id is None:
-            response = self._call("GET", "/app/installations")
+            response = self._call("GET", "/app/installations", http_log)
             _raise_for_status(response)
             installations = response.json()
             self._installation_id = int(installations[0]["id"]) if installations else 0
         return self._installation_id
 
-    def token(self) -> str | None:
-        """Installation token (None when the App has no installation); renewed 5 minutes before expiry."""
+    def token(self, http_log: PullRequestAdapter | None = None) -> str | None:
+        """Installation token (None when the App has no installation); renewed 5 minutes before expiry. `http_log`
+        tags the token calls with the pull request whose request needed them."""
         with self._lock:
             now = datetime.now(UTC)
             if self._token and self._expires_at and now < self._expires_at - TOKEN_REFRESH_MARGIN:
                 return self._token
-            installation = self.installation_id()
+            installation = self.installation_id(http_log)
             if installation == 0:
                 return None
-            response = self._call("POST", f"/app/installations/{installation}/access_tokens")
+            response = self._call("POST", f"/app/installations/{installation}/access_tokens", http_log)
             _raise_for_status(response)
             data = response.json()
             self._token = data["token"]
@@ -175,6 +176,7 @@ class GithubCheck:
         self._sleep = sleep
         self._client = client or httpx.Client(timeout=settings.http_timeout_seconds)
         self._auth: AppAuth | None = None
+        self._pr_id: int | None = getattr(getattr(check_suite, "pull_request", None), "github_pr_id", None)
         self._authenticate()
 
     # ------------------------------------------------------------------ authentication
@@ -190,7 +192,7 @@ class GithubCheck:
         for config in candidates:
             try:
                 auth = get_app_auth(config, self.settings, self._client, self._sleep)
-                if auth.token() is not None:
+                if auth.token(github_http_logger(self._pr_id)) is not None:
                     self._auth = auth
                     return
             except Exception as error:
@@ -200,10 +202,12 @@ class GithubCheck:
         raise GithubAuthError("Github Authentication Failed")
 
     # ------------------------------------------------------------------ transport
-    def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+    def _request(self, method: str, path: str, *, pr_id: int | None = None, **kwargs: Any) -> Any:
+        """`pr_id` overrides the check suite's pull request in `github_http.log` (calls that name a pull request)."""
         assert self._auth is not None
+        http_log = github_http_logger(pr_id if pr_id is not None else self._pr_id)
         for attempt in (0, 1):
-            token = self._auth.token()
+            token = self._auth.token(http_log)
             headers = {"Authorization": f"Bearer {token}", **_base_headers()}
             response = request_with_retries(
                 self._client,
@@ -211,7 +215,7 @@ class GithubCheck:
                 f"{self.settings.github_api_url}{path}",
                 max_retries=self.settings.github_max_retries,
                 sleep=self._sleep,
-                logger=github_http_logger(),
+                logger=http_log,
                 headers=headers,
                 **kwargs,
             )
@@ -229,10 +233,12 @@ class GithubCheck:
 
     # ------------------------------------------------------------------ reads
     def pull_request_info(self, pr_id: int, repo: str) -> Json:
-        return self._request("GET", f"/repos/{repo}/pulls/{pr_id}")
+        return self._request("GET", f"/repos/{repo}/pulls/{pr_id}", pr_id=pr_id)
 
     def fetch_pull_request_commits(self, pr_id: int, repo: str, page: int) -> list[Json]:
-        return self._request("GET", f"/repos/{repo}/pulls/{pr_id}/commits", params={"per_page": 100, "page": page})
+        return self._request(
+            "GET", f"/repos/{repo}/pulls/{pr_id}/commits", pr_id=pr_id, params={"per_page": 100, "page": page}
+        )
 
     def pull_requests(self, repo: str, state: str = "open") -> list[Json]:
         return self._request("GET", f"/repos/{repo}/pulls", params={"state": state, "per_page": 100})
@@ -255,14 +261,14 @@ class GithubCheck:
 
     def installation_id(self) -> int:
         assert self._auth is not None
-        return self._auth.installation_id()
+        return self._auth.installation_id(github_http_logger(self._pr_id))
 
     def signature(self) -> str:
         return self.settings.webhook_secret.get_secret_value()
 
     # ------------------------------------------------------------------ writes
     def add_comment(self, pr_id: int, comment: str, repo: str) -> Json:
-        return self._request("POST", f"/repos/{repo}/issues/{pr_id}/comments", json={"body": comment})
+        return self._request("POST", f"/repos/{repo}/issues/{pr_id}/comments", pr_id=pr_id, json={"body": comment})
 
     def comment_reaction_thumb_up(self, repo: str, comment_id: int) -> Json:
         return self._request("POST", f"/repos/{repo}/issues/comments/{comment_id}/reactions", json={"content": "+1"})
