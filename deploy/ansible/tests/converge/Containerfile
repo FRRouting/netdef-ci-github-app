@@ -1,0 +1,7 @@
+FROM docker.io/library/debian:trixie
+ENV container=podman
+RUN apt-get update && apt-get install -y --no-install-recommends systemd systemd-sysv dbus ansible-core git sudo ca-certificates curl iproute2 procps logrotate \
+    && rm -rf /var/lib/apt/lists/* \
+    && systemctl mask systemd-logind.service getty.target console-getty.service
+STOPSIGNAL SIGRTMIN+3
+CMD ["/sbin/init"]

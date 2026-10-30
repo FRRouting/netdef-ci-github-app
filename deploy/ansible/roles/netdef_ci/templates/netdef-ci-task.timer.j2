@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Runs NetDEF CI GitHub App task {{ item.key }}
+
+[Timer]
+OnCalendar={{ item.value.on_calendar }}
+Persistent=true
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

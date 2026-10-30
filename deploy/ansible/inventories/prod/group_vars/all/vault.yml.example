@@ -1,0 +1,23 @@
+---
+# Copy to vault.yml, fill in and encrypt:   ansible-vault encrypt inventories/prod/group_vars/all/vault.yml
+# Every value below is a FICTITIOUS placeholder.
+vault_netdef_ci_database_url: "postgresql+psycopg://netdef_ci:CHANGE_ME@localhost:5432/githubruns-prod"
+vault_netdef_ci_webhook_secret: "CHANGE_ME_long_random_value"
+vault_netdef_ci_metrics_username: "prometheus"
+vault_netdef_ci_metrics_password: "CHANGE_ME"
+# Bamboo REST API account (REQUIRED for the CI to start plans; without it Bamboo answers 401).
+# Keep the double quotes: passwords may contain characters such as ^ ! # : that YAML would otherwise interpret.
+vault_netdef_ci_bamboo_username: "ci-bot"
+vault_netdef_ci_bamboo_password: "CHANGE_ME"
+# Slack bot (optional: leave the three values out to disable Slack notifications and commands).
+vault_netdef_ci_slack_bot_url: "https://slack-bot.example.invalid"
+vault_netdef_ci_slack_bot_username: "slack-bot"
+vault_netdef_ci_slack_bot_password: "CHANGE_ME"
+# One entry per GitHub App; private_key is the PEM text (use a YAML block scalar).
+vault_netdef_ci_github_apps:
+  - login: "1234567"
+    repo: "example-org/example-repo"
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      REPLACE_WITH_THE_APP_PRIVATE_KEY
+      -----END RSA PRIVATE KEY-----

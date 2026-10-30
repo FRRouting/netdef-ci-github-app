@@ -1,0 +1,105 @@
+---
+# --- identity / layout -------------------------------------------------------------------------------------------
+netdef_ci_env: development            # development | production
+netdef_ci_user: netdef-ci             # unprivileged service account (no login shell, no sudo)
+netdef_ci_group: netdef-ci
+netdef_ci_home: /var/lib/netdef-ci
+netdef_ci_base_dir: /opt/netdef-ci
+netdef_ci_releases_dir: "{{ netdef_ci_base_dir }}/releases"
+netdef_ci_current_link: "{{ netdef_ci_base_dir }}/current"
+netdef_ci_history_file: "{{ netdef_ci_base_dir }}/.release_history"
+netdef_ci_config_dir: /etc/netdef-ci
+netdef_ci_keys_dir: "{{ netdef_ci_config_dir }}/keys"
+netdef_ci_env_file: "{{ netdef_ci_config_dir }}/netdef-ci.env"
+netdef_ci_apps_file: "{{ netdef_ci_config_dir }}/github_apps.toml"
+netdef_ci_log_root: /var/log/netdef-ci
+netdef_ci_log_dir: "{{ netdef_ci_log_root }}/{{ 'prd' if netdef_ci_env == 'production' else 'dev' }}"
+netdef_ci_runtime_dir_name: netdef-ci   # /run/netdef-ci (holds the Prometheus multiprocess files)
+netdef_ci_keep_releases: 5
+
+# --- application source / version ----------------------------------------------------------------------------------
+# Select what to deploy with -e netdef_ci_version=<branch|tag|commit>.
+netdef_ci_source_strategy: git         # git | archive
+netdef_ci_repo_url: ""                 # git strategy: repository URL (placeholder in inventories)
+netdef_ci_version: ""                  # git strategy: branch, tag or commit
+netdef_ci_git_key_file: ""             # optional deploy key (path on the managed host)
+netdef_ci_source_archive: ""           # archive strategy: tar.gz built with `git archive` and copied to the host
+netdef_ci_release_id: ""               # archive strategy: identifier of the release directory
+
+# --- interpreter -----------------------------------------------------------------------------------------------------
+netdef_ci_python_version: "3.15.2"
+netdef_ci_python_bin: "/opt/python/{{ netdef_ci_python_version }}/bin/python{{ netdef_ci_python_version.split('.')[:2] | join('.') }}"
+
+# --- process model -----------------------------------------------------------------------------------------------------
+netdef_ci_listen_host: 0.0.0.0
+netdef_ci_listen_port: 4667
+netdef_ci_web_workers: 4
+# One systemd unit per entry. Numeric queues are chosen by pull request id (github_pr_id % 10) so every update of a PR is
+# processed by the same worker; never list a numeric queue in two units. Each named queue has its own worker: creating
+# an execution can wait for Bamboo for up to ~2 minutes, and must not be held behind (or hold) the timeout and topotest
+# jobs or the other creation flows.
+# The flows that start Bamboo plans are split into `netdef_ci_execution_queue_partitions` queues `<name>_<k>`
+# (github_pr_id % N), one unit each: executions of different PRs start in parallel, those of one PR stay in order.
+# The list below must name every partition (`_0` .. `_<N-1>`) when the number of partitions changes.
+# Worker units that are no longer listed here are stopped and removed on the next deploy.
+netdef_ci_execution_queue_partitions: 2
+netdef_ci_job_workers:
+  - {name: q0-1, queues: "0,1"}
+  - {name: q2-3, queues: "2,3"}
+  - {name: q4-5, queues: "4,5"}
+  - {name: q6-7, queues: "6,7"}
+  - {name: q8-9, queues: "8,9"}
+  - {name: create-by-plan-0, queues: "create_execution_by_plan_0"}
+  - {name: create-by-plan-1, queues: "create_execution_by_plan_1"}
+  - {name: create-by-comment-0, queues: "create_execution_by_comment_0"}
+  - {name: create-by-comment-1, queues: "create_execution_by_comment_1"}
+  - {name: create-by-command-0, queues: "create_execution_by_command_0"}
+  - {name: create-by-command-1, queues: "create_execution_by_command_1"}
+  - {name: retry-0, queues: "retry_execution_0"}
+  - {name: retry-1, queues: "retry_execution_1"}
+  - {name: timeout, queues: "timeout_execution"}
+  - {name: topotest, queues: "fetch_topotest_failures"}
+# Periodic tasks (systemd timers). Choose the calendar that fits your reconciliation needs.
+netdef_ci_timers:
+  watchdog: {enabled: true, on_calendar: "*:0/15"}
+  pr_sync: {enabled: false, on_calendar: "hourly"}
+netdef_ci_timer_commands:
+  watchdog: watch-dog
+  pr_sync: pr-bamboo-sync
+
+# --- configuration (non secret) ----------------------------------------------------------------------------------------
+# Extra/override environment variables (see .env.example for the complete list).
+netdef_ci_settings: {}
+netdef_ci_file_logging: true            # per-PR/main log files in netdef_ci_log_dir (rotated by logrotate); false = journald only
+netdef_ci_log_retention_days: 14
+# github_http.log (one line per GitHub API call: method, URL, HTTP status) is rotated by the app itself, not logrotate.
+netdef_ci_github_http_log_max_bytes: 1073741824                                    # 1 GiB
+netdef_ci_github_http_log_files: "{{ 5 if netdef_ci_env == 'production' else 1 }}"  # files kept, current one included
+
+# --- replay protection -------------------------------------------------------------------------------------------------
+# GitHub deliveries already processed are ignored for this long (a failed one stays redeliverable); ci:retry/ci:rerun
+# comments older than the window are refused. 0 disables both.
+netdef_ci_webhook_dedupe_ttl_seconds: 172800                  # 2 days
+# >0 requires a signed `timestamp` in each Bamboo callback and accepts each body once. Enable only after the Bamboo
+# notification script sends it (doc/04-configuration-and-environment.md).
+netdef_ci_bamboo_callback_max_age_seconds: 0
+
+# --- secrets (come from the Ansible Vault file of the inventory) -----------------------------------------------------------
+netdef_ci_database_url: "{{ vault_netdef_ci_database_url | default('') }}"
+netdef_ci_webhook_secret: "{{ vault_netdef_ci_webhook_secret | default('') }}"
+netdef_ci_metrics_username: "{{ vault_netdef_ci_metrics_username | default('') }}"
+netdef_ci_metrics_password: "{{ vault_netdef_ci_metrics_password | default('') }}"
+netdef_ci_bamboo_username: "{{ vault_netdef_ci_bamboo_username | default('') }}"
+netdef_ci_bamboo_password: "{{ vault_netdef_ci_bamboo_password | default('') }}"
+netdef_ci_slack_bot_url: "{{ vault_netdef_ci_slack_bot_url | default('') }}"
+netdef_ci_slack_bot_username: "{{ vault_netdef_ci_slack_bot_username | default('') }}"
+netdef_ci_slack_bot_password: "{{ vault_netdef_ci_slack_bot_password | default('') }}"
+netdef_ci_github_apps: "{{ vault_netdef_ci_github_apps | default([]) }}"
+
+# --- post-deploy verification --------------------------------------------------------------------------------------------
+netdef_ci_health_retries: 20
+netdef_ci_health_delay: 3
+netdef_ci_health_url: "http://127.0.0.1:{{ netdef_ci_listen_port }}"
+
+# Rollback: set to a release id (see {{ netdef_ci_history_file }}) to pick the target explicitly; default = previous release.
+netdef_ci_rollback_to: ""

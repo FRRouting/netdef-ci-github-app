@@ -1,0 +1,36 @@
+---
+netdef_ci_service_names: >-
+  {{ ['netdef-ci-web'] + (netdef_ci_job_workers | map(attribute='name') | map('regex_replace', '^', 'netdef-ci-worker-') | list) }}
+
+netdef_ci_env_base:
+  NETDEF_ENV: "{{ netdef_ci_env }}"
+  DATABASE_URL: "{{ netdef_ci_database_url }}"
+  WEBHOOK_SECRET: "{{ netdef_ci_webhook_secret }}"
+  GITHUB_APPS_FILE: "{{ netdef_ci_apps_file }}"
+  PROMETHEUS_MULTIPROC_DIR: "/run/{{ netdef_ci_runtime_dir_name }}/prometheus"
+  PYTHONPATH: "{{ netdef_ci_current_link }}/src"
+  PYTHONDONTWRITEBYTECODE: "1"
+  WEB_WORKERS: "{{ netdef_ci_web_workers }}"
+  EXECUTION_QUEUE_PARTITIONS: "{{ netdef_ci_execution_queue_partitions }}"
+  WEBHOOK_DEDUPE_TTL_SECONDS: "{{ netdef_ci_webhook_dedupe_ttl_seconds }}"
+  BAMBOO_CALLBACK_MAX_AGE_SECONDS: "{{ netdef_ci_bamboo_callback_max_age_seconds }}"
+
+netdef_ci_env_logging: >-
+  {{ {
+    'LOG_DIR': netdef_ci_log_dir,
+    'GITHUB_HTTP_LOG_MAX_BYTES': netdef_ci_github_http_log_max_bytes | string,
+    'GITHUB_HTTP_LOG_FILES': netdef_ci_github_http_log_files | string,
+  } if netdef_ci_file_logging else {} }}
+
+netdef_ci_env_optional_secrets: >-
+  {{ {
+    'METRICS_USERNAME': netdef_ci_metrics_username,
+    'METRICS_PASSWORD': netdef_ci_metrics_password,
+    'BAMBOO_USERNAME': netdef_ci_bamboo_username,
+    'BAMBOO_PASSWORD': netdef_ci_bamboo_password,
+    'SLACK_BOT_URL': netdef_ci_slack_bot_url,
+    'SLACK_BOT_USERNAME': netdef_ci_slack_bot_username,
+    'SLACK_BOT_PASSWORD': netdef_ci_slack_bot_password,
+  } | dict2items | rejectattr('value', 'equalto', '') | items2dict }}
+
+netdef_ci_env_vars: "{{ netdef_ci_env_base | combine(netdef_ci_env_logging, netdef_ci_env_optional_secrets, netdef_ci_settings) }}"

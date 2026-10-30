@@ -1,0 +1,12 @@
+---
+galaxy_info:
+  author: NetDEF
+  description: Installs and updates the NetDEF CI GitHub App (Python)
+  license: BSD-2-Clause
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [all]
+    - name: Ubuntu
+      versions: [all]
+dependencies: []

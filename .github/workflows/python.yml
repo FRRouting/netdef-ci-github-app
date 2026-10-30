@@ -1,0 +1,146 @@
+name: Python CI
+
+# Lint, type check and tests must pass before a branch version can be released.
+# Make the "CI passed" job a required status check in the branch protection rules.
+
+on:
+  push:
+    branches: ["master", "develop", "feature/**"]
+  pull_request:
+    branches: ["master", "develop"]
+  # `v*` tags run this workflow through release.yml, so no skipped "Release package" check shows up elsewhere.
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.15.2"
+
+jobs:
+  lint:
+    name: Lint and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install dependencies
+        run: "pip install --only-binary=:all: -r requirements-dev.txt"
+      - name: ruff check
+        run: ruff check src tests migrations scripts
+      - name: ruff format
+        run: ruff format --check src tests migrations scripts
+      - name: mypy
+        run: mypy src
+      - name: Markdown tables aligned
+        run: python scripts/align_md_tables.py --check
+
+  tests:
+    name: Unit and integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: githubruns-test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/githubruns-test
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install dependencies
+        run: "pip install --only-binary=:all: -r requirements-dev.txt"
+      - name: Check dependency consistency
+        run: pip check
+      - name: pytest (unit + integration, coverage >= 90 %)
+        run: pytest tests --cov --cov-report=term-missing --cov-report=xml
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: warn
+
+  smoke:
+    name: Smoke test (real processes)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [lint, tests]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: "pip install --only-binary=:all: -r requirements-dev.txt"
+      - name: Start API and workers and probe them
+        env:
+          SMOKE_ADMIN_URL: postgresql://postgres:postgres@127.0.0.1:5432/postgres
+        run: python scripts/smoke_test.py
+
+  ansible:
+    name: Ansible lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install ansible-lint
+        run: pip install ansible-lint
+      - name: ansible-lint (production profile) and syntax check
+        working-directory: deploy/ansible
+        run: |
+          ansible-lint
+          ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --syntax-check
+          ansible-playbook -i inventories/prod/hosts.yml playbooks/deploy.yml --syntax-check
+
+  ci-passed:
+    name: CI passed
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [lint, tests, smoke, ansible]
+    steps:
+      - name: Require every job to succeed
+        run: |
+          echo "lint=${{ needs.lint.result }} tests=${{ needs.tests.result }} smoke=${{ needs.smoke.result }} ansible=${{ needs.ansible.result }}"
+          test "${{ needs.lint.result }}" = success
+          test "${{ needs.tests.result }}" = success
+          test "${{ needs.smoke.result }}" = success
+          test "${{ needs.ansible.result }}" = success

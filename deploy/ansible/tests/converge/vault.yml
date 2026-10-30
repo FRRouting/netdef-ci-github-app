@@ -1,0 +1,13 @@
+---
+# FICTITIOUS values used only by the local convergence test (never use in a real environment).
+vault_netdef_ci_database_url: "postgresql+psycopg://postgres:postgres@127.0.0.1:55432/converge"
+vault_netdef_ci_webhook_secret: "converge-secret-0123456789"
+vault_netdef_ci_metrics_username: "prom"
+vault_netdef_ci_metrics_password: "prompass"
+vault_netdef_ci_github_apps:
+  - login: "1234567"
+    repo: "example-org/example-repo"
+    private_key: |
+      -----BEGIN RSA PRIVATE KEY-----
+      NOT-A-REAL-KEY
+      -----END RSA PRIVATE KEY-----

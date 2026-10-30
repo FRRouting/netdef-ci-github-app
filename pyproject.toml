@@ -1,0 +1,42 @@
+# Tool configuration only. Dependencies are managed exclusively through requirements.txt / requirements-dev.txt.
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra --strict-markers"
+markers = [
+    "pg: needs a PostgreSQL database (TEST_DATABASE_URL)",
+]
+
+[tool.coverage.run]
+source = ["src/netdef_ci"]
+branch = true
+omit = ["src/netdef_ci/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py315"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "T20", "SIM", "RUF"]
+ignore = ["S101", "S105", "S106", "RUF012", "E501", "B008", "S608"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "T20"]
+"migrations/*" = ["I", "UP", "E", "RUF"]
+"src/netdef_ci/cli/*" = ["T20"]
+"scripts/*" = ["T20", "S603"]
+
+[tool.mypy]
+python_version = "3.15"
+mypy_path = "src"
+ignore_missing_imports = true
+warn_unused_ignores = false
+check_untyped_defs = true
+exclude = ["migrations/"]

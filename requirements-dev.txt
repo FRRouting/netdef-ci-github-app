@@ -1,0 +1,20 @@
+# Development and test tooling (pinned). Includes the runtime dependencies.
+# httpx2 is what starlette.testclient (TestClient) asks for; the application itself uses httpx.
+-r requirements.txt
+ast_serialize==0.13.1
+coverage==7.17.0
+httpcore2==2.16.0
+httpx2==2.16.0
+iniconfig==2.3.1
+librt==0.16.0
+mypy==2.4.0
+mypy_extensions==1.1.0
+packaging==26.3
+pathspec==1.1.1
+pluggy==1.7.0
+Pygments==2.21.0
+pytest==9.1.1
+pytest-cov==7.1.0
+respx==0.23.1
+ruff==0.17.2
+truststore==0.10.5

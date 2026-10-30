@@ -1,0 +1,23 @@
+---
+# Non-secret settings of the PRODUCTION environment. Secrets live in vault.yml (see vault.yml.example).
+netdef_ci_env: production
+netdef_ci_version: REPLACE_WITH_RELEASE_TAG_OR_COMMIT   # production deploys must name an explicit tag/commit
+netdef_ci_repo_url: REPLACE_WITH_REPOSITORY_URL
+
+netdef_ci_listen_host: 0.0.0.0
+netdef_ci_listen_port: 4667                  # production port
+netdef_ci_web_workers: 4
+netdef_ci_keep_releases: 5
+
+netdef_ci_settings:
+  DEBUG: "false"
+  CI_URL: REPLACE_WITH_BAMBOO_HOST
+  BAMBOO_BASE_URL: https://127.0.0.1
+  BAMBOO_VERIFY_TLS: "false"
+  MULTI_PLAN: "false"
+  GITHUB_APP_NAME: NetDEF CI Hook
+
+# Choose the reconciliation schedules for production.
+netdef_ci_timers:
+  watchdog: {enabled: true, on_calendar: "*:0/15"}
+  pr_sync: {enabled: true, on_calendar: "hourly"}
