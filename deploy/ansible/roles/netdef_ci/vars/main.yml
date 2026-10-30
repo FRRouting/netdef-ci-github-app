@@ -12,6 +12,8 @@ netdef_ci_env_base:
   PYTHONDONTWRITEBYTECODE: "1"
   WEB_WORKERS: "{{ netdef_ci_web_workers }}"
   EXECUTION_QUEUE_PARTITIONS: "{{ netdef_ci_execution_queue_partitions }}"
+  WEBHOOK_DEDUPE_TTL_SECONDS: "{{ netdef_ci_webhook_dedupe_ttl_seconds }}"
+  BAMBOO_CALLBACK_MAX_AGE_SECONDS: "{{ netdef_ci_bamboo_callback_max_age_seconds }}"
 
 netdef_ci_env_logging: >-
   {{ {

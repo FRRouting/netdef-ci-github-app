@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import json
+import time
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -155,12 +157,12 @@ def test_retry_webhook_only_schedules_the_retry(api, session, bamboo) -> None:
 
 
 def test_unexpected_errors_are_500_json_without_details(api, monkeypatch) -> None:
-    from netdef_ci.web import app as app_module
+    from netdef_ci.web import webhooks
 
     def explode(*_a, **_k):
         raise RuntimeError("secret internals")
 
-    monkeypatch.setattr(app_module, "UpdateStatus", explode)
+    monkeypatch.setattr(webhooks, "UpdateStatus", explode)
     response = api.status({"status": "success", "bamboo_ref": "X"})
     assert response.status_code == 500 and response.json() == {"error": "Internal Server Error"}
     metrics = api.http.get("/metrics", headers=api.basic("metrics", "metricspass")).text
@@ -277,6 +279,87 @@ def test_duplicate_deliveries_are_ignored_only_when_enabled(api, session, settin
     )
     assert len(session.scalars(select(Job)).all()) == 1
     assert session.scalars(select(WebhookDelivery)).one().delivery_id == "dup-1"
+
+
+def test_a_failed_delivery_can_be_redelivered(api, session, settings, monkeypatch) -> None:
+    from netdef_ci.web import webhooks
+
+    monkeypatch.setattr(settings, "webhook_dedupe_ttl_seconds", 600)
+    original = webhooks.dispatch
+
+    def explode(*_a, **_k):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(webhooks, "dispatch", explode)
+    assert api.github("ping", {}, **{"X-GitHub-Delivery": "redo-1"}).status_code == 500
+    assert session.scalars(select(WebhookDelivery)).all() == []
+    monkeypatch.setattr(webhooks, "dispatch", original)
+    assert api.github("ping", {}, **{"X-GitHub-Delivery": "redo-1"}).text == "PONG!"
+    assert api.github("ping", {}, **{"X-GitHub-Delivery": "redo-1"}).text == "Duplicate delivery ignored"
+
+
+def test_comment_commands_older_than_the_dedupe_window_are_refused(api, settings, monkeypatch) -> None:
+    old = payloads.issue_comment("ci:rerun")
+    old["comment"]["created_at"] = "2020-01-01T00:00:00Z"
+    # Without de-duplication there is no replay window: the command is routed as before.
+    assert api.github("issue_comment", old).text == "Pull Request not found"
+    monkeypatch.setattr(settings, "webhook_dedupe_ttl_seconds", 600)
+    response = api.github("issue_comment", old)
+    assert (response.status_code, response.text) == (422, "Stale comment ignored")
+    fresh = payloads.issue_comment("ci:retry")
+    fresh["comment"]["created_at"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    assert api.github("issue_comment", fresh).text == "Stage not found"
+    old["comment"]["body"] = "just talking"
+    assert api.github("issue_comment", old).text == "Just a comment"
+
+
+def test_callback_timestamp_is_only_required_when_configured(api, settings, monkeypatch) -> None:
+    assert api.status({"status": "success", "bamboo_ref": "X-1"}).text == "CI JOB not found"
+    monkeypatch.setattr(settings, "bamboo_callback_max_age_seconds", 300)
+    for stamp in (None, "now", True, time.time() - 301, time.time() + 301):
+        payload = {"status": "success", "bamboo_ref": "X-1", **({} if stamp is None else {"timestamp": stamp})}
+        response = api.status(payload)
+        assert (response.status_code, response.text) == (401, "Stale or missing timestamp"), stamp
+    assert api.status({"status": "success", "bamboo_ref": "X-1", "timestamp": int(time.time())}).status_code == 404
+
+
+def test_a_replayed_callback_is_ignored(api, session, settings, monkeypatch) -> None:
+    monkeypatch.setattr(settings, "bamboo_callback_max_age_seconds", 300)
+    w = f.World(session)
+    payload = {"status": "in_progress", "bamboo_ref": w.build_job.job_ref, "timestamp": int(time.time())}
+    assert api.status(payload).text == "Success"
+    assert api.status(payload).text == "Duplicate callback ignored"
+    row = session.scalars(select(WebhookDelivery)).one()
+    assert row.event == "bamboo_callback" and row.delivery_id.startswith("bamboo:")
+
+
+def test_a_failed_callback_can_be_sent_again(api, settings, monkeypatch) -> None:
+    from netdef_ci.web import webhooks
+
+    monkeypatch.setattr(settings, "bamboo_callback_max_age_seconds", 300)
+    original = webhooks.UpdateStatus
+
+    def explode(*_a, **_k):
+        raise RuntimeError("boom")
+
+    payload = {"status": "success", "bamboo_ref": "X-1", "timestamp": int(time.time())}
+    monkeypatch.setattr(webhooks, "UpdateStatus", explode)
+    assert api.status(payload).status_code == 500
+    monkeypatch.setattr(webhooks, "UpdateStatus", original)
+    assert api.status(payload).text == "CI JOB not found"
+
+
+def test_github_and_callback_records_expire_independently(api, session, settings, monkeypatch) -> None:
+    from netdef_ci.db import utcnow
+
+    monkeypatch.setattr(settings, "bamboo_callback_max_age_seconds", 300)
+    assert api.status({"status": "success", "bamboo_ref": "X-1", "timestamp": int(time.time())}).status_code == 404
+    session.query(WebhookDelivery).update({"received_at": utcnow() - timedelta(seconds=400)})
+    session.commit()
+    monkeypatch.setattr(settings, "webhook_dedupe_ttl_seconds", 60)
+    api.github("ping", {}, **{"X-GitHub-Delivery": "keep-callbacks"})  # GitHub cleanup: older than 60 s
+    events = sorted(row.event for row in session.scalars(select(WebhookDelivery)))
+    assert events == ["bamboo_callback", "ping"]  # the callback row lives for 2 x 300 s
 
 
 # ---------------------------------------------------------------------------- Slack

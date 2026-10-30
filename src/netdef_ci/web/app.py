@@ -25,10 +25,8 @@ from netdef_ci.config import get_settings
 from netdef_ci.db import get_engine, init_engine, session_factory, session_scope
 from netdef_ci.jobs import handlers as _handlers  # noqa: F401  (registers job handlers)
 from netdef_ci.logs import Log, configure_logging
-from netdef_ci.security import check_basic, verify_hmac
+from netdef_ci.security import check_basic, is_fresh, verify_hmac
 from netdef_ci.services import slack_commands
-from netdef_ci.services.finished import schedule_finished
-from netdef_ci.services.update_status import UpdateStatus
 from netdef_ci.web import webhooks
 
 log = Log("github_app")
@@ -195,13 +193,15 @@ def create_app(*, init_database: bool = True) -> FastAPI:
         payload = _parse_object(raw)
         if payload is None:
             return _text(400, "Invalid JSON payload", "application/json")
+        max_age = settings.bamboo_callback_max_age_seconds
+        if max_age and not is_fresh(payload.get("timestamp"), max_age, time.time()):
+            log.warning("Callback with a missing or stale timestamp rejected: ref=%s", payload.get("bamboo_ref"))
+            return _text(401, "Stale or missing timestamp", "application/json")
         log.info("Received event UpdateStatus: status=%s ref=%s", payload.get("status"), payload.get("bamboo_ref"))
 
         def work() -> tuple[int, str]:
             with session_scope() as session:
-                if payload.get("status") == "finished":
-                    return schedule_finished(session, payload)
-                return UpdateStatus(session, payload).update()
+                return webhooks.process_callback(session, raw, payload, max_age)
 
         status, body = await run_in_threadpool(work)
         return _text(status, body, "application/json")
@@ -263,10 +263,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
 
         def work() -> tuple[int, str]:
             with session_scope() as session:
-                if not webhooks.register_delivery(session, delivery, event):
-                    log.warning("Duplicate delivery %s ignored", delivery)
-                    return 200, "Duplicate delivery ignored"
-                return webhooks.dispatch(session, event, payload)
+                return webhooks.process(session, delivery, event, payload)
 
         status, body = await run_in_threadpool(work)
         return _text(status, body)

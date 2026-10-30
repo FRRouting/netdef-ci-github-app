@@ -76,6 +76,14 @@ netdef_ci_log_retention_days: 14
 netdef_ci_github_http_log_max_bytes: 1073741824                                    # 1 GiB
 netdef_ci_github_http_log_files: "{{ 5 if netdef_ci_env == 'production' else 1 }}"  # files kept, current one included
 
+# --- replay protection -------------------------------------------------------------------------------------------------
+# GitHub deliveries already processed are ignored for this long (a failed one stays redeliverable); ci:retry/ci:rerun
+# comments older than the window are refused. 0 disables both.
+netdef_ci_webhook_dedupe_ttl_seconds: 172800                  # 2 days
+# >0 requires a signed `timestamp` in each Bamboo callback and accepts each body once. Enable only after the Bamboo
+# notification script sends it (doc/04-configuration-and-environment.md).
+netdef_ci_bamboo_callback_max_age_seconds: 0
+
 # --- secrets (come from the Ansible Vault file of the inventory) -----------------------------------------------------------
 netdef_ci_database_url: "{{ vault_netdef_ci_database_url | default('') }}"
 netdef_ci_webhook_secret: "{{ vault_netdef_ci_webhook_secret | default('') }}"

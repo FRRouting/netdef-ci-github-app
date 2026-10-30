@@ -50,10 +50,12 @@ curl -sS https://ci.example.invalid/githubcheck -H 'Content-Type: application/js
 
 ## Bamboo callback (`POST /update/status`)
 
-Payload: `status` (`in_progress` | `success` | `failure` | `finished` | other → treated as failure), `bamboo_ref` (job or plan key), optional `failures` (`[{suite, case, message, execution_time}]`) and `output.summary`.
+Payload: `status` (`in_progress` | `success` | `failure` | `finished` | other → treated as failure), `bamboo_ref` (job or plan key), optional `failures` (`[{suite, case, message, execution_time}]`), `output.summary` and `timestamp` (Unix seconds; required when `BAMBOO_CALLBACK_MAX_AGE_SECONDS > 0`, see 04).
 
 | Situation                                                                                                                     | Response                                                                                      |
 |-------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|
+| missing or out-of-window `timestamp` (only with `BAMBOO_CALLBACK_MAX_AGE_SECONDS > 0`)                                        | `401 Stale or missing timestamp`                                                              |
+| body already processed (only with `BAMBOO_CALLBACK_MAX_AGE_SECONDS > 0`)                                                      | `200 Duplicate callback ignored`                                                              |
 | unknown job                                                                                                                   | `404 CI JOB not found`                                                                        |
 | job `queued` and status ≠ `in_progress` (except the `Checkout Code` job) or job `in_progress` and status ∉ {success, failure} | `304 Not Modified` (no body)                                                                  |
 | updated                                                                                                                       | `200 Success`                                                                                 |

@@ -49,6 +49,8 @@ What the role installs (Debian/Ubuntu with systemd — the current infrastructur
 | same                                        | `netdef_ci_timers`             | schedules equivalent to the current cron                                   |
 | `vault.yml` (encrypted)                     | `vault_netdef_ci_*`            | database, webhook secret (≥ 16 characters), GitHub Apps passwords and keys |
 
+Replay protection: the role sets `WEBHOOK_DEDUPE_TTL_SECONDS` from `netdef_ci_webhook_dedupe_ttl_seconds` (2 days) and `BAMBOO_CALLBACK_MAX_AGE_SECONDS` from `netdef_ci_bamboo_callback_max_age_seconds` (`0`). Raise the latter (for example to `300`) only after the Bamboo notification script sends the signed `timestamp` ([04](04-configuration-and-environment.md)).
+
 ## Secrets with Ansible Vault
 
 ```bash
