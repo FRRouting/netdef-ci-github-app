@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     # --- webhook / callback authentication -------------------------------------------------
     webhook_secret: SecretStr = Field(SecretStr(""), alias="WEBHOOK_SECRET")
     webhook_dedupe_ttl_seconds: int = Field(0, alias="WEBHOOK_DEDUPE_TTL_SECONDS", ge=0)
+    # Bamboo callbacks must carry a signed `timestamp` (Unix seconds) at most this far from now and are accepted once;
+    # 0 = not required (callbacks without a timestamp keep working).
+    bamboo_callback_max_age_seconds: int = Field(0, alias="BAMBOO_CALLBACK_MAX_AGE_SECONDS", ge=0)
     metrics_username: str | None = Field(None, alias="METRICS_USERNAME")
     metrics_password: SecretStr | None = Field(None, alias="METRICS_PASSWORD")
 

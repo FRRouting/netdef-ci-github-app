@@ -11,7 +11,7 @@ from __future__ import annotations
 import base64
 
 from netdef_ci.config import Credentials
-from netdef_ci.security import check_basic, compute_signature, parse_basic, verify_hmac
+from netdef_ci.security import check_basic, compute_signature, is_fresh, parse_basic, verify_hmac
 
 SECRET = "s3cret"
 BODY = b'{"a": 1}'
@@ -63,3 +63,11 @@ def test_basic_auth_helpers() -> None:
     assert not check_basic("Bearer abc", Credentials("user", "pa:ss"))
     assert not check_basic("Basic !!!", Credentials("user", "pa:ss"))
     assert not check_basic(None, Credentials("user", "pa:ss"))
+
+
+def test_freshness_accepts_only_numeric_timestamps_inside_the_window() -> None:
+    now = 1_000_000.0
+    assert is_fresh(now - 300, 300, now) and is_fresh(now + 300, 300, now) and is_fresh(int(now), 300, now)
+    assert not is_fresh(now - 301, 300, now) and not is_fresh(now + 301, 300, now)
+    for invalid in (None, "1000000", True, [now]):
+        assert not is_fresh(invalid, 300, now)

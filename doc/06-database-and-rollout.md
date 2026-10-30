@@ -8,7 +8,7 @@ The service uses a single PostgreSQL database. The schema is defined by the SQLA
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|
 | Domain tables (13) | `organizations`, `github_users`, `pull_requests`, `pull_request_subscriptions`, `plans`, `check_suites`, `stages`, `ci_jobs`, `stage_configurations`, `audit_statuses`, `audit_retries`, `audit_retries_ci_jobs`, `topotest_failures` | `0001_initial_schema` |
 | Background queue   | `jobs` (JSON payloads, queue, priority, `run_at`, attempts, lock and failure columns)                                                                                                                                                 | `0002_python_tables`  |
-| Deduplication      | `webhook_deliveries` (stays empty while `WEBHOOK_DEDUPE_TTL_SECONDS=0`)                                                                                                                                                               | `0002_python_tables`  |
+| Deduplication      | `webhook_deliveries` (GitHub deliveries and Bamboo callbacks; stays empty while `WEBHOOK_DEDUPE_TTL_SECONDS` and `BAMBOO_CALLBACK_MAX_AGE_SECONDS` are `0`)                                                                           | `0002_python_tables`  |
 | Versioning         | `alembic_version`                                                                                                                                                                                                                     | Alembic               |
 
 Status values are stored as integers (`queued` 0 … `skipped` -3) and audit rows use `auditable_type` (`CiJob`/`Stage`).
@@ -37,7 +37,7 @@ Schema changes are made only through new Alembic revisions.
 - Back up the database with `pg_dump -Fc <database> > backup-<date>.dump` before every release that includes a migration, and on a regular schedule.
 - The `jobs` table only holds transient work. After a restore, pending jobs are re-created by the watch dog and the execution timeout; `purge-jobs` clears the queue if stale jobs are not wanted.
 - Timestamps are stored as naive UTC in `timestamp without time zone` columns.
-- `webhook_deliveries` rows expire after `WEBHOOK_DEDUPE_TTL_SECONDS` and can be removed at any time.
+- `webhook_deliveries` rows expire after `WEBHOOK_DEDUPE_TTL_SECONDS` (GitHub) or twice `BAMBOO_CALLBACK_MAX_AGE_SECONDS` (Bamboo, `event = bamboo_callback`). Removing them reopens the replay window of the deliveries they recorded.
 
 ## First rollout
 

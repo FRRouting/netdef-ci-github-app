@@ -44,6 +44,13 @@ def verify_hmac(secret: str, body: bytes, signature_header: str | None) -> AuthR
     return AuthResult(True)
 
 
+def is_fresh(timestamp: object, max_age: int, now: float) -> bool:
+    """True when `timestamp` (Unix seconds, from the signed body) is at most `max_age` seconds away from `now`."""
+    if isinstance(timestamp, bool) or not isinstance(timestamp, int | float):
+        return False
+    return abs(now - timestamp) <= max_age
+
+
 def parse_basic(header: str | None) -> tuple[str, str] | None:
     if not header or not header.startswith("Basic "):
         return None
