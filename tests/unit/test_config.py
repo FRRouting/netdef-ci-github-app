@@ -49,5 +49,17 @@ def test_credentials_prefer_env_then_netrc(tmp_path: Path, monkeypatch: pytest.M
     assert make(BAMBOO_USERNAME="env", BAMBOO_PASSWORD="p").bamboo_credentials().username == "env"  # type: ignore[union-attr]
 
 
+def test_bamboo_token_counts_as_credentials_and_blank_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    for name in ("BAMBOO_USERNAME", "BAMBOO_PASSWORD"):
+        monkeypatch.delenv(name)
+    assert make().bamboo_bearer_token() is None and not make().bamboo_auth_configured()
+    assert make(BAMBOO_TOKEN="  ").bamboo_bearer_token() is None
+    assert make(BAMBOO_TOKEN="pat").bamboo_bearer_token() == "pat" and make(BAMBOO_TOKEN="pat").bamboo_auth_configured()
+    assert "pat" not in repr(make(BAMBOO_TOKEN="pat"))
+
+
 def test_secrets_are_not_leaked_by_repr() -> None:
     assert "topsecret" not in repr(make(WEBHOOK_SECRET="topsecret"))

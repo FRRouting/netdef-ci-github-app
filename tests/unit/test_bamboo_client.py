@@ -54,6 +54,15 @@ def test_submit_sends_branch_repo_shas_and_signature_secret(session, router, cli
     assert request.headers["authorization"] == expected
 
 
+def test_personal_access_token_replaces_basic_auth(router, settings, monkeypatch) -> None:
+    from pydantic import SecretStr
+
+    monkeypatch.setattr(settings, "bamboo_token", SecretStr("pat-123"))
+    route = router.post(f"{BASE}/rest/api/latest/result/PROJ-1/comment").respond(200)
+    BambooClient(settings).add_comment_to_ci("PROJ-1", "x")
+    assert route.calls.last.request.headers["authorization"] == "Bearer pat-123"
+
+
 def test_comment_body_is_xml_escaped(router, client) -> None:
     route = router.post(f"{BASE}/rest/api/latest/result/PROJ-1/comment").respond(200)
     client.add_comment_to_ci("PROJ-1", "a <b> & `c`")
@@ -149,11 +158,31 @@ def test_stop_plan_repeats_until_bamboo_reports_the_execution_stopped(router, cl
 
 
 def test_stop_plan_gives_up_after_three_attempts(router, client, caplog) -> None:
-    get, post, _ = _stop_routes(router, "PROJ-PLAN-4", get_status=500, post_status=500, states=("InProgress",) * 3)
+    # Every attempt: GET and POST refused, REST stop (queue DELETE + job list) and the state check.
+    states = ("InProgress",) * 6
+    get, post, _ = _stop_routes(router, "PROJ-PLAN-4", get_status=500, post_status=500, states=states)
+    rest = router.delete(f"{BASE}/rest/api/latest/queue/PROJ-PLAN-4").respond(500)
     with caplog.at_level("INFO"):
         assert client.stop_plan("PROJ-PLAN-4").status_code == 500
-    assert get.call_count == 3 and post.call_count == 3 and len(client.slept) == 2
+    assert get.call_count == 3 and post.call_count == 3 and rest.call_count == 3 and len(client.slept) == 2
     assert "stop_plan for PROJ-PLAN-4: still running after 3 attempts" in caplog.text
+
+
+def test_stop_plan_falls_back_to_the_rest_api_and_stops_each_job(router, client, caplog) -> None:
+    login = {"Location": f"{BASE}/userlogin!doDefault.action"}
+    get = router.get(f"{BASE}/build/admin/stopPlan.action").respond(302, headers=login)
+    post = router.post(f"{BASE}/build/admin/stopPlan.action").respond(302, headers=login)
+    jobs = {"stages": {"stage": [{"results": {"result": [{"key": "PROJ-PLAN-JOB1-6"}, {"key": "PROJ-PLAN-JOB2-6"}]}}]}}
+    router.get(f"{BASE}/rest/api/latest/result/PROJ-PLAN-6").mock(
+        side_effect=[httpx.Response(200, json=jobs), httpx.Response(200, json={"lifeCycleState": "Finished"})]
+    )
+    plan = router.delete(f"{BASE}/rest/api/latest/queue/PROJ-PLAN-6").respond(204)
+    job1 = router.delete(f"{BASE}/rest/api/latest/queue/PROJ-PLAN-JOB1-6").respond(204)
+    job2 = router.delete(f"{BASE}/rest/api/latest/queue/PROJ-PLAN-JOB2-6").respond(204)
+    with caplog.at_level("INFO"):
+        assert client.stop_plan("PROJ-PLAN-6").status_code == 204
+    assert get.call_count == post.call_count == plan.call_count == job1.call_count == job2.call_count == 1
+    assert "stop_plan REST for PROJ-PLAN-6 answered HTTP 204 (2 job(s) stopped)" in caplog.text
 
 
 def test_stop_plan_redirect_to_login_is_not_a_stop(router, client, caplog) -> None:
@@ -161,8 +190,10 @@ def test_stop_plan_redirect_to_login_is_not_a_stop(router, client, caplog) -> No
     router.get(f"{BASE}/build/admin/stopPlan.action").respond(302, headers=login)
     post = router.post(f"{BASE}/build/admin/stopPlan.action").respond(302, headers=login)
     router.get(f"{BASE}/rest/api/latest/result/PROJ-PLAN-5").respond(200, json={"lifeCycleState": "Finished"})
+    rest = router.delete(f"{BASE}/rest/api/latest/queue/PROJ-PLAN-5").respond(204)
     with caplog.at_level("INFO"):
         client.stop_plan("PROJ-PLAN-5")
+    assert rest.call_count == 1  # both actions refused: the REST stop is sent
     assert "PROJ-PLAN-5 answered HTTP 302 (Location: https://127.0.0.1/userlogin!doDefault.action)" in caplog.text
     assert any(r.levelname == "WARNING" for r in caplog.records)
     assert post.call_count == 1  # a GET sent to the login page is not a stop, so the POST is tried

@@ -33,9 +33,18 @@
 - name: Warn when the Bamboo credentials are missing
   ansible.builtin.debug:
     msg: >-
-      vault_netdef_ci_bamboo_username/password are not set: the service will call Bamboo anonymously and every request
-      will fail with 401 unless the service account has a ~/.netrc entry. Verify with: python -m netdef_ci check-bamboo
-  when: netdef_ci_bamboo_username | length == 0 or netdef_ci_bamboo_password | length == 0
+      None of vault_netdef_ci_bamboo_client_id/client_secret, vault_netdef_ci_bamboo_token or
+      vault_netdef_ci_bamboo_username/password is set: the service will call Bamboo anonymously and every request
+      will fail with 401 unless the service user has a ~/.netrc entry. Verify with: python -m netdef_ci check-bamboo
+  when: >-
+    (netdef_ci_bamboo_client_id | length == 0 or netdef_ci_bamboo_client_secret | length == 0)
+    and netdef_ci_bamboo_token | length == 0
+    and (netdef_ci_bamboo_username | length == 0 or netdef_ci_bamboo_password | length == 0)
+
+- name: Fail when only half of the Bamboo service account is set
+  ansible.builtin.assert:
+    that: (netdef_ci_bamboo_client_id | length == 0) == (netdef_ci_bamboo_client_secret | length == 0)
+    fail_msg: "vault_netdef_ci_bamboo_client_id and vault_netdef_ci_bamboo_client_secret must be set together."
 
 - name: Check the interpreter built by the python_runtime role
   ansible.builtin.stat:

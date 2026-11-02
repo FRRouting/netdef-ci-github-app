@@ -25,6 +25,8 @@ from netdef_ci.db import init_engine, session_scope
 from netdef_ci.logs import configure_logging
 from netdef_ci.models import GithubUser, Organization
 
+BAMBOO_AUTH_OPTIONS = "BAMBOO_CLIENT_ID/SECRET, BAMBOO_TOKEN, BAMBOO_USERNAME/PASSWORD or ~/.netrc"
+
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="netdef_ci", description="NetDEF CI GitHub App")
@@ -195,8 +197,14 @@ def _check_bamboo(args: argparse.Namespace) -> int:
     settings = get_settings()
     client = container.bamboo()
     print(f"Bamboo: {settings.bamboo_base_url} (TLS verification: {settings.bamboo_verify_tls})")
-    if settings.bamboo_credentials() is None:
-        print("warning: no Bamboo credentials (BAMBOO_USERNAME/PASSWORD or ~/.netrc); requests are anonymous")
+    if settings.bamboo_service_account():
+        print("Authentication: service account (BAMBOO_CLIENT_ID/BAMBOO_CLIENT_SECRET)")
+    elif settings.bamboo_bearer_token():
+        print("Authentication: personal access token (BAMBOO_TOKEN)")
+    elif settings.bamboo_credentials() is not None:
+        print("Authentication: Basic (BAMBOO_USERNAME/PASSWORD or ~/.netrc)")
+    else:
+        print(f"warning: no Bamboo credentials ({BAMBOO_AUTH_OPTIONS}); requests are anonymous")
     probes = [("server info", "/rest/api/latest/info")]
     if args.plan:
         probes.append((f"plan {args.plan}", f"/rest/api/latest/plan/{args.plan}"))
@@ -208,14 +216,24 @@ def _check_bamboo(args: argparse.Namespace) -> int:
         start = time.monotonic()
         try:
             response = client._send("GET", path, headers={"Accept": "application/json"})
-            code, detail = response.status_code, ""
+            code = response.status_code
+            detail = response.text if code == 403 else ""
         except Exception as error:
             code, detail = None, f"{type(error).__name__}: {error}"
         elapsed = int((time.monotonic() - start) * 1000)
         ok = code is not None and code < 400
         failed += 0 if ok else 1
         hint = {401: " (credentials missing or wrong)", 403: " (not allowed)", 404: " (not found)"}.get(code or 0, "")
+        if code == 403 and "basic authentication" in detail.lower():
+            hint = " (Basic Authentication is disabled on Bamboo: use a service account or BAMBOO_TOKEN)"
         print(f"{'ok  ' if ok else 'FAIL'} {label}: {code if code else detail}{hint} [{elapsed} ms]")
+        account = client.service_account
+        if account is not None and label == "server info":
+            if account.last_error:
+                failed += 1
+                print(f"FAIL service account token: {account.last_error}")
+            else:
+                print(f"ok   service account token (scope: {account.granted_scope or '-'})")
     if args.result:
         jobs = client.running_plan(args.result)
         print(f"     jobs found in {args.result}: {len(jobs)}")
@@ -239,8 +257,10 @@ def _check_config(_: argparse.Namespace) -> int:
     for app in apps:
         if not Path(app.cert).is_file():
             problems.append(f"private key of app {app.login} not found: {app.cert}")
-    if settings.bamboo_credentials() is None:
-        problems.append("Bamboo credentials not found (BAMBOO_USERNAME/PASSWORD or ~/.netrc)")
+    if settings.bamboo_service_account_incomplete():
+        problems.append("BAMBOO_CLIENT_ID and BAMBOO_CLIENT_SECRET must be set together")
+    elif not settings.bamboo_auth_configured():
+        problems.append(f"Bamboo credentials not found ({BAMBOO_AUTH_OPTIONS})")
     if not settings.slack_bot_url:
         print("warning: SLACK_BOT_URL not set; Slack notifications are disabled")
     try:
