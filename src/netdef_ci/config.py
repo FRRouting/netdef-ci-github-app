@@ -77,6 +77,13 @@ class Settings(BaseSettings):
     bamboo_verify_tls: bool = Field(False, alias="BAMBOO_VERIFY_TLS")
     bamboo_username: str | None = Field(None, alias="BAMBOO_USERNAME")
     bamboo_password: SecretStr | None = Field(None, alias="BAMBOO_PASSWORD")
+    # Personal access token (Bearer); when set it replaces username/password, for Bamboo with Basic Auth disabled.
+    bamboo_token: SecretStr | None = Field(None, alias="BAMBOO_TOKEN")
+    # Bamboo 12 service account (OAuth 2.0 client credentials); when set it replaces the token and username/password.
+    bamboo_client_id: str | None = Field(None, alias="BAMBOO_CLIENT_ID")
+    bamboo_client_secret: SecretStr | None = Field(None, alias="BAMBOO_CLIENT_SECRET")
+    # Sent as the `scope` of the token request when not empty (e.g. "WRITE"); empty = not sent.
+    bamboo_oauth_scope: str = Field("", alias="BAMBOO_OAUTH_SCOPE")
     bamboo_netrc_machine: str = Field("ci1.netdef.org", alias="BAMBOO_NETRC_MACHINE")
     ci_url: str = Field("ci1.netdef.org", alias="CI_URL")
     multi_plan: bool = Field(False, alias="MULTI_PLAN")
@@ -141,6 +148,30 @@ class Settings(BaseSettings):
 
     def bamboo_credentials(self) -> Credentials | None:
         return _credentials(self.bamboo_username, self.bamboo_password, self.bamboo_netrc_machine)
+
+    def bamboo_bearer_token(self) -> str | None:
+        token = self.bamboo_token.get_secret_value().strip() if self.bamboo_token is not None else ""
+        return token or None
+
+    def bamboo_service_account(self) -> tuple[str, str] | None:
+        """(client id, client secret) when both are set."""
+        client_id = (self.bamboo_client_id or "").strip()
+        secret = self.bamboo_client_secret.get_secret_value().strip() if self.bamboo_client_secret is not None else ""
+        return (client_id, secret) if client_id and secret else None
+
+    def bamboo_service_account_incomplete(self) -> bool:
+        has_id = bool((self.bamboo_client_id or "").strip())
+        has_secret = self.bamboo_client_secret is not None and bool(
+            self.bamboo_client_secret.get_secret_value().strip()
+        )
+        return has_id != has_secret
+
+    def bamboo_auth_configured(self) -> bool:
+        return (
+            self.bamboo_service_account() is not None
+            or self.bamboo_bearer_token() is not None
+            or self.bamboo_credentials() is not None
+        )
 
     def slack_credentials(self) -> Credentials | None:
         return _credentials(self.slack_bot_username, self.slack_bot_password, self.slack_bot_netrc_machine)

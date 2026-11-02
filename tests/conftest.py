@@ -35,6 +35,8 @@ os.environ.update(
     }
 )
 os.environ.pop("DATABASE_URL", None)
+for _name in ("BAMBOO_TOKEN", "BAMBOO_CLIENT_ID", "BAMBOO_CLIENT_SECRET", "BAMBOO_OAUTH_SCOPE"):
+    os.environ.pop(_name, None)
 
 import pytest  # noqa: E402
 from cryptography.hazmat.primitives import serialization  # noqa: E402

@@ -17,6 +17,7 @@ from xml.sax.saxutils import escape
 import httpx
 
 from netdef_ci import metrics
+from netdef_ci.clients.bamboo_auth import ServiceAccountAuth
 from netdef_ci.clients.http import Sleeper
 from netdef_ci.config import Settings
 from netdef_ci.logs import Log
@@ -39,10 +40,21 @@ class BambooClient:
     ) -> None:
         self.settings = settings
         self._sleep = sleep
-        credentials = settings.bamboo_credentials()
-        self._auth = (credentials.username, credentials.password) if credentials else None
+        # Service account, then personal access token, then username/password: Bamboo may have Basic Auth disabled.
+        account = settings.bamboo_service_account()
+        token = None if account else settings.bamboo_bearer_token()
+        credentials = None if account or token else settings.bamboo_credentials()
+        self.service_account: ServiceAccountAuth | None = None
+        if account:
+            self.service_account = ServiceAccountAuth(
+                settings.bamboo_base_url, *account, scope=settings.bamboo_oauth_scope.strip() or None
+            )
+        self._auth: httpx.Auth | tuple[str, str] | None = self.service_account or (
+            (credentials.username, credentials.password) if credentials else None
+        )
         self._client = httpx.Client(
             base_url=settings.bamboo_base_url,
+            headers={"Authorization": f"Bearer {token}"} if token else None,
             verify=settings.bamboo_verify_tls,
             timeout=settings.http_timeout_seconds,
             transport=transport,
@@ -185,10 +197,27 @@ class BambooClient:
             )
         return response
 
+    def _stop_plan_rest(self, bamboo_ci_ref: str) -> httpx.Response | None:
+        """REST stop, for when `stopPlan.action` is refused (tokens and service accounts only authenticate on REST
+        endpoints). The queue DELETE of the execution only stops it while it waits in the queue, so the DELETE is also
+        sent to each of its jobs, which stops the ones already running."""
+        response = self._write("DELETE", f"/rest/api/latest/queue/{bamboo_ci_ref}")
+        jobs = [job["job_ref"] for job in self.running_plan(bamboo_ci_ref) if job["job_ref"]]
+        for job_ref in jobs:
+            self._write("DELETE", f"/rest/api/latest/queue/{job_ref}")
+        self.log.info(
+            "stop_plan REST for %s answered HTTP %s (%s job(s) stopped)",
+            bamboo_ci_ref,
+            response.status_code if response is not None else "-",
+            len(jobs),
+        )
+        return response
+
     def stop_plan(self, bamboo_ci_ref: str | None) -> httpx.Response | None:
         """Stop an execution, up to STOP_PLAN_ATTEMPTS times until Bamboo reports it stopped. Each attempt sends the
-        Ruby app's `GET stopPlan.action` and, when Bamboo refuses it (its XSRF check answers 500), the same action as
-        a `POST`."""
+        Ruby app's `GET stopPlan.action`; when Bamboo refuses it (its XSRF check answers 500), the same action as a
+        `POST`; and when that is refused too (e.g. a redirect to the login page under token authentication), the stop
+        through the REST API."""
 
         def call() -> httpx.Response | None:
             response: httpx.Response | None = None
@@ -196,6 +225,8 @@ class BambooClient:
                 response = self._stop_plan_request(bamboo_ci_ref, "GET")
                 if response is None or not _stop_accepted(response):
                     response = self._stop_plan_request(bamboo_ci_ref, "POST")
+                if bamboo_ci_ref and (response is None or not _stop_accepted(response)):
+                    response = self._stop_plan_rest(bamboo_ci_ref) or response
                 if not bamboo_ci_ref or self.is_stopped(bamboo_ci_ref):
                     return response
                 if attempt < STOP_PLAN_ATTEMPTS:

@@ -122,6 +122,63 @@ def test_check_bamboo_reports_each_probe(clients, capsys) -> None:
     assert "jobs found in PROJ-PLAN-1: 0" in out
 
 
+def test_check_bamboo_explains_disabled_basic_auth(clients, capsys) -> None:
+    import httpx
+
+    from netdef_ci import container
+    from netdef_ci.clients.bamboo import BambooClient
+    from netdef_ci.config import get_settings
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"message": "Basic Authentication has been disabled on this instance."})
+
+    container.override(bamboo=BambooClient(get_settings(), transport=httpx.MockTransport(handler)))
+    assert main(["check-bamboo"]) == 1
+    out = capsys.readouterr().out
+    assert "Authentication: Basic" in out
+    assert (
+        "FAIL server info: 403 (Basic Authentication is disabled on Bamboo: use a service account or BAMBOO_TOKEN)"
+        in out
+    )
+
+
+def test_check_bamboo_reports_the_service_account_token(clients, capsys, settings, monkeypatch) -> None:
+    import httpx
+    from pydantic import SecretStr
+
+    from netdef_ci import container
+    from netdef_ci.clients.bamboo import BambooClient
+
+    monkeypatch.setattr(settings, "bamboo_client_id", "cid")
+    monkeypatch.setattr(settings, "bamboo_client_secret", SecretStr("csecret"))
+    token_status = {"code": 200}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/oauth2/latest/token"):
+            if token_status["code"] != 200:
+                return httpx.Response(
+                    token_status["code"], json={"errors": ["Please ensure that your server is using HTTPS"]}
+                )
+            return httpx.Response(200, json={"access_token": "t", "expires_in": 3600, "scope": "WRITE"})
+        return httpx.Response(200 if request.headers.get("authorization") == "Bearer t" else 401, json={})
+
+    container.override(bamboo=BambooClient(settings, transport=httpx.MockTransport(handler)))
+    assert main(["check-bamboo"]) == 0
+    out = capsys.readouterr().out
+    assert "Authentication: service account" in out and "ok   service account token (scope: WRITE)" in out
+    token_status["code"] = 400
+    container.override(bamboo=BambooClient(settings, transport=httpx.MockTransport(handler)))
+    assert main(["check-bamboo"]) == 1
+    assert "FAIL service account token: HTTP 400" in capsys.readouterr().out
+
+
+def test_check_config_rejects_half_a_service_account(session, monkeypatch, settings, capsys) -> None:
+    monkeypatch.setattr(settings, "bamboo_client_id", "cid")
+    monkeypatch.setattr(settings, "bamboo_client_secret", None)
+    assert main(["check-config"]) == 1
+    assert "BAMBOO_CLIENT_ID and BAMBOO_CLIENT_SECRET must be set together" in capsys.readouterr().err
+
+
 def test_check_bamboo_reports_connection_errors(clients, capsys) -> None:
     import httpx
 

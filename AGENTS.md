@@ -1,6 +1,6 @@
 # AGENTS.md — guide for AI agents and contributors
 
-Project: **netdef-ci-github-app-python**, a standalone Python service (a GitHub App that
+Project: **netdef-ci-github-app**, a standalone Python service (a GitHub App that
 connects Pull Requests to Bamboo CI). Design notes and deliberate behaviours are recorded in
 `doc/07-design-notes.md`.
 
