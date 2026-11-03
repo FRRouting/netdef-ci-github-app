@@ -15,7 +15,7 @@ import pytest
 from pydantic import SecretStr
 
 from netdef_ci.clients.bamboo import BambooClient
-from netdef_ci.clients.bamboo_auth import ServiceAccountAuth
+from netdef_ci.clients.bamboo_auth import ServiceAccountAuth, response_summary, scope_set
 from netdef_ci.config import Settings
 
 BASE = "https://127.0.0.1"
@@ -32,6 +32,8 @@ class FakeBamboo:
         self.accept_tokens = True
         self.token_forms: list[dict[str, list[str]]] = []
         self.api_auth: list[str | None] = []
+        self.granted = "WRITE"
+        self.refusal = httpx.Response(401)
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         if str(request.url) == TOKEN_URL:
@@ -42,12 +44,12 @@ class FakeBamboo:
             token = f"tok-{self.issued}"
             self.valid.add(token)
             return httpx.Response(
-                200, json={"access_token": token, "token_type": "bearer", "expires_in": 3600, "scope": "WRITE"}
+                200, json={"access_token": token, "token_type": "bearer", "expires_in": 3600, "scope": self.granted}
             )
         auth = request.headers.get("authorization")
         self.api_auth.append(auth)
         if not self.accept_tokens or auth is None or auth.removeprefix("Bearer ") not in self.valid:
-            return httpx.Response(401)
+            return self.refusal
         return httpx.Response(200, json={"ok": True})
 
 
@@ -135,3 +137,53 @@ def test_incomplete_service_account_falls_back(settings: Settings, monkeypatch) 
     monkeypatch.setattr(settings, "bamboo_client_secret", None)
     assert settings.bamboo_service_account() is None and settings.bamboo_service_account_incomplete()
     assert BambooClient(settings).service_account is None
+
+
+TOMCAT_401 = (
+    '<!doctype html><html lang="en"><head><title>HTTP Status 401 &ndash; Unauthorized</title><style type="text/css">'
+    "body {font-family:Tahoma,Arial,sans-serif;}</style></head><body><h1>HTTP Status 401</h1></body></html>"
+)
+
+
+def test_response_summary_reads_json_messages_and_html_titles() -> None:
+    scope_403 = {"message": "Client must have sufficient scopes to access this resource. Required scopes: [TRIGGER]"}
+    assert response_summary(httpx.Response(403, json=scope_403)).endswith("Required scopes: [TRIGGER]")
+    oauth = {"error": "invalid_request", "error_description": "The provided authorization data is invalid"}
+    assert response_summary(httpx.Response(400, json=oauth)) == "The provided authorization data is invalid"
+    assert response_summary(httpx.Response(401, text=TOMCAT_401)) == "HTML page: HTTP Status 401 \u2013 Unauthorized"
+    assert response_summary(httpx.Response(401, text="")) == "(empty body)"
+
+
+def test_scope_set_accepts_spaces_and_commas() -> None:
+    assert scope_set("READ TRIGGER,WRITE") == {"READ", "TRIGGER", "WRITE"} and scope_set(None) == set()
+
+
+def test_token_log_names_requested_and_granted_scopes_and_warns_about_missing_ones(bamboo, caplog) -> None:
+    bamboo.granted = "TRIGGER WRITE"
+    http(bamboo, ServiceAccountAuth(BASE, "cid", "csecret", scope="READ TRIGGER WRITE")).get("/rest/api/latest/info")
+    assert "token obtained (requested scope: READ TRIGGER WRITE; granted scope: TRIGGER WRITE" in caplog.text
+    assert "did not grant the scopes READ" in caplog.text
+    assert "tok-1" not in caplog.text
+
+
+def test_refused_token_is_logged_with_path_scopes_origin_and_reason(bamboo, caplog) -> None:
+    bamboo.accept_tokens = False
+    bamboo.refusal = httpx.Response(401, text=TOMCAT_401)
+    auth = ServiceAccountAuth(BASE, "cid", "csecret", scope="READ TRIGGER WRITE")
+    http(bamboo, auth).post("/rest/api/latest/queue/PROJ-PLAN", content=b"x")
+    assert (
+        "Bamboo answered HTTP 401 to POST /rest/api/latest/queue/PROJ-PLAN with the service account token (new; "
+        "requested scope: READ TRIGGER WRITE; granted scope: WRITE): HTML page: HTTP Status 401" in caplog.text
+    )
+
+
+def test_missing_scope_403_is_logged_after_a_renewal(bamboo, caplog) -> None:
+    client = http(bamboo, ServiceAccountAuth(BASE, "cid", "csecret", scope="WRITE"))
+    client.get("/rest/api/latest/info")
+    bamboo.valid.clear()
+    bamboo.accept_tokens = False
+    bamboo.refusal = httpx.Response(403, json={"message": "Required scopes: [TRIGGER]"})
+    assert client.post("/rest/api/latest/queue/PROJ-PLAN", content=b"x").status_code == 403
+    assert "HTTP 403 to POST /rest/api/latest/queue/PROJ-PLAN" in caplog.text
+    assert "(renewed after a 401; requested scope: WRITE" not in caplog.text  # the cached token got a 403, not a 401
+    assert "(cached; requested scope: WRITE; granted scope: WRITE): Required scopes: [TRIGGER]" in caplog.text

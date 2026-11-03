@@ -63,6 +63,21 @@ def test_personal_access_token_replaces_basic_auth(router, settings, monkeypatch
     assert route.calls.last.request.headers["authorization"] == "Bearer pat-123"
 
 
+def test_service_account_asks_for_read_trigger_and_write_scopes_by_default(router, settings, monkeypatch) -> None:
+    from urllib.parse import parse_qs
+
+    from pydantic import SecretStr
+
+    # Bamboo 12 refuses a token request without a scope ("The provided authorization data is invalid").
+    monkeypatch.setattr(settings, "bamboo_client_id", "cid")
+    monkeypatch.setattr(settings, "bamboo_client_secret", SecretStr("csecret"))
+    token = router.post(f"{BASE}/rest/oauth2/latest/token").respond(200, json={"access_token": "t", "expires_in": 3600})
+    route = router.post(f"{BASE}/rest/api/latest/result/PROJ-1/comment").respond(200)
+    BambooClient(settings).add_comment_to_ci("PROJ-1", "x")
+    assert parse_qs(token.calls.last.request.content.decode())["scope"] == ["READ TRIGGER WRITE"]
+    assert route.calls.last.request.headers["authorization"] == "Bearer t"
+
+
 def test_comment_body_is_xml_escaped(router, client) -> None:
     route = router.post(f"{BASE}/rest/api/latest/result/PROJ-1/comment").respond(200)
     client.add_comment_to_ci("PROJ-1", "a <b> & `c`")
@@ -70,11 +85,23 @@ def test_comment_body_is_xml_escaped(router, client) -> None:
     assert route.calls.last.request.headers["content-type"] == "application/xml"
 
 
-def test_get_json_returns_none_on_errors(router, client) -> None:
+def test_get_json_returns_none_on_errors(router, client, caplog) -> None:
     router.get(f"{BASE}/rest/api/latest/result/A-1").respond(200, text="<html>not json</html>")
     router.get(f"{BASE}/rest/api/latest/result/B-1").mock(side_effect=httpx.ConnectError("down"))
+    router.get(f"{BASE}/rest/api/latest/result/C-1").respond(403, text="")
     assert client.get_status("A-1") is None
     assert client.get_status("B-1") is None
+    assert client.get_status("C-1") is None
+    assert "/rest/api/latest/result/C-1 returned HTTP 403: (empty body)" in caplog.text
+
+
+def test_get_json_logs_json_refusals_but_not_routine_404s(router, client, caplog) -> None:
+    router.get(f"{BASE}/rest/api/latest/result/D-1").respond(403, json={"message": "Required scopes: [READ]"})
+    router.get(f"{BASE}/rest/api/latest/result/E-1").respond(404, json={"message": "Result E-1 not found"})
+    client.get_status("D-1")
+    client.get_status("E-1")
+    assert "/rest/api/latest/result/D-1 returned HTTP 403: Required scopes: [READ]" in caplog.text
+    assert "E-1" not in caplog.text
 
 
 def test_running_plan_extracts_jobs_by_stage(router, client) -> None:
