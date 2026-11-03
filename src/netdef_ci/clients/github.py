@@ -263,7 +263,7 @@ class GithubCheck:
         return self._request("GET", f"/repos/{repo}/commits/{sha}/check-runs", params=params)
 
     def get_check_run(self, check_ref: str | int) -> Json:
-        return self._request("GET", f"/repos/{self._repo()}/check-runs/{check_ref}")
+        return self._request("GET", f"/repos/{self._repo()}/check-runs/{int(check_ref)}")
 
     def fetch_username(self, github_id: int | str) -> Json | None:
         try:
@@ -347,9 +347,7 @@ class GithubCheck:
         options: Json = {"status": status}
         if (clean := self._output(output)) is not None:
             options["output"] = clean
-        # A status going back to queued/in_progress on a completed check run is ignored by GitHub on purpose, so only
-        # the output is verified here.
-        response = self._update(check_ref, options, conclusion=None)
+        response = self._update(check_ref, options)
         self.log.info("basic_status: %s, status: %s", check_ref, status)
         return response
 
@@ -359,23 +357,26 @@ class GithubCheck:
         options: Json = {"status": "completed", "conclusion": conclusion}
         if (clean := self._output(output)) is not None:
             options["output"] = clean
-        response = self._update(check_ref, options, conclusion=conclusion)
+        response = self._update(check_ref, options)
         if response:
             self.log.info("completed: %s, conclusion: %s", check_ref, conclusion)
         return response
 
-    def _update(self, check_ref: str | int, options: Json, conclusion: str | None) -> Json:
-        """PATCH the check run and confirm GitHub kept what was sent: the conclusion (when given) and every output
-        field. GitHub sometimes answers 200 while ignoring the update, or does not show a new check run yet; the PATCH
-        is idempotent, so it is resent up to 3 times, 1, 2 and 4 s apart. The caller's job (and its database
-        connection) waits meanwhile, so keep it short. After the last attempt the mismatch is logged and the last
-        answer returned ({} when the check run was never found): a stale summary must not fail the CI flow."""
+    def _update(self, check_ref: str | int, options: Json) -> Json:
+        """PATCH the check run and confirm GitHub kept what was sent (status, conclusion and every output field), first
+        in the PATCH answer and then by reading the check run back: GitHub sometimes answers 200 while keeping the
+        previous status or output, or does not show a new check run yet. The PATCH is idempotent, so it is resent up to
+        3 times, 1, 2 and 4 s apart; the caller's job (and its database connection) waits meanwhile, so keep it short.
+        After the last attempt the mismatch is logged and the last answer returned ({} when the check run was never
+        found): a stale check run must not fail the CI flow."""
         retries = 0
         response: Json = {}
         while True:
             try:
                 response = self._patch(check_ref, options)
-                problems = _update_mismatches(response, options.get("output"), conclusion)
+                problems = _update_mismatches(response, options)
+                if not problems:
+                    problems = [f"read back: {p}" for p in _update_mismatches(self.get_check_run(check_ref), options)]
                 if not problems:
                     if retries:
                         metrics.GITHUB_CHECK_RUN_UPDATES.labels(result="recovered").inc()
@@ -408,13 +409,20 @@ def _normalize(text: Any) -> str:
     return str(text or "").replace("\r\n", "\n").strip()
 
 
-def _update_mismatches(response: Json, output: dict[str, str] | None, conclusion: str | None) -> list[str]:
-    """Fields of the PATCH that the check run returned by GitHub does not reflect (empty when it kept everything)."""
+def _update_mismatches(check_run: Json, options: Json) -> list[str]:
+    """Fields of the PATCH `options` that `check_run` (as GitHub returned it) does not reflect; empty when it kept
+    everything. A check run that is already completed is not reopened by GitHub, so it satisfies a queued or
+    in_progress update; its output must still match."""
     problems: list[str] = []
-    if conclusion is not None and response.get("conclusion") != conclusion:
-        problems.append(f"conclusion is {response.get('conclusion')!r}, expected {conclusion!r}")
-    if output:
-        current = response.get("output") or {}
+    status = options["status"]
+    current_status = check_run.get("status")
+    if current_status != status and not (status != "completed" and current_status == "completed"):
+        problems.append(f"status is {current_status!r}, expected {status!r}")
+    conclusion = options.get("conclusion")
+    if conclusion is not None and check_run.get("conclusion") != conclusion:
+        problems.append(f"conclusion is {check_run.get('conclusion')!r}, expected {conclusion!r}")
+    if output := options.get("output"):
+        current = check_run.get("output") or {}
         problems.extend(
             f"output.{field} differs"
             for field, value in output.items()
