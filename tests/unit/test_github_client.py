@@ -142,7 +142,9 @@ def test_create_check_run_posts_name_and_head_sha(suite, mock_api) -> None:
 def test_update_sends_status_and_output_only_when_present(suite, mock_api) -> None:
     import json
 
-    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(200, json={"id": 9})
+    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(
+        200, json={"id": 9, "output": {"title": "t", "summary": "s"}}
+    )
     check = make(suite)
     check.in_progress("9")
     assert json.loads(route.calls.last.request.content) == {"status": "in_progress"}
@@ -156,8 +158,11 @@ def test_update_sends_status_and_output_only_when_present(suite, mock_api) -> No
 def test_summary_above_github_limit_is_truncated(suite, mock_api) -> None:
     import json
 
-    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(200, json={"conclusion": "success"})
+    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(
+        200, json={"conclusion": "success", "output": {"title": "t", "summary": "x" * 65_535}}
+    )
     make(suite).success(9, {"title": "t", "summary": "x" * 70_000})
+    assert route.call_count == 1  # the truncated summary is what GitHub is expected to keep
     assert len(json.loads(route.calls.last.request.content)["output"]["summary"]) == 65_535
 
 
@@ -178,6 +183,56 @@ def test_completed_gives_up_after_bounded_retries(suite, mock_api) -> None:
     route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(404, json={})
     assert make(suite, sleeps).failure(9) == {}
     assert route.call_count == 4 and sleeps == [1, 2, 4]  # no sleep after the last attempt
+
+
+def test_completed_resends_when_github_ignores_the_output(suite, mock_api) -> None:
+    import json
+
+    sleeps: list[float] = []
+    output = {"title": "Stage summary", "summary": "new summary\nline 2"}
+    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9")
+    route.side_effect = [
+        httpx.Response(200, json={"conclusion": "success", "output": {"title": "Stage summary", "summary": "old"}}),
+        httpx.Response(
+            200,
+            json={"conclusion": "success", "output": {"title": "Stage summary", "summary": "new summary\r\nline 2\n"}},
+        ),
+    ]
+    response = make(suite, sleeps).success(9, output)
+    assert response is not None and response["output"]["summary"].startswith("new summary")
+    assert route.call_count == 2 and sleeps == [1]  # line endings / trailing whitespace are not a mismatch
+    assert json.loads(route.calls[0].request.content) == json.loads(route.calls[1].request.content)
+
+
+def test_in_progress_resends_when_github_ignores_the_output(suite, mock_api) -> None:
+    sleeps: list[float] = []
+    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9")
+    route.side_effect = [
+        httpx.Response(200, json={"status": "in_progress", "output": {"title": "t", "summary": None}}),
+        httpx.Response(200, json={"status": "in_progress", "output": {"title": "t", "summary": "s"}}),
+    ]
+    make(suite, sleeps).in_progress(9, {"title": "t", "summary": "s"})
+    assert route.call_count == 2 and sleeps == [1]
+
+
+def test_in_progress_on_a_completed_check_run_only_verifies_the_output(suite, mock_api) -> None:
+    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(
+        200, json={"status": "completed", "conclusion": "success", "output": {"title": "t", "summary": "s"}}
+    )
+    make(suite).in_progress(9, {"title": "t", "summary": "s"})
+    assert route.call_count == 1
+
+
+def test_output_never_persisted_is_logged_and_bounded(suite, mock_api, caplog) -> None:
+    sleeps: list[float] = []
+    route = mock_api.patch(f"{API}/repos/org/repo/check-runs/9").respond(
+        200, json={"conclusion": "failure", "output": {"title": "t", "summary": "old"}}
+    )
+    with caplog.at_level("ERROR"):
+        response = make(suite, sleeps).failure(9, {"title": "t", "summary": "new"})
+    assert response == {"conclusion": "failure", "output": {"title": "t", "summary": "old"}}
+    assert route.call_count == 4 and sleeps == [1, 2, 4]
+    assert "did not persist the update of check run 9: output.summary differs" in caplog.text
 
 
 def test_completed_without_check_ref_is_a_noop(suite, mock_api) -> None:
