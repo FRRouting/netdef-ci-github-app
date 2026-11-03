@@ -74,6 +74,12 @@ SLACK_NOTIFICATIONS = Counter(
 GITHUB_API_REQUESTS = Counter(
     "github_api_requests_total", "Requests made to the GitHub API, by method and status class", ["method", "status"]
 )
+GITHUB_CHECK_RUN_UPDATES = Counter(
+    "github_check_run_update_verification_total",
+    "Check run updates whose answer did not reflect what was sent: mismatch (per attempt), recovered after a resend, "
+    "failed after every attempt",
+    ["result"],
+)
 AR_QUERIES = Counter(
     "activerecord_queries_total",
     "Total number of SQL queries executed, by operation type and table",

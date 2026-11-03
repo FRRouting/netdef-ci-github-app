@@ -29,7 +29,7 @@ Json = dict[str, Any]
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)
 JWT_LIFETIME_SECONDS = 9 * 60
 MAX_SUMMARY = 65_535
-COMPLETED_RETRIES = 3
+CHECK_RUN_UPDATE_RETRIES = 3
 
 
 class GithubError(Exception):
@@ -44,10 +44,6 @@ class GithubNotFound(GithubError):
 
 class GithubAuthError(Exception):
     pass
-
-
-class GithubUpdateMismatch(Exception):
-    """GitHub answered the update with a conclusion different from the requested one."""
 
 
 class AppAuth:
@@ -351,7 +347,9 @@ class GithubCheck:
         options: Json = {"status": status}
         if (clean := self._output(output)) is not None:
             options["output"] = clean
-        response = self._patch(check_ref, options)
+        # A status going back to queued/in_progress on a completed check run is ignored by GitHub on purpose, so only
+        # the output is verified here.
+        response = self._update(check_ref, options, conclusion=None)
         self.log.info("basic_status: %s, status: %s", check_ref, status)
         return response
 
@@ -361,19 +359,65 @@ class GithubCheck:
         options: Json = {"status": "completed", "conclusion": conclusion}
         if (clean := self._output(output)) is not None:
             options["output"] = clean
+        response = self._update(check_ref, options, conclusion=conclusion)
+        if response:
+            self.log.info("completed: %s, conclusion: %s", check_ref, conclusion)
+        return response
+
+    def _update(self, check_ref: str | int, options: Json, conclusion: str | None) -> Json:
+        """PATCH the check run and confirm GitHub kept what was sent: the conclusion (when given) and every output
+        field. GitHub sometimes answers 200 while ignoring the update, or does not show a new check run yet; the PATCH
+        is idempotent, so it is resent up to 3 times, 1, 2 and 4 s apart. The caller's job (and its database
+        connection) waits meanwhile, so keep it short. After the last attempt the mismatch is logged and the last
+        answer returned ({} when the check run was never found): a stale summary must not fail the CI flow."""
         retries = 0
+        response: Json = {}
         while True:
             try:
                 response = self._patch(check_ref, options)
-                if response.get("conclusion") != conclusion:
-                    raise GithubUpdateMismatch("GitHub failed to update status")
-                self.log.info("completed: %s, conclusion: %s", check_ref, conclusion)
-                return response
-            except GithubNotFound, GithubUpdateMismatch:
-                # The check run may not be visible yet (eventual consistency, usually under a second): up to 3 retries
-                # 1, 2 and 4 s apart. The caller's job (and its database connection) waits meanwhile, so keep it short.
-                if retries >= COMPLETED_RETRIES:
+                problems = _update_mismatches(response, options.get("output"), conclusion)
+                if not problems:
+                    if retries:
+                        metrics.GITHUB_CHECK_RUN_UPDATES.labels(result="recovered").inc()
+                    return response
+                self.log.warning(
+                    "GitHub ignored part of the update of check run %s (attempt %d): %s",
+                    check_ref,
+                    retries + 1,
+                    ", ".join(problems),
+                )
+                metrics.GITHUB_CHECK_RUN_UPDATES.labels(result="mismatch").inc()
+                if retries >= CHECK_RUN_UPDATE_RETRIES:
+                    self.log.error(
+                        "GitHub did not persist the update of check run %s: %s", check_ref, ", ".join(problems)
+                    )
+                    metrics.GITHUB_CHECK_RUN_UPDATES.labels(result="failed").inc()
+                    return response
+            except GithubNotFound:
+                # The check run may not be visible yet (eventual consistency, usually under a second).
+                if retries >= CHECK_RUN_UPDATE_RETRIES:
                     self.log.error("%s not found at GitHub", check_ref)
-                    return {}
-                retries += 1
-                self._sleep(2.0 ** (retries - 1))
+                    metrics.GITHUB_CHECK_RUN_UPDATES.labels(result="failed").inc()
+                    return response
+            retries += 1
+            self._sleep(2.0 ** (retries - 1))
+
+
+def _normalize(text: Any) -> str:
+    """GitHub may store line endings and surrounding whitespace differently from what was sent."""
+    return str(text or "").replace("\r\n", "\n").strip()
+
+
+def _update_mismatches(response: Json, output: dict[str, str] | None, conclusion: str | None) -> list[str]:
+    """Fields of the PATCH that the check run returned by GitHub does not reflect (empty when it kept everything)."""
+    problems: list[str] = []
+    if conclusion is not None and response.get("conclusion") != conclusion:
+        problems.append(f"conclusion is {response.get('conclusion')!r}, expected {conclusion!r}")
+    if output:
+        current = response.get("output") or {}
+        problems.extend(
+            f"output.{field} differs"
+            for field, value in output.items()
+            if _normalize(current.get(field)) != _normalize(value)
+        )
+    return problems
