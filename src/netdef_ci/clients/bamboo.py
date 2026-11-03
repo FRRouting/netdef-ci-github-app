@@ -11,6 +11,7 @@
 from __future__ import annotations
 
 import time
+from http.cookiejar import CookieJar, DefaultCookiePolicy
 from typing import Any
 from xml.sax.saxutils import escape
 
@@ -26,6 +27,17 @@ JsonDict = dict[str, Any]
 
 # How many times a stop is sent before leaving the wait for the stop to `wait_until_stopped`.
 STOP_PLAN_ATTEMPTS = 3
+
+
+class _RefuseCookies(DefaultCookiePolicy):
+    """Keeps no cookie: Bamboo answers a Bearer request with a `JSESSIONID`, and sending that session back next to a
+    token makes Tomcat answer every later request with `401` (only the first request of each client succeeded)."""
+
+    def set_ok(self, cookie: object, request: object) -> bool:
+        return False
+
+    def return_ok(self, cookie: object, request: object) -> bool:
+        return False
 
 
 def _stop_accepted(response: httpx.Response) -> bool:
@@ -59,6 +71,8 @@ class BambooClient:
             timeout=settings.http_timeout_seconds,
             transport=transport,
             follow_redirects=False,
+            # Tokens authenticate every request on their own; a stored session cookie only breaks them (see above).
+            cookies=CookieJar(policy=_RefuseCookies()) if account or token else None,
         )
         self.log = Log("bamboo")
 
