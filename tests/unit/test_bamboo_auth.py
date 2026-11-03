@@ -187,3 +187,31 @@ def test_missing_scope_403_is_logged_after_a_renewal(bamboo, caplog) -> None:
     assert "HTTP 403 to POST /rest/api/latest/queue/PROJ-PLAN" in caplog.text
     assert "(renewed after a 401; requested scope: WRITE" not in caplog.text  # the cached token got a 403, not a 401
     assert "(cached; requested scope: WRITE; granted scope: WRITE): Required scopes: [TRIGGER]" in caplog.text
+
+
+class SessionCookieBamboo(FakeBamboo):
+    """Bamboo/Tomcat as seen on ci2: every answer sets a JSESSIONID, and a request that sends that session back next
+    to a Bearer token gets Tomcat's HTML 401."""
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if str(request.url) != TOKEN_URL and "cookie" in request.headers:
+            self.api_auth.append(request.headers.get("authorization"))
+            return httpx.Response(401, text=TOMCAT_401)
+        response = super().__call__(request)
+        response.headers["set-cookie"] = "JSESSIONID=abc123; Path=/; Secure; HttpOnly"
+        return response
+
+
+@pytest.mark.parametrize("mode", ["service_account", "personal_token"])
+def test_token_clients_keep_no_session_cookie(settings, monkeypatch, mode) -> None:
+    bamboo = SessionCookieBamboo()
+    if mode == "service_account":
+        monkeypatch.setattr(settings, "bamboo_client_id", "cid")
+        monkeypatch.setattr(settings, "bamboo_client_secret", SecretStr("csecret"))
+    else:
+        bamboo.valid.add("pat")
+        monkeypatch.setattr(settings, "bamboo_token", SecretStr("pat"))
+    client = BambooClient(settings, transport=httpx.MockTransport(bamboo))
+    for _ in range(3):  # queue, comment, result polling: only the first one used to succeed
+        assert client.get_json("/rest/api/latest/info") == {"ok": True}
+    assert bamboo.issued == (1 if mode == "service_account" else 0)
