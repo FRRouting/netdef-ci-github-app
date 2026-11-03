@@ -14,6 +14,7 @@ import httpx
 from sqlalchemy.orm import object_session
 
 from netdef_ci import container
+from netdef_ci.clients.bamboo_auth import response_summary
 from netdef_ci.logs import Log
 from netdef_ci.models import CheckSuite, Plan
 
@@ -50,7 +51,7 @@ class PlanRun:
                     "Bamboo accepted plan %s but returned no buildResultKey (check suite %s): %s",
                     self.plan.bamboo_ci_plan_name,
                     self.check_suite.id,
-                    self.response.text[:300],
+                    response_summary(self.response),
                 )
                 return 502
             self.check_suite.bamboo_ci_ref = self.ci_key
@@ -71,7 +72,7 @@ class PlanRun:
             self.plan.bamboo_ci_plan_name,
             self.check_suite.id,
             self.response.status_code,
-            self.response.text[:300],
+            response_summary(self.response),
         )
         if "reached the maximum number of concurrent builds" in self.response.text:
             return 429

@@ -17,7 +17,7 @@ from xml.sax.saxutils import escape
 import httpx
 
 from netdef_ci import metrics
-from netdef_ci.clients.bamboo_auth import ServiceAccountAuth
+from netdef_ci.clients.bamboo_auth import ServiceAccountAuth, response_summary
 from netdef_ci.clients.http import Sleeper
 from netdef_ci.config import Settings
 from netdef_ci.logs import Log
@@ -71,10 +71,18 @@ class BambooClient:
         """GET returning parsed JSON, or None on any failure (network, non-JSON body)."""
         try:
             response = self._send("GET", url, params=params, headers={"Accept": "application/json"})
-            data = response.json()
         except Exception as error:
             self.log.error("HTTP GET Request failed (%s: %s) for %s", type(error).__name__, error, url)
             return None
+        try:
+            data = response.json()
+        except ValueError:
+            # The status tells a missing scope (401/403) or a login redirect (302) apart from a broken body.
+            self.log.error("HTTP GET %s returned HTTP %s: %s", url, response.status_code, response_summary(response))
+            return None
+        if response.status_code >= 400 and response.status_code != 404:
+            # 404 is routine (a finished or removed result); anything else is a refusal worth seeing in the log.
+            self.log.warning("HTTP GET %s returned HTTP %s: %s", url, response.status_code, response_summary(response))
         return data if isinstance(data, dict) else None
 
     def _write(

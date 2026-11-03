@@ -82,8 +82,10 @@ class Settings(BaseSettings):
     # Bamboo 12 service account (OAuth 2.0 client credentials); when set it replaces the token and username/password.
     bamboo_client_id: str | None = Field(None, alias="BAMBOO_CLIENT_ID")
     bamboo_client_secret: SecretStr | None = Field(None, alias="BAMBOO_CLIENT_SECRET")
-    # Sent as the `scope` of the token request when not empty (e.g. "WRITE"); empty = not sent.
-    bamboo_oauth_scope: str = Field("", alias="BAMBOO_OAUTH_SCOPE")
+    # `scope` of the token request. Bamboo 12 refuses a request without one ("The provided authorization data is
+    # invalid"). Each API needs its own scope: READ (results, plans), TRIGGER (queue a plan), WRITE (comments, stop);
+    # empty = not sent.
+    bamboo_oauth_scope: str = Field("READ TRIGGER WRITE", alias="BAMBOO_OAUTH_SCOPE")
     bamboo_netrc_machine: str = Field("ci1.netdef.org", alias="BAMBOO_NETRC_MACHINE")
     ci_url: str = Field("ci1.netdef.org", alias="CI_URL")
     multi_plan: bool = Field(False, alias="MULTI_PLAN")

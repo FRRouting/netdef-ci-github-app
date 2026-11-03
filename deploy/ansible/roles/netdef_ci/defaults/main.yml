@@ -94,8 +94,9 @@ netdef_ci_bamboo_password: "{{ vault_netdef_ci_bamboo_password | default('') }}"
 netdef_ci_bamboo_token: "{{ vault_netdef_ci_bamboo_token | default('') }}"
 netdef_ci_bamboo_client_id: "{{ vault_netdef_ci_bamboo_client_id | default('') }}"
 netdef_ci_bamboo_client_secret: "{{ vault_netdef_ci_bamboo_client_secret | default('') }}"
-# Not a secret: `scope` of the service account token request (empty = not sent).
-netdef_ci_bamboo_oauth_scope: ""
+# Not a secret: `scope` of the service account token request. Bamboo 12 refuses a request without one.
+# READ: results and plans; TRIGGER: queue a plan; WRITE: comments and stops. The credential must have all three.
+netdef_ci_bamboo_oauth_scope: "READ TRIGGER WRITE"
 netdef_ci_slack_bot_url: "{{ vault_netdef_ci_slack_bot_url | default('') }}"
 netdef_ci_slack_bot_username: "{{ vault_netdef_ci_slack_bot_username | default('') }}"
 netdef_ci_slack_bot_password: "{{ vault_netdef_ci_slack_bot_password | default('') }}"
