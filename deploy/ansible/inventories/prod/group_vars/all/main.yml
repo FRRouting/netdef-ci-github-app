@@ -10,8 +10,8 @@ netdef_ci_web_workers: 4
 netdef_ci_keep_releases: 5
 
 netdef_ci_settings:
-  DEBUG: "false"
-  CI_URL: REPLACE_WITH_BAMBOO_HOST
+  DEBUG: "true"
+  CI_URL: ci1.netdef.org
   BAMBOO_BASE_URL: https://127.0.0.1
   BAMBOO_VERIFY_TLS: "false"
   MULTI_PLAN: "false"
