@@ -197,7 +197,7 @@ def _credentials(username: str | None, password: SecretStr | None, machine: str)
         return Credentials(username, password.get_secret_value())
     try:
         entry = netrc.netrc().authenticators(machine)
-    except FileNotFoundError, netrc.NetrcParseError, OSError:
+    except (FileNotFoundError, netrc.NetrcParseError, OSError):
         return None
     if entry is None:
         return None

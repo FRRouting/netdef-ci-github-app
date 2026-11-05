@@ -106,7 +106,7 @@ class Finished:
             return True
         try:
             return float((status.get("progress") or {}).get("percentageCompleted") or 0) >= 2.0
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             return False
 
     def _in_progress(self, status: dict[str, Any]) -> bool:

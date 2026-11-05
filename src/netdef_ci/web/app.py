@@ -274,7 +274,7 @@ def create_app(*, init_database: bool = True) -> FastAPI:
 def _parse_object(raw: bytes) -> dict[str, Any] | None:
     try:
         data = json.loads(raw)
-    except ValueError, UnicodeDecodeError:
+    except (ValueError, UnicodeDecodeError):
         return None
     return data if isinstance(data, dict) else None
 

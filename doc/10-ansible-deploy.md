@@ -89,6 +89,11 @@ ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-p
 ansible-playbook -i inventories/prod/hosts.yml playbooks/healthcheck.yml --ask-vault-pass
 ```
 
+To use the interpreter packaged by the distribution instead of building one (e.g. Python 3.13 on Debian 13, as in
+`inventories/githubcheck`), set `netdef_ci_python_system: true` and `netdef_ci_python_version: "3.13"`: the
+`python_runtime` role then only installs `python3.13`/`python3.13-venv` and checks the version, and the venv is
+created with `/usr/bin/python3.13`. The code is compatible with Python ≥ 3.13.
+
 To only reconfigure without rebuilding Python: `--tags app`. Python is built only once (≈ 5–10 min; `python_runtime_optimizations=true` enables PGO and takes longer).
 
 ## Rollback

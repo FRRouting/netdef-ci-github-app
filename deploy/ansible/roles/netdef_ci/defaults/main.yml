@@ -28,7 +28,12 @@ netdef_ci_release_id: ""               # archive strategy: identifier of the rel
 
 # --- interpreter -----------------------------------------------------------------------------------------------------
 netdef_ci_python_version: "3.15.2"
-netdef_ci_python_bin: "/opt/python/{{ netdef_ci_python_version }}/bin/python{{ netdef_ci_python_version.split('.')[:2] | join('.') }}"
+# true = use the distribution interpreter (/usr/bin/python<major.minor>, installed by the python_runtime role) instead
+# of the one built in /opt/python; set netdef_ci_python_version to its major.minor, e.g. "3.13" on Debian 13.
+netdef_ci_python_system: false
+netdef_ci_python_bin: >-
+  {{ ('/usr/bin/python' if netdef_ci_python_system | bool else '/opt/python/' + netdef_ci_python_version + '/bin/python')
+     ~ (netdef_ci_python_version.split('.')[:2] | join('.')) }}
 
 # --- process model -----------------------------------------------------------------------------------------------------
 netdef_ci_listen_host: 0.0.0.0

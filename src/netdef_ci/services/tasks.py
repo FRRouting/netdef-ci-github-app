@@ -78,7 +78,7 @@ def retrieve_failures(job: CiJob) -> list[dict[str, Any]]:
         errors = (result.get("errors") or {}).get("error") or []
         try:
             duration = int(float(result.get("durationInSeconds") or 0))
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             duration = 0
         failures.append(
             {
@@ -174,7 +174,7 @@ def bamboo_finished(status: dict[str, Any] | None) -> bool:
         return True
     try:
         return float((status.get("progress") or {}).get("percentageCompleted") or 0) >= 2.0
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return False
 
 
