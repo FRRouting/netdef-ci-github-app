@@ -48,16 +48,16 @@ Schema changes are made only through new Alembic revisions.
    - Fill in the production vault: webhook secret (`WEBHOOK_SECRET`), GitHub App `.pem` keys, Bamboo and Slack credentials, `metrics_auth`, database URL.
    - Review `netdef_ci_timers` (watch dog every 15 minutes, `pr-bamboo-sync` hourly) and `CI_URL` in the inventory.
 2. **Rehearsal in development:** `ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-pass`; open a test PR and follow the check runs, Bamboo callbacks and Slack messages. Run `python -m netdef_ci check-config`.
-3. **Production deploy:** `ansible-playbook -i inventories/prod/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<tag>`. The playbook installs the release, applies `migrate`, installs and starts the services and timers, and runs the health check.
+3. **Production deploy:** `ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<tag>`. The playbook installs the release, applies `migrate`, installs and starts the services and timers, and runs the health check.
 4. **Verification:** redeliver a `ping` from the GitHub App (Recent Deliveries), check `GET /readyz` and `GET /metrics`, then open a real PR.
 5. **Post-deploy:** watch `journalctl -u 'netdef-ci-*' -f`, the `delayed_jobs_*` metrics (`delayed_jobs_failed`, `delayed_jobs_locked_too_long`), `app_exceptions_total` and `bamboo_api_requests_total`.
 
 ## Release rollback
 
-| Situation                                       | Action                                                                                                                                                                                                                                                                            |
-|-------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Defect in the deployed release, database intact | `ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass` returns to the previous release (or `-e netdef_ci_rollback_to=<id>` for a specific one). No reverse migration is needed: tables added by newer migrations are ignored by older releases. |
-| Corrupted data                                  | Restore the `pg_dump` taken before the release (everything written afterwards is lost).                                                                                                                                                                                           |
+| Situation                                       | Action                                                                                                                                                                                                                                                                                       |
+|-------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Defect in the deployed release, database intact | `ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml --ask-vault-pass` returns to the previous release (or `-e netdef_ci_rollback_to=<id>` for a specific one). No reverse migration is needed: tables added by newer migrations are ignored by older releases. |
+| Corrupted data                                  | Restore the `pg_dump` taken before the release (everything written afterwards is lost).                                                                                                                                                                                                      |
 
 ## Database downgrade notes
 

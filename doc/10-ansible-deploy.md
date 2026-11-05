@@ -8,14 +8,27 @@ Automation lives in `deploy/ansible/`. **Nothing was run against real servers**:
 ```
 deploy/ansible/
 ├── ansible.cfg  .ansible-lint
-├── inventories/{dev,prod}/
-│   ├── hosts.yml                          # server address (placeholder)
+├── inventories/{dev,prod_frr_public,prod_private}/
+│   ├── hosts.yml                          # server address (placeholder; real lab host in prod_private)
 │   └── group_vars/all/{main.yml,vault.yml.example}
 ├── playbooks/{deploy.yml,rollback.yml,healthcheck.yml}
 └── roles/
-    ├── python_runtime/                    # builds CPython 3.15.2 (python.org, pinned SHA-256) in /opt/python/3.15.2
+    ├── python_runtime/                    # builds CPython 3.13.18 (python.org, pinned SHA-256) in /opt/python/3.13.18, or uses the distribution's python3.13
     └── netdef_ci/                         # user, config, release, venv, migrations, systemd, health check, cleanup
 ```
+
+## Inventories
+
+| Inventory         | Environment | GitHub repository               | Bamboo plan                                                         | Notes                                                                                                      |
+|-------------------|-------------|---------------------------------|---------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------|
+| `dev`             | development | placeholder                     | placeholder                                                         | Rehearsals before production                                                                               |
+| `prod_frr_public` | production  | `FRRouting/frr` (the main FRR)  | [`FRR-PULLREQ3`](https://ci1.netdef.org/browse/FRR-PULLREQ3) on ci1 | Server address and SSH user are placeholders filled in locally                                             |
+| `prod_private`    | production  | `opensourcerouting/private-frr` | see its `plans` rows                                                | Real internal lab host in `hosts.yml` (`07-design-notes.md`), distribution Python 3.13, `archive` strategy |
+
+The inventory only deploys the application: which Bamboo plan a repository starts is a row of the `plans` table in
+that instance's database (`12-adding-a-plan.md`). For `prod_frr_public` that row links `FRRouting/frr` to the plan key
+`FRR-PULLREQ3`, and the GitHub App in its `vault.yml` (`vault_netdef_ci_github_apps`) must be installed on
+`FRRouting/frr`.
 
 What the role installs (Debian/Ubuntu with systemd — the current infrastructure uses `apt`; `RedHat` only has the package list, **untested**):
 
@@ -24,7 +37,7 @@ What the role installs (Debian/Ubuntu with systemd — the current infrastructur
 | Service user  | `netdef-ci` (system, `nologin`, no sudo); the code is `root:root` and read-only for it                                                                                                                                                                                                                                                        |
 | Directories   | `/opt/netdef-ci/{releases/<id>,current→release}`, `/etc/netdef-ci` (0750), `/etc/netdef-ci/keys` (`.pem` keys 0640 `root:netdef-ci`), `/var/log/netdef-ci/{prd,dev}`                                                                                                                                                                          |
 | Configuration | `/etc/netdef-ci/netdef-ci.env` (0640, secrets from the Vault), `/etc/netdef-ci/github_apps.toml`                                                                                                                                                                                                                                              |
-| Python/venv   | `/opt/python/3.15.2` (`make altinstall`, idempotent) and a per-release `venv` with `pip install --only-binary=:all: -r requirements.txt`                                                                                                                                                                                                      |
+| Python/venv   | `/opt/python/3.13.18` (`make altinstall`, idempotent; or `/usr/bin/python3.13` with `netdef_ci_python_system: true`) and a per-release `venv` with `pip install --only-binary=:all: -r requirements.txt`                                                                                                                                      |
 | Processes     | `netdef-ci-web.service`, `netdef-ci-worker-{q0-1,q2-3,q4-5,q6-7,q8-9,create-by-plan-{0,1},create-by-comment-{0,1},create-by-command-{0,1},retry-{0,1},timeout,topotest}.service` (units no longer listed are stopped and removed), `netdef-ci.target`, timers `netdef-ci-watchdog` and `netdef-ci-pr-sync`; `Restart=always`, enabled at boot |
 | Hardening     | `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp/Devices`, empty `CapabilityBoundingSet=`, `RestrictAddressFamilies`, `UMask=0027`… (`systemd-analyze security`: 3.2 OK)                                                                                                                                                 |
 | Migrations    | `python -m netdef_ci migrate` with the **new** release, before switching the `current` link (additive, compatible with the previous release)                                                                                                                                                                                                  |
@@ -55,9 +68,9 @@ Replay protection: the role sets `WEBHOOK_DEDUPE_TTL_SECONDS` from `netdef_ci_we
 
 ```bash
 cd deploy/ansible
-cp inventories/prod/group_vars/all/vault.yml.example inventories/prod/group_vars/all/vault.yml
-$EDITOR inventories/prod/group_vars/all/vault.yml        # real values, only on your machine
-ansible-vault encrypt inventories/prod/group_vars/all/vault.yml
+cp inventories/prod_frr_public/group_vars/all/vault.yml.example inventories/prod_frr_public/group_vars/all/vault.yml
+$EDITOR inventories/prod_frr_public/group_vars/all/vault.yml        # real values, only on your machine
+ansible-vault encrypt inventories/prod_frr_public/group_vars/all/vault.yml
 # run with --ask-vault-pass or --vault-password-file .vault_pass (both kept out of git: see .gitignore)
 ```
 
@@ -70,7 +83,8 @@ cd deploy/ansible
 
 # local validations (no server)
 ansible-playbook -i inventories/dev/hosts.yml  playbooks/deploy.yml --syntax-check
-ansible-playbook -i inventories/prod/hosts.yml playbooks/deploy.yml --syntax-check
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --syntax-check
+ansible-playbook -i inventories/prod_private/hosts.yml playbooks/deploy.yml --syntax-check
 ansible-lint
 
 # DEVELOPMENT — branch, tag or commit of your choice
@@ -78,7 +92,7 @@ ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-p
 ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-pass --check --diff   # dry run
 
 # PRODUCTION — explicit version (tag or SHA); one machine at a time (serial: 1), aborts on the first error
-ansible-playbook -i inventories/prod/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=v1.0.0
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=v1.0.0
 
 # code from a tarball instead of git
 git archive --format=tar.gz -o /tmp/netdef-ci.tar.gz HEAD
@@ -86,13 +100,14 @@ ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-p
   -e netdef_ci_source_strategy=archive -e netdef_ci_source_archive=/tmp/netdef-ci.tar.gz -e netdef_ci_release_id=$(git rev-parse --short=12 HEAD)
 
 # verification at any time
-ansible-playbook -i inventories/prod/hosts.yml playbooks/healthcheck.yml --ask-vault-pass
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/healthcheck.yml --ask-vault-pass
 ```
 
-To use the interpreter packaged by the distribution instead of building one (e.g. Python 3.13 on Debian 13, as in
-`inventories/githubcheck`), set `netdef_ci_python_system: true` and `netdef_ci_python_version: "3.13"`: the
-`python_runtime` role then only installs `python3.13`/`python3.13-venv` and checks the version, and the venv is
-created with `/usr/bin/python3.13`. The code is compatible with Python ≥ 3.13.
+By default the `python_runtime` role builds CPython 3.13.18 from source. To use the interpreter packaged by the
+distribution instead (Debian 13 ships Python 3.13, as in `inventories/prod_private`), set `netdef_ci_python_system: true` and
+`netdef_ci_python_version: "3.13"` in the inventory: the role then only installs `python3.13`/`python3.13-venv` and
+checks the version, and the venv is created with `/usr/bin/python3.13`. The project's Python line is 3.13
+(`03-technical-decisions.md`), so a distribution interpreter of another line is not supported.
 
 To only reconfigure without rebuilding Python: `--tags app`. Python is built only once (≈ 5–10 min; `python_runtime_optimizations=true` enables PGO and takes longer).
 
@@ -100,9 +115,9 @@ To only reconfigure without rebuilding Python: `--tags app`. Python is built onl
 
 ```bash
 # go back to the previous release (history in /opt/netdef-ci/.release_history, stack-like)
-ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml --ask-vault-pass
 # or to a specific release
-ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass -e netdef_ci_rollback_to=<release-id>
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml --ask-vault-pass -e netdef_ci_rollback_to=<release-id>
 ```
 
 The playbook switches the `current` link, restarts `netdef-ci.target` and runs the health check. The database is **not** rolled back (additive migrations). For database rollout notes, see `06-database-and-rollout.md`.
@@ -122,5 +137,8 @@ The playbook switches the `current` link, restarts `netdef-ci.target` and runs t
 | New release (new venv, link, history, restart) and repeat                                                                                                                                                                                                       | `changed=6` → repeat `changed=0`                                                                                                                                                                                    |
 | Rollback                                                                                                                                                                                                                                                        | `ok=13 changed=3 failed=0`; link returns to the previous release and `/readyz` answers `ready`; two consecutive rollbacks walk the history like a stack                                                             |
 | Final state observed in the container                                                                                                                                                                                                                           | 5 services `active`, processes running as `netdef-ci`, venv and `/opt/python/3.15.2` with Python 3.15.2, signed ping `PONG!`, `/metrics` with Basic Auth, watch-dog timer scheduled, `systemd-analyze security` 3.2 |
+
+The validations above were recorded with Python 3.15.2, before the switch to 3.13 (`03-technical-decisions.md`); the
+convergence test now builds 3.13.18 and has not been re-run since.
 
 Validation limitations: there was no real SSH access, real GitHub App, Bamboo or Slack; the container uses a `local` connection (it does not exercise SSH/`become`); the `RedHat` configuration and the use of `--check` on new hosts (the `--check` of the `pip`/`command` module depends on the release already existing) were not exercised. The container needed `--privileged` (rootless) because of systemd's sandbox options.

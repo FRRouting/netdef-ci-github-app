@@ -21,7 +21,7 @@ podman run -d --name netdef-converge --privileged --systemd=always --network hos
 sleep 5
 recap() { podman exec netdef-converge sh -c "grep -A1 'PLAY RECAP' $1 | tail -1"; }
 
-echo "== 1) first deploy (builds Python 3.15.2: several minutes)"
+echo "== 1) first deploy (builds Python 3.13.18: several minutes)"
 podman exec netdef-converge sh -c '/test/converge.sh > /tmp/run1.log 2>&1' || { podman exec netdef-converge tail -40 /tmp/run1.log; exit 1; }
 recap /tmp/run1.log
 echo "== 2) same release again: must report changed=0"

@@ -3,14 +3,14 @@
 ## How to run
 
 ```bash
-# local (Python 3.15.x)
-python3.15 -m venv .venv && . .venv/bin/activate
+# local (Python 3.13.x)
+python3.13 -m venv .venv && . .venv/bin/activate
 pip install --only-binary=:all: -r requirements-dev.txt
 export TEST_DATABASE_URL=postgresql+psycopg://postgres:postgres@localhost:5432/githubruns-test   # optional; without it SQLite is used
 make check                  # ruff + ruff format --check + mypy + pytest with coverage (minimum 90 %)
 make smoke                  # real processes (uvicorn 2 workers + worker) against a test PostgreSQL
 
-# reproducible, everything in containers (Python 3.15.2 built from the tarball + PostgreSQL 17)
+# reproducible, everything in containers (Python 3.13.18 built from the tarball + PostgreSQL 17)
 scripts/test-with-podman.sh
 ```
 
@@ -52,10 +52,10 @@ Not executed/validated: see `12-limitations-and-pending.md`.
 
 | Job         | What it does                                                                                                                                                                                                                                                                          |
 |-------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `lint`      | `ruff check`, `ruff format --check`, `mypy src` (Python 3.15.2), Markdown tables aligned (`scripts/align_md_tables.py --check`)                                                                                                                                                       |
+| `lint`      | `ruff check`, `ruff format --check`, `mypy src` (Python 3.13.18), Markdown tables aligned (`scripts/align_md_tables.py --check`)                                                                                                                                                      |
 | `tests`     | `pytest` (unit + integration) against a PostgreSQL 17 service, coverage must stay >= 90 %, `pip check`                                                                                                                                                                                |
 | `smoke`     | `scripts/smoke_test.py`: real uvicorn + worker processes (runs after `lint` and `tests`)                                                                                                                                                                                              |
-| `ansible`   | `ansible-lint` (production profile) and `--syntax-check` of the deploy playbook for dev and prod                                                                                                                                                                                      |
+| `ansible`   | `ansible-lint` (production profile) and `--syntax-check` of the deploy playbook for dev, prod_frr_public and prod_private                                                                                                                                                             |
 | `ci-passed` | aggregates the jobs above; **mark it as a required status check** in the branch protection rules so a branch version can only be released when everything is green                                                                                                                    |
 | `release`   | `release.yml`, only for `v*` tags and only after the whole `python.yml` gate passed: builds `netdef-ci-<tag>.tar.gz` with `git archive` and publishes a GitHub release. It lives in its own workflow so pull requests and branch pushes do not show a skipped "Release package" check |
 

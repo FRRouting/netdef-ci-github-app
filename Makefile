@@ -1,5 +1,5 @@
 # Convenience targets. Dependencies are installed from requirements*.txt only (no other package manager).
-PYTHON ?= python3.15
+PYTHON ?= python3.13
 VENV   ?= .venv
 BIN    := $(VENV)/bin
 export PYTHONPATH := src

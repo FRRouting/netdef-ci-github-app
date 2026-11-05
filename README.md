@@ -3,7 +3,7 @@
 Server that connects **GitHub Pull Requests** to **Bamboo CI**: it receives webhooks, triggers the Bamboo plans, keeps the
 *Check Runs* on GitHub up to date, consolidates the results sent by Bamboo and notifies Slack.
 
-- Python **3.15.2** · FastAPI + uvicorn · SQLAlchemy 2 + Alembic + PostgreSQL · httpx · PyJWT · prometheus-client
+- Python **3.13** (3.13.18) · FastAPI + uvicorn · SQLAlchemy 2 + Alembic + PostgreSQL · httpx · PyJWT · prometheus-client
 - Own PostgreSQL job queue (`run_at`, named queues, retries with back-off), no Redis
 - Tests: **279 passing**, **94 %** coverage, `ruff` and `mypy` clean · Deploy: **Ansible** (dev and production)
 
@@ -13,10 +13,10 @@ persistence/concurrency (`08`), operations and troubleshooting (`09`), Ansible d
 
 ## Quick start (development)
 
-Prerequisites: Python 3.15 (`python3.15`), a reachable PostgreSQL.
+Prerequisites: Python 3.13 (`python3.13`), a reachable PostgreSQL.
 
 ```bash
-python3.15 -m venv .venv && . .venv/bin/activate
+python3.13 -m venv .venv && . .venv/bin/activate
 pip install --only-binary=:all: -r requirements-dev.txt      # runtime only: requirements.txt
 
 cp .env.example .env                       # adjust DATABASE_URL, WEBHOOK_SECRET, BAMBOO_*, SLACK_*  (the example holds fictitious values)
@@ -47,7 +47,7 @@ python -m netdef_ci single-sync PROJ-PLAN-123      # re-syncs one Bamboo executi
 
 ```bash
 make check                       # ruff + mypy + pytest (+ coverage >= 90 %)
-scripts/test-with-podman.sh      # the same gate with Python 3.15.2 and PostgreSQL in containers
+scripts/test-with-podman.sh      # the same gate with Python 3.13.18 and PostgreSQL in containers
 ```
 
 Details and results: [`doc/11-testing.md`](doc/11-testing.md).
@@ -59,8 +59,8 @@ cd deploy/ansible
 # 1) fill in inventories/<env>/hosts.yml and group_vars/all/main.yml (REPLACE_WITH_... placeholders)
 # 2) create and encrypt the vault: inventories/<env>/group_vars/all/vault.yml  (template: vault.yml.example)
 ansible-playbook -i inventories/dev/hosts.yml  playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<branch|tag|sha>
-ansible-playbook -i inventories/prod/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<tag|sha>
-ansible-playbook -i inventories/prod/hosts.yml playbooks/rollback.yml --ask-vault-pass
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<tag|sha>
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml --ask-vault-pass
 ```
 
 Installation, upgrade, rollback and health check: [`doc/10-ansible-deploy.md`](doc/10-ansible-deploy.md).

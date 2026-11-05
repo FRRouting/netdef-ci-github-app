@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Runs the full quality gate (ruff, mypy, pytest + coverage) against PostgreSQL with Python 3.15.2, using podman.
+# Runs the full quality gate (ruff, mypy, pytest + coverage) against PostgreSQL with Python 3.13.18, using podman.
 #   scripts/test-with-podman.sh            # build image + venv (cached under .venv-podman) + run everything
 # Requires: podman and network access (python.org, PyPI, docker.io).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-IMAGE=${IMAGE:-netdef-py315}
+IMAGE=${IMAGE:-netdef-py313}
 PG_NAME=netdef-test-pg
 PG_PORT=${PG_PORT:-55432}
 
@@ -21,7 +21,7 @@ run() {
     -e TEST_DATABASE_URL="postgresql+psycopg://postgres:postgres@localhost:$PG_PORT/githubruns-test" \
     -v "$PWD/.venv-podman:/venv:Z" -v "$PWD:/work:Z" -w /work "$IMAGE" "$@"
 }
-[ -x .venv-podman/bin/python ] || run sh -c 'python3.15 -m venv /venv && /venv/bin/pip install -q --only-binary=:all: -r requirements-dev.txt'
+[ -x .venv-podman/bin/python ] || run sh -c 'python3.13 -m venv /venv && /venv/bin/pip install -q --only-binary=:all: -r requirements-dev.txt'
 run /venv/bin/ruff check src tests migrations
 run /venv/bin/ruff format --check src tests migrations
 run /venv/bin/mypy src

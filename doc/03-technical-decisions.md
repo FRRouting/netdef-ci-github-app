@@ -2,17 +2,19 @@
 
 ## Python version
 
-| Item           | Value                                                                                                                                                              |
-|----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Chosen version | **Python 3.15.2**                                                                                                                                                  |
-| Source         | python.org (releases API: `Python 3.15.2`, `is_latest: true`, `pre_release: false`, published on 2026-10-25)                                                       |
-| Queried on     | 2026-10-26 (date of the version check). Other stable lines: 3.14.10, 3.13.18; `3.16.0a1` is an alpha and was ignored                                               |
-| Tarball        | `https://www.python.org/ftp/python/3.15.2/Python-3.15.2.tar.xz` — 27 960 396 bytes (matches the API)                                                               |
-| SHA-256        | `8b5536d280142ecf6cdfe15d12a21ba1c65e300bbf7b28a8d0cdb849575797de` (computed locally over the TLS download; the sigstore signature was not verified automatically) |
-| Compatibility  | All dependencies have `cp315` *wheels* (checked with `pip install --only-binary=:all:`); there was no need to step back to an older version                        |
+| Item           | Value                                                                                                                          |
+|----------------|--------------------------------------------------------------------------------------------------------------------------------|
+| Chosen version | **Python 3.13** — **3.13.18** pinned in CI, `scripts/Containerfile.dev` and the Ansible build                                  |
+| Source         | python.org (releases API: `Python 3.13.18`, `pre_release: false`, published on 2026-10-25; latest release of the 3.13 line)    |
+| Queried on     | 2026-11-05 (date of the switch from 3.15.2 to 3.13)                                                                            |
+| Tarball        | `https://www.python.org/ftp/python/3.13.18/Python-3.13.18.tar.xz` — 23 243 936 bytes (matches the API)                         |
+| SHA-256        | `abb0102e6d4ae027509bcb82327d9dd85515b44a3ba8ad538cfc5e9847029f68` (from the API and recomputed locally over the TLS download) |
+| Compatibility  | All pinned dependencies have `cp313` *wheels* (checked with `pip download --only-binary=:all: --python-version 3.13`)          |
+| Why 3.13       | Debian 13 (trixie), the servers' distribution, ships Python 3.13; see `07-design-notes.md`                                     |
 
-Tests, lint and `mypy` were run with 3.15.2 compiled from that tarball
-(`scripts/Containerfile.dev`). On the servers, Ansible compiles the same version into `/opt/python/3.15.2`.
+Tests, lint and `mypy` run with 3.13.18 compiled from that tarball (`scripts/Containerfile.dev`). On the servers,
+Ansible compiles the same version into `/opt/python/3.13.18`, or uses the distribution's `python3.13` when
+`netdef_ci_python_system: true` (`10-ansible-deploy.md`). Until 2026-11-05 the project targeted Python 3.15.2.
 
 ## Stack
 
@@ -25,7 +27,7 @@ Tests, lint and `mypy` were run with 3.15.2 compiled from that tarball
 | GitHub client         | **httpx** + **PyJWT[crypto]**                                                     | Direct REST calls (few endpoints), token caching/renewal and bounded retries under our control.                                                                                                                               |
 | Bamboo / Slack client | **httpx** + stdlib `netrc`                                                        | Keeps `~/.netrc` as the credentials fallback.                                                                                                                                                                                 |
 | Metrics               | **prometheus-client** (multiprocess mode)                                         | Web and workers share counters.                                                                                                                                                                                               |
-| Configuration         | **pydantic-settings** (environment variables / `.env`) + TOML for the GitHub Apps | 12-factor; `tomllib` is in the stdlib (PyYAML has no *wheel* for 3.15).                                                                                                                                                       |
+| Configuration         | **pydantic-settings** (environment variables / `.env`) + TOML for the GitHub Apps | 12-factor; `tomllib` is in the stdlib (no YAML dependency).                                                                                                                                                                   |
 | Tests                 | **pytest** + factories in `tests/factories.py` + **respx**                        | No real network calls in tests.                                                                                                                                                                                               |
 | Lint / types          | **ruff** (lint + format) and **mypy**                                             | Quality gate.                                                                                                                                                                                                                 |
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Re-resolve and pin the runtime dependencies in a throw-away virtualenv (needs the target Python on PATH).
-# Usage: PYTHON=python3.15 scripts/freeze_requirements.sh > requirements.txt
+# Usage: PYTHON=python3.13 scripts/freeze_requirements.sh > requirements.txt
 set -euo pipefail
-PYTHON="${PYTHON:-python3.15}"
+PYTHON="${PYTHON:-python3.13}"
 here="$(cd "$(dirname "$0")" && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
