@@ -152,12 +152,12 @@ netdef-ci-github-app-python/
 │   └── cli/main.py
 ├── tests/{unit,integration,fakes.py,factories.py,payloads.py}
 ├── scripts/{smoke_test.py,test-with-podman.sh,freeze_requirements.sh,Containerfile.dev}
-├── deploy/ansible/{ansible.cfg,inventories/{dev,prod},playbooks,roles/{python_runtime,netdef_ci}}
+├── deploy/ansible/{ansible.cfg,inventories/{dev,prod_frr_public,prod_private},playbooks,roles/{python_runtime,netdef_ci}}
 └── doc/
 ```
 
 ## Python version and dependencies
 
-Python **3.15.2** (details and rationale in `03-technical-decisions.md`). Direct dependencies: FastAPI, uvicorn,
+Python **3.13** (3.13.18; details and rationale in `03-technical-decisions.md`). Direct dependencies: FastAPI, uvicorn,
 SQLAlchemy, Alembic, psycopg, httpx, PyJWT (+cryptography), pydantic-settings, prometheus-client — all pinned in
 `requirements.txt` along with the transitive ones.

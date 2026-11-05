@@ -1,0 +1,30 @@
+---
+# Non-secret settings of prod_private.lab.netdef.org (production, repository opensourcerouting/private-frr).
+# Secrets live in vault.yml (see vault.yml.example), which is not committed.
+netdef_ci_env: production
+# The code is uploaded as a `git archive` (see doc/10-ansible-deploy.md): pass -e netdef_ci_source_archive=<tar.gz>
+# -e netdef_ci_release_id=<short sha>. The repository URL is informative only.
+netdef_ci_source_strategy: archive
+netdef_ci_repo_url: https://github.com/FRRouting/netdef-ci-github-app
+
+# Debian 13 ships Python 3.13 (the project's Python line): use it instead of building 3.13.18 from source.
+netdef_ci_python_version: "3.13"
+netdef_ci_python_system: true
+
+# nginx terminates TLS on 443 and proxies to this port; the app itself is only reachable locally.
+netdef_ci_listen_host: 127.0.0.1
+netdef_ci_listen_port: 4667
+netdef_ci_web_workers: 2
+netdef_ci_keep_releases: 5
+
+netdef_ci_settings:
+  DEBUG: "false"
+  CI_URL: ci1.netdef.org
+  BAMBOO_BASE_URL: https://ci1.netdef.org
+  BAMBOO_VERIFY_TLS: "true"
+  MULTI_PLAN: "false"
+  GITHUB_APP_NAME: NetDEF CI prod_private
+
+netdef_ci_timers:
+  watchdog: {enabled: true, on_calendar: "*:0/15"}
+  pr_sync: {enabled: true, on_calendar: "hourly"}

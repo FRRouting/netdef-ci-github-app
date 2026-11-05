@@ -3,13 +3,13 @@
 # sample plan/stage data, the REST API (uvicorn) and the job workers (same queue split as the systemd units), plus a
 # watch-dog loop. Ctrl-C stops everything. GitHub, Bamboo and Slack are NOT contacted unless you configure them.
 #
-#   scripts/dev-stack.sh                 # PORT=9292, PYTHON=.venv/bin/python (or python3.15)
-#   PORT=8080 PYTHON=python3.15 scripts/dev-stack.sh
+#   scripts/dev-stack.sh                 # PORT=9292, PYTHON=.venv/bin/python (or python3.13)
+#   PORT=8080 PYTHON=python3.13 scripts/dev-stack.sh
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 PORT=${PORT:-9292}
-PYTHON=${PYTHON:-$([ -x .venv/bin/python ] && echo .venv/bin/python || echo python3.15)}
+PYTHON=${PYTHON:-$([ -x .venv/bin/python ] && echo .venv/bin/python || echo python3.13)}
 RUN_DIR=${RUN_DIR:-.dev-stack}
 PG_NAME=netdef-dev-pg
 PG_PORT=${PG_PORT:-55433}

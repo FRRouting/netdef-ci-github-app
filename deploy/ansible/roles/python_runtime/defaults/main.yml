@@ -1,8 +1,9 @@
 ---
 # CPython built from the official python.org source tarball and installed side by side (`make altinstall`),
-# so the system Python is never touched. Version/checksum chosen on 2026-10-26: latest stable release (3.15.2).
-python_runtime_version: "3.15.2"
-python_runtime_sha256: "8b5536d280142ecf6cdfe15d12a21ba1c65e300bbf7b28a8d0cdb849575797de"
+# so the system Python is never touched. Version/checksum chosen on 2026-11-05: latest 3.13 release (3.13.18), the
+# project's Python line (doc/03-technical-decisions.md).
+python_runtime_version: "3.13.18"
+python_runtime_sha256: "abb0102e6d4ae027509bcb82327d9dd85515b44a3ba8ad538cfc5e9847029f68"
 python_runtime_url: "https://www.python.org/ftp/python/{{ python_runtime_version }}/Python-{{ python_runtime_version }}.tar.xz"
 python_runtime_prefix: "/opt/python/{{ python_runtime_version }}"
 python_runtime_src_dir: /usr/local/src

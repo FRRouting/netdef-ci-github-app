@@ -18,6 +18,14 @@ Request` and nothing runs (there is no default plan).
 
 `ci:rerun` comments and check suite re-runs use the same rows (the PR's plans, or the repository's plans as fallback).
 
+## Plans in production
+
+| Instance (inventory) | GitHub repository | Bamboo plan key                                              |
+|----------------------|-------------------|--------------------------------------------------------------|
+| `prod_frr_public`    | `FRRouting/frr`   | [`FRR-PULLREQ3`](https://ci1.netdef.org/browse/FRR-PULLREQ3) |
+
+The inventories are described in `10-ansible-deploy.md`.
+
 ## Columns
 
 | Column                | Required | Meaning                                                                                                      |
