@@ -16,3 +16,6 @@ python_runtime_packages:
   - ncurses-devel
   - libuuid-devel
   - libzstd-devel
+# Packages of the distribution interpreter (python_runtime_system: true).
+python_runtime_system_packages:
+  - "python{{ python_runtime_version.split('.')[:2] | join('.') }}"

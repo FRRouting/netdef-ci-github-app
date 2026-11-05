@@ -11,6 +11,7 @@
   roles:
     - role: python_runtime
       python_runtime_version: "{{ netdef_ci_python_version | default('3.15.2') }}"
+      python_runtime_system: "{{ netdef_ci_python_system | default(false) }}"
       tags: [python]
     - role: netdef_ci
       tags: [app]

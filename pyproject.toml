@@ -20,7 +20,7 @@ skip_covered = false
 
 [tool.ruff]
 line-length = 120
-target-version = "py315"
+target-version = "py313"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
@@ -34,7 +34,7 @@ ignore = ["S101", "S105", "S106", "RUF012", "E501", "B008", "S608"]
 "scripts/*" = ["T20", "S603"]
 
 [tool.mypy]
-python_version = "3.15"
+python_version = "3.13"
 mypy_path = "src"
 ignore_missing_imports = true
 warn_unused_ignores = false

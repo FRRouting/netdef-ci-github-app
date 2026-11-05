@@ -148,7 +148,7 @@ class ServiceAccountAuth(httpx.Auth):
             return None
         try:
             lifetime = float(body.get("expires_in") or DEFAULT_TOKEN_LIFETIME_SECONDS)
-        except TypeError, ValueError:
+        except (TypeError, ValueError):
             lifetime = DEFAULT_TOKEN_LIFETIME_SECONDS
         with self._lock:
             self._token = token
