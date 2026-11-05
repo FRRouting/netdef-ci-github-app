@@ -7,6 +7,38 @@ connects Pull Requests to Bamboo CI). Design notes and deliberate behaviours are
 Read this whole file before changing code. The "Code conventions" section describes how the existing code is written;
 new code must look like the code around it. When in doubt, copy the closest existing example named below.
 
+## Read `doc/` before implementing
+
+Before implementing anything, an AI agent (or contributor) must read the pages of `doc/` that cover the area being
+changed, so the change follows the decisions already taken instead of inventing a new pattern. At minimum read
+`doc/01-overview.md` (architecture) and `doc/07-design-notes.md` (deliberate behaviours), plus the pages below that
+match the task. If what you are about to do contradicts something in `doc/`, stop and ask instead of silently
+diverging.
+
+| Task touches                                         | Read first                                           |
+|------------------------------------------------------|------------------------------------------------------|
+| Any change                                           | `doc/01-overview.md`, `doc/07-design-notes.md`       |
+| Features, flows or their tests                       | `doc/02-feature-test-matrix.md`, `doc/11-testing.md` |
+| Python version, dependencies, libraries, tooling     | `doc/03-technical-decisions.md`                      |
+| Settings, environment variables, GitHub App, secrets | `doc/04-configuration-and-environment.md`            |
+| HTTP routes, webhooks, request/response formats      | `doc/05-api-endpoints.md`                            |
+| Models, migrations, rollout/rollback                 | `doc/06-database-and-rollout.md`                     |
+| Jobs, locks, retries, idempotency, failure handling  | `doc/08-persistence-concurrency-failures.md`         |
+| Logs, metrics, health checks, systemd units          | `doc/09-operations.md`                               |
+| Ansible roles, inventories, deploy                   | `doc/10-ansible-deploy.md`                           |
+| A new Bamboo plan or repository                      | `doc/12-adding-a-plan.md`                            |
+
+## Document every change
+
+A change is not finished until the documentation describes it. In the same change (same commit/PR) as the code:
+
+- Update the `doc/` page(s) from the table above whose content the change affects: new or changed behaviour, setting,
+  endpoint, job, metric, table/column, deploy step or operational procedure. Remove or correct text that became wrong.
+- Record deliberate behaviour decisions (and why they were taken) in `doc/07-design-notes.md`.
+- Add new features and their tests to `doc/02-feature-test-matrix.md`.
+- If a new topic does not fit any existing page, add a new numbered page in `doc/` and link it from `README.md`.
+- Keep `AGENTS.md` itself current when a convention or project rule changes.
+
 ## Language rule
 
 **Everything written in this repository is in English**: documentation (`README.md`, `doc/`), code comments,
@@ -178,7 +210,8 @@ Every module follows the same shape (see `src/netdef_ci/services/plan_run.py`):
 
 1. `make check` passes (ruff lint + format, Markdown tables, mypy, tests with coverage).
 2. New settings documented; new behaviours recorded in `doc/07-design-notes.md`; schema changes have a migration.
-3. No secrets in logs, tests or docs; all new text in English.
+3. Every affected `doc/` page updated to describe what was changed (see "Document every change").
+4. No secrets in logs, tests or docs; all new text in English.
 
 ## Commands
 
