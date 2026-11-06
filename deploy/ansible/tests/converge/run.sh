@@ -32,3 +32,12 @@ podman exec netdef-converge sh -c 'RELEASE=second /test/converge.sh > /tmp/run4.
 echo "== 4) rollback"
 podman exec netdef-converge sh -c 'cd /ansible && ANSIBLE_CONFIG=/ansible/ansible.cfg ansible-playbook -i /test/inventory.yml playbooks/rollback.yml -e @/test/vault.yml -e netdef_ci_env=development -e netdef_ci_listen_port=9292 -e netdef_ci_web_workers=2 > /tmp/run5.log 2>&1'; recap /tmp/run5.log
 podman exec netdef-converge sh -c 'readlink /opt/netdef-ci/current; curl -fsS http://127.0.0.1:9292/readyz; echo; systemctl is-active netdef-ci-web netdef-ci-worker-q0-1'
+
+pb() { podman exec netdef-converge sh -c "cd /ansible && ANSIBLE_CONFIG=/ansible/ansible.cfg ansible-playbook -i /test/inventory.yml playbooks/$1.yml -e @/test/vault.yml -e netdef_ci_env=development -e netdef_ci_listen_port=9292 -e netdef_ci_web_workers=2 > /tmp/$2.log 2>&1" || { podman exec netdef-converge tail -40 "/tmp/$2.log"; exit 1; }; recap "/tmp/$2.log"; }
+echo "== 5) stop: every unit inactive and disabled; again with changed=0"
+pb stop run6
+pb stop run7
+podman exec netdef-converge sh -c 'systemctl is-active netdef-ci-web netdef-ci-worker-q0-1 netdef-ci-watchdog.timer; systemctl is-enabled netdef-ci.target netdef-ci-web netdef-ci-watchdog.timer' || true
+echo "== 6) start: services back and health check passes"
+pb start run8
+podman exec netdef-converge sh -c 'curl -fsS http://127.0.0.1:9292/readyz; echo; systemctl is-active netdef-ci-web netdef-ci-worker-q0-1 netdef-ci-watchdog.timer'

@@ -80,12 +80,13 @@ These sleep inside the running job and count towards the 300 s limit:
 
 ## Health checks
 
-| Endpoint                                       | Use                                                     |
-|------------------------------------------------|---------------------------------------------------------|
-| `GET /ping`, `GET /healthz`                    | liveness                                                |
-| `GET /readyz`                                  | readiness: runs `SELECT 1`; `503` if the database fails |
-| `ansible-playbook … playbooks/healthcheck.yml` | readiness + liveness + state of each unit               |
-| `python -m netdef_ci check-config`             | configuration/keys/credentials/database                 |
+| Endpoint                                       | Use                                                                        |
+|------------------------------------------------|----------------------------------------------------------------------------|
+| `GET /ping`, `GET /healthz`                    | liveness                                                                   |
+| `GET /readyz`                                  | readiness: runs `SELECT 1`; `503` if the database fails                    |
+| `ansible-playbook … playbooks/healthcheck.yml` | readiness + liveness + state of each unit                                  |
+| `ansible-playbook … playbooks/stop.yml`        | stops and disables every service and timer (`10`); `start.yml` reverses it |
+| `python -m netdef_ci check-config`             | configuration/keys/credentials/database                                    |
 
 ## Metrics and alerts
 
@@ -97,7 +98,7 @@ These sleep inside the running job and count towards the 300 s limit:
 |----------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Webhook returns `404 Signature not found` / `401 Signatures didn't match!` | secret differs between GitHub/Bamboo and `WEBHOOK_SECRET`; proxy rewriting the body (the signature is computed over the raw body)                                                                                             |
 | PR without check runs, response `422 No Plans associated…`                 | missing row in `plans` (`github_repo_name = '<org>/<repo>'`)                                                                                                                                                                  |
-| Check runs do not appear; log "Github Authentication Failed"               | `GITHUB_APPS_FILE`, `.pem` path/permissions, App installed on the repository; `check-config`                                                                                                                                  |
+| Check runs do not appear; log "Github Authentication Failed"               | `GITHUB_APPS_FILE`, `.pem` path/permissions, App installed on the repository; `check-config`; see [13](13-github-app-setup.md)                                                                                                |
 | `create_execution_by_plan` has no effect                                   | `SELECT * FROM jobs`; is its worker active? (`systemctl status 'netdef-ci-worker-create-by-plan*'`); PR log                                                                                                                   |
 | Plan does not start: `Failed to create CI Plan` in the log (429/418/4xx)   | Bamboo concurrent build limit (429), Bamboo/`127.0.0.1` tunnel down (418), credentials                                                                                                                                        |
 | Stage stuck in `in_progress`                                               | `python -m netdef_ci single-sync PROJ-PLAN-123` or wait for the `watch-dog`; check Bamboo callbacks (`/update/status`) and `signature_secret`                                                                                 |

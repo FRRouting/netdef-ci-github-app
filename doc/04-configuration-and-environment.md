@@ -67,7 +67,9 @@ Quick validation: `python -m netdef_ci check-config` (variables, `.pem` keys, Ba
 
 ## GitHub App configuration
 
-Set up the GitHub App as follows (an existing App can be reused, **there is no need to create another one**):
+Summary of the GitHub App settings (an existing App can be reused, **there is no need to create another one**). The
+step-by-step procedure, from creating the App on GitHub to the first check run, is in
+[13](13-github-app-setup.md).
 
 1. Webhook URL: `https://<public-host>/<path>` — any path is accepted (`POST /*`); at NetDEF a reverse proxy serves `/githubcheck`. **Webhook secret** = `WEBHOOK_SECRET`. SSL verification enabled.
 2. Repository permissions: **Metadata** (read, mandatory), **Checks**, **Issues**, **Pull requests** and **Discussions** (read and write). Used by the code: Checks (create/update check runs), Pull requests (PR info and commits), Issues (comments; `rocket`/`+1`/`-1` reactions on `ci:rerun`/`ci:retry`).

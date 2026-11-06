@@ -1,0 +1,49 @@
+---
+# Order: timers first (no new watch-dog/pr-sync run), then the web service (no new webhooks are accepted), then the
+# job workers. A worker finishes the job it is running on SIGTERM (TimeoutStopSec=330 in its unit); jobs still pending
+# stay in delayed_jobs and run when the application is started again.
+- name: Stop the timers of the periodic tasks
+  ansible.builtin.systemd_service:
+    name: "netdef-ci-{{ item.key | replace('_', '-') }}.timer"
+    state: stopped
+    enabled: "{{ false if netdef_ci_stop_disable | bool else omit }}"
+  loop: "{{ netdef_ci_timers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Stop the periodic tasks that are still running
+  ansible.builtin.systemd_service:
+    name: "netdef-ci-{{ item.key | replace('_', '-') }}.service"
+    state: stopped
+  loop: "{{ netdef_ci_timers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Stop the web service
+  ansible.builtin.systemd_service:
+    name: netdef-ci-web.service
+    state: stopped
+
+- name: Stop the target and the job worker services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+  loop: "{{ ['netdef-ci.target'] + (netdef_ci_service_names | map('regex_replace', '$', '.service') | list) }}"
+
+- name: Disable the target and the services so they stay stopped after a reboot
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: false
+  loop: "{{ ['netdef-ci.target'] + (netdef_ci_service_names | map('regex_replace', '$', '.service') | list) }}"
+  when: netdef_ci_stop_disable | bool
+
+- name: Check that no service of the application is running
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+  loop: >-
+    {{ (netdef_ci_service_names | map('regex_replace', '$', '.service') | list)
+       + (netdef_ci_timers | list | map('replace', '_', '-') | map('regex_replace', '^', 'netdef-ci-')
+          | map('regex_replace', '$', '.timer') | list) }}
+  register: netdef_ci_stopped
+  changed_when: false
+  failed_when: netdef_ci_stopped.status.ActiveState not in ['inactive', 'failed']

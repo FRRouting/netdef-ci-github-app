@@ -41,7 +41,8 @@ The inventories are described in `10-ansible-deploy.md`.
 ## Prerequisites
 
 - The GitHub App is installed on the repository and listed in `github_apps.toml` (`repo = "<owner>/<repo>"`), see
-  [04](04-configuration-and-environment.md#github-app-configuration).
+  [04](04-configuration-and-environment.md#github-app-configuration) and the full procedure in
+  [13](13-github-app-setup.md).
 - The Bamboo plan exists and the service's Bamboo user can run it. Check it with the service's own client:
 
   ```bash

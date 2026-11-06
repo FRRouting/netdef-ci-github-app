@@ -114,3 +114,6 @@ netdef_ci_health_url: "http://127.0.0.1:{{ netdef_ci_listen_port }}"
 
 # Rollback: set to a release id (see {{ netdef_ci_history_file }}) to pick the target explicitly; default = previous release.
 netdef_ci_rollback_to: ""
+
+# Stop (playbooks/stop.yml): true also disables the target, services and timers, so they stay stopped after a reboot.
+netdef_ci_stop_disable: true

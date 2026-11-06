@@ -9,7 +9,8 @@ Server that connects **GitHub Pull Requests** to **Bamboo CI**: it receives webh
 
 Full documentation in [`doc/`](doc/): overview and diagrams (`01`), feature and test matrix (`02`), technical decisions (`03`),
 configuration/GitHub App/secrets (`04`), endpoints (`05`), database and rollout (`06`), design notes (`07`),
-persistence/concurrency (`08`), operations and troubleshooting (`09`), Ansible deploy (`10`), testing (`11`), adding a plan for a repository (`12`).
+persistence/concurrency (`08`), operations and troubleshooting (`09`), Ansible deploy (`10`), testing (`11`), adding a plan for a repository (`12`),
+creating, installing and activating the GitHub App (`13`).
 
 ## Quick start (development)
 
@@ -61,9 +62,10 @@ cd deploy/ansible
 ansible-playbook -i inventories/dev/hosts.yml  playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<branch|tag|sha>
 ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<tag|sha>
 ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml --ask-vault-pass
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/stop.yml --ask-vault-pass   # stop everything (start.yml resumes)
 ```
 
-Installation, upgrade, rollback and health check: [`doc/10-ansible-deploy.md`](doc/10-ansible-deploy.md).
+Installation, upgrade, rollback, stop/start and health check: [`doc/10-ansible-deploy.md`](doc/10-ansible-deploy.md).
 **No real server was touched**; the automation was validated with `--syntax-check`, `ansible-lint` and a convergence run in a systemd container.
 
 ## Security
