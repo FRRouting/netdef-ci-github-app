@@ -1,0 +1,9 @@
+---
+- name: Reload systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart netdef-ci
+  ansible.builtin.systemd_service:
+    name: netdef-ci.target
+    state: restarted

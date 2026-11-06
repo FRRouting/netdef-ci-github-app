@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+# GitHub Apps used by the CI; private keys are installed by Ansible in {{ netdef_ci_keys_dir }} (mode 0600).
+{% for app in netdef_ci_github_apps %}
+
+[[github_apps]]
+login = {{ app.login | string | to_json }}
+cert = {{ (netdef_ci_keys_dir ~ '/' ~ app.login ~ '.pem') | to_json }}
+{% if app.repo | default('') %}
+repo = {{ app.repo | to_json }}
+{% endif %}
+{% endfor %}

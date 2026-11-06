@@ -1,0 +1,23 @@
+# {{ ansible_managed }}
+[Unit]
+Description=NetDEF CI GitHub App - job worker {{ item.name }} (queues: {{ item.queues }})
+After=network-online.target
+Wants=network-online.target
+PartOf=netdef-ci.target
+
+[Service]
+Type=simple
+User={{ netdef_ci_user }}
+Group={{ netdef_ci_group }}
+WorkingDirectory={{ netdef_ci_current_link }}
+EnvironmentFile={{ netdef_ci_env_file }}
+ExecStart={{ netdef_ci_current_link }}/venv/bin/python -m netdef_ci worker --queues {{ item.queues }}
+Restart=always
+RestartSec=5
+TimeoutStopSec=330
+RuntimeDirectory={{ netdef_ci_runtime_dir_name }}
+RuntimeDirectoryPreserve=yes
+{% include 'hardening.conf.j2' %}
+
+[Install]
+WantedBy=netdef-ci.target

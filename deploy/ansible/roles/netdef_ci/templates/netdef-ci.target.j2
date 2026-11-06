@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[Unit]
+Description=NetDEF CI GitHub App ({{ netdef_ci_env }})
+Wants={% for name in netdef_ci_service_names %}{{ name }}.service {% endfor %}
+
+[Install]
+WantedBy=multi-user.target

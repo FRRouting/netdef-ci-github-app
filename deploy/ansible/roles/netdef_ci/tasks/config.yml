@@ -1,0 +1,41 @@
+---
+- name: Install the GitHub App private keys
+  ansible.builtin.copy:
+    content: "{{ item.private_key }}"
+    dest: "{{ netdef_ci_keys_dir }}/{{ item.login }}.pem"
+    owner: root
+    group: "{{ netdef_ci_group }}"
+    mode: "0640"
+  loop: "{{ netdef_ci_github_apps }}"
+  loop_control:
+    label: "{{ item.login }}"
+  no_log: true
+  notify: Restart netdef-ci
+
+- name: Install the GitHub Apps list
+  ansible.builtin.template:
+    src: github_apps.toml.j2
+    dest: "{{ netdef_ci_apps_file }}"
+    owner: root
+    group: "{{ netdef_ci_group }}"
+    mode: "0640"
+  notify: Restart netdef-ci
+
+- name: Install the service environment file (secrets, mode 0640 root:{{ netdef_ci_group }})
+  ansible.builtin.template:
+    src: netdef-ci.env.j2
+    dest: "{{ netdef_ci_env_file }}"
+    owner: root
+    group: "{{ netdef_ci_group }}"
+    mode: "0640"
+  no_log: true
+  notify: Restart netdef-ci
+
+- name: Install the logrotate rule for the file logs
+  ansible.builtin.template:
+    src: logrotate.j2
+    dest: /etc/logrotate.d/netdef-ci
+    owner: root
+    group: root
+    mode: "0644"
+  when: netdef_ci_file_logging
