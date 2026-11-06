@@ -1,0 +1,14 @@
+---
+# Stop every process of the application (web, job workers, periodic timers) and keep them stopped across reboots.
+# Meant for the Ruby -> Python transition: if the Python app misbehaves, stop it and send the webhooks back to the Ruby
+# app. Nothing is removed (release, configuration, database and pending jobs stay); start again with start.yml.
+#   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/stop.yml --ask-vault-pass
+# Add -e netdef_ci_stop_disable=false to stop only until the next reboot.
+- name: Stop NetDEF CI GitHub App
+  hosts: netdef_ci_servers
+  become: true
+  tasks:
+    - name: Stop the services and timers
+      ansible.builtin.include_role:
+        name: netdef_ci
+        tasks_from: stop.yml

@@ -27,6 +27,7 @@ diverging.
 | Logs, metrics, health checks, systemd units          | `doc/09-operations.md`                               |
 | Ansible roles, inventories, deploy                   | `doc/10-ansible-deploy.md`                           |
 | A new Bamboo plan or repository                      | `doc/12-adding-a-plan.md`                            |
+| Creating, installing or activating the GitHub App    | `doc/13-github-app-setup.md`                         |
 
 ## Document every change
 

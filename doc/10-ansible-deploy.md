@@ -11,7 +11,7 @@ deploy/ansible/
 ├── inventories/{dev,prod_frr_public,prod_private}/
 │   ├── hosts.yml                          # server address (placeholder; real lab host in prod_private)
 │   └── group_vars/all/{main.yml,vault.yml.example}
-├── playbooks/{deploy.yml,rollback.yml,healthcheck.yml}
+├── playbooks/{deploy.yml,rollback.yml,healthcheck.yml,stop.yml,start.yml}
 └── roles/
     ├── python_runtime/                    # builds CPython 3.13.18 (python.org, pinned SHA-256) in /opt/python/3.13.18, or uses the distribution's python3.13
     └── netdef_ci/                         # user, config, release, venv, migrations, systemd, health check, cleanup
@@ -122,6 +122,44 @@ ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml
 
 The playbook switches the `current` link, restarts `netdef-ci.target` and runs the health check. The database is **not** rolled back (additive migrations). For database rollout notes, see `06-database-and-rollout.md`.
 
+## Stopping the application (Ruby → Python transition)
+
+While production moves from the Ruby application to this one, `stop.yml` is the emergency switch: if the Python
+application misbehaves, stop it and let the Ruby application handle the pull requests again.
+
+```bash
+# stop every process: timers, web service, job workers (all hosts of the inventory at once)
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/stop.yml --ask-vault-pass
+# same, but the services come back on the next reboot
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/stop.yml --ask-vault-pass -e netdef_ci_stop_disable=false
+
+# start again (enables and starts the services and the enabled timers, then runs the health check)
+ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/start.yml --ask-vault-pass
+```
+
+What `stop.yml` does, in this order:
+
+1. Stops the timers (`netdef-ci-watchdog`, `netdef-ci-pr-sync`) and any periodic task still running.
+2. Stops `netdef-ci-web.service`: webhooks and Bamboo callbacks sent to this application fail from then on (GitHub
+   records the delivery as failed; it can be redelivered from "Recent Deliveries").
+3. Stops `netdef-ci.target` and every job worker. A worker finishes the job it is running on `SIGTERM`, so the stop
+   can take up to `TimeoutStopSec=330` seconds per worker.
+4. With `netdef_ci_stop_disable: true` (default) disables the target, services and timers, so a reboot does not start
+   them again.
+5. Fails if any service or timer is still active.
+
+It removes nothing: the release, configuration, database rows and pending jobs (`delayed_jobs`) stay as they were.
+
+What it does **not** do — part of the switch back to Ruby, done by hand:
+
+- Point the GitHub App webhook URL (or the reverse proxy) and the Bamboo notification back to the Ruby application,
+  and start the Ruby application's processes.
+- Clean up jobs that are still pending. They run when `start.yml` starts the workers again; if the Ruby application
+  handled those pull requests in the meantime, delete them before starting (they are old events by then).
+
+`deploy.yml` re-enables the services but only (re)starts them when the configuration, a unit or the release changes;
+after `stop.yml`, use `start.yml` to bring the application back.
+
 ## Idempotency
 
 `deploy.yml` can be repeated: with no changes, `changed=0` and no restart (handlers). Releases are named after the resolved commit (12 characters); the same commit reuses the directory and the venv.
@@ -136,6 +174,7 @@ The playbook switches the `current` link, restarts `netdef-ci.target` and runs t
 | Idempotency: same release again                                                                                                                                                                                                                                 | `ok=44 changed=0 failed=0`                                                                                                                                                                                          |
 | New release (new venv, link, history, restart) and repeat                                                                                                                                                                                                       | `changed=6` → repeat `changed=0`                                                                                                                                                                                    |
 | Rollback                                                                                                                                                                                                                                                        | `ok=13 changed=3 failed=0`; link returns to the previous release and `/readyz` answers `ready`; two consecutive rollbacks walk the history like a stack                                                             |
+| Stop (`stop.yml`), repeated, then start (`start.yml`), Python 3.13.18                                                                                                                                                                                           | `changed=4` → repeat `changed=0`; web, worker and watch-dog timer `inactive` and `disabled` (target included); `start.yml` `changed=2`, `/readyz` answers `ready` and the units are `active` again                  |
 | Final state observed in the container                                                                                                                                                                                                                           | 5 services `active`, processes running as `netdef-ci`, venv and `/opt/python/3.15.2` with Python 3.15.2, signed ping `PONG!`, `/metrics` with Basic Auth, watch-dog timer scheduled, `systemd-analyze security` 3.2 |
 
 The validations above were recorded with Python 3.15.2, before the switch to 3.13 (`03-technical-decisions.md`); the

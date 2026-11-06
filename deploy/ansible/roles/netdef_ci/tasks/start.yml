@@ -1,0 +1,21 @@
+---
+# Reverse of stop.yml. deploy.yml alone does not start services stopped by stop.yml when nothing changed (its restart
+# handler only fires on changes), so this is the way back.
+- name: Enable and start the target and the services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ ['netdef-ci.target'] + (netdef_ci_service_names | map('regex_replace', '$', '.service') | list) }}"
+
+- name: Enable and start the timers that are enabled in the configuration
+  ansible.builtin.systemd_service:
+    name: "netdef-ci-{{ item.key | replace('_', '-') }}.timer"
+    enabled: "{{ item.value.enabled }}"
+    state: "{{ 'started' if item.value.enabled else 'stopped' }}"
+  loop: "{{ netdef_ci_timers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Verify the application
+  ansible.builtin.include_tasks: healthcheck.yml
