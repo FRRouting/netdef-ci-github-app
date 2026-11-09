@@ -1,0 +1,14 @@
+---
+# Start the application again after stop.yml: enables and starts the web and job worker services and the timers that
+# are enabled in netdef_ci_timers, then runs the health check.
+#   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/start.yml --ask-vault-pass
+- name: Start NetDEF CI GitHub App
+  hosts: netdef_ci_servers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Start the services and timers
+      ansible.builtin.include_role:
+        name: netdef_ci
+        tasks_from: start.yml

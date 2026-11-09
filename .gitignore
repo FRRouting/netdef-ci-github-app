@@ -1,9 +1,34 @@
-./idea
-config.yml
-database.yml
-*.pem
-puma.pid
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv-podman/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
 
-config/development/*
-config/production/*
-config/test/*
+# Local configuration and secrets (never commit)
+.env
+*.pem
+github_apps.toml
+config.local.*
+
+# Runtime
+logs/
+*.log
+tmp/
+
+# Ansible
+deploy/ansible/.vault_pass
+deploy/ansible/inventories/*/group_vars/*/vault.yml
+!deploy/ansible/inventories/*/group_vars/*/vault.yml.example
+*.retry
+
+# IDE
+.idea/
+.dev-stack/

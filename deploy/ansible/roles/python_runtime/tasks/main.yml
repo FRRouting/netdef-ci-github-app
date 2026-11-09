@@ -1,0 +1,11 @@
+---
+- name: Load OS specific package names
+  ansible.builtin.include_vars: "{{ ansible_facts['os_family'] }}.yml"
+
+- name: Use the interpreter packaged by the distribution
+  ansible.builtin.include_tasks: system.yml
+  when: python_runtime_system | bool
+
+- name: Build the interpreter from source
+  ansible.builtin.include_tasks: build.yml
+  when: not (python_runtime_system | bool)

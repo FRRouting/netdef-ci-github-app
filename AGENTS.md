@@ -1,360 +1,225 @@
-# AGENTS.md — AI Agent Collaboration Guide
-
-This file provides context and conventions for AI coding agents (Claude Code, Copilot, Cursor, etc.) contributing to this project. Follow these patterns to produce code that is consistent with the existing codebase.
-
----
-
-## Project Overview
-
-**netdef-ci-github-app** is a Ruby/Sinatra webhook server that bridges GitHub pull requests and a Bamboo CI system. It receives GitHub events, triggers CI builds, polls for results, updates GitHub Check Runs, and sends Slack notifications.
-
-**Stack:**
-- Ruby 3.1+ / Sinatra / Rack / Puma
-- PostgreSQL via `otr-activerecord` (ActiveRecord without Rails)
-- Delayed Job (background workers — not Sidekiq)
-- Octokit (GitHub API)
-- RSpec + FactoryBot + WebMock (tests)
-- Rubocop 1.56 (linting — enforced in CI)
-
----
-
-## Repository Layout
-
-```
-app/github_app.rb          # Sinatra entry point — routes only, no business logic
-lib/
-  bamboo_ci/               # All Bamboo REST API interactions
-  github/                  # GitHub webhook handlers and Check API wrappers
-    build/                 # Submodules for build orchestration
-    retry/                 # Comment-triggered retry logic
-    re_run/                # Check suite re-run logic
-    plan_execution/        # Handlers for execution completion
-    topotest_failures/     # Failure log parsers
-    parsers/               # PR commit parsers
-  models/                  # ActiveRecord models (12 models)
-  helpers/                 # Cross-cutting concerns: config, logging, metrics, auth
-  slack/                   # Slack API client
-  slack_bot/               # Notification formatters
-workers/                   # Delayed Job worker classes
-spec/
-  app/                     # Integration tests (Rack::Test)
-  lib/                     # Unit tests — mirror lib/ structure
-  workers/                 # Worker unit tests
-  factories/               # FactoryBot factories
-  support/                 # RSpec helpers (factory_bot.rb, webmock.rb)
-config/
-  setup.rb                 # Boot sequence — load order matters here
-  delayed_job.rb           # Worker tuning (max_attempts, sleep_delay, max_run_time)
-  database.yml             # PostgreSQL connection by environment
-db/migrate/                # Numbered migrations only — never edit schema.rb directly
-```
-
----
-
-## Code Conventions
-
-### File Header
-
-Every Ruby file starts with this exact header block (replace `filename.rb` and the year accordingly):
-
-```ruby
-#  SPDX-License-Identifier: BSD-2-Clause
-#
-#  filename.rb
-#  Part of NetDEF CI System
-#
-#  Copyright (c) <year> by
-#  Network Device Education Foundation, Inc. ("NetDEF")
-#
-#  frozen_string_literal: true
-```
-
-Include this header on all new files. The order matters: license identifier first, then filename + project line, then copyright, then frozen string literal.
-
-### Naming
-
-| Construct | Convention | Example |
-|-----------|-----------|---------|
-| Classes / Modules | PascalCase | `BambooCi::PlanRun` |
-| Methods | snake_case | `fetch_executions` |
-| Constants | UPPER_SNAKE_CASE | `MAX_RETRY_ATTEMPTS` |
-| DB tables | plural snake_case | `ci_jobs`, `check_suites` |
-| AR models | singular PascalCase | `CiJob`, `CheckSuite` |
-| Files | snake_case matching class | `plan_run.rb` for `PlanRun` |
-
-### Modules & Namespacing
-
-Group classes by domain, not by layer:
-
-```
-lib/bamboo_ci/api.rb       → module BambooCi, class Api
-lib/github/check.rb        → module Github, class Check
-lib/slack_bot/stage.rb     → module SlackBot, class Stage
-```
-
-Do not put business logic in `app/github_app.rb`. Routes delegate immediately:
-
-```ruby
-# Good
-post '/*' do
-  Github::BuildPlan.new(payload).create
-end
-
-# Bad — inline logic in the route
-post '/*' do
-  pull_request = PullRequest.find_or_create_by(...)
-  # ... 50 lines of logic
-end
-```
-
-### Method Length
-
-Rubocop enforces **20 lines max**. Extract private helpers rather than writing long methods.
-
-### Class / Module Length
-
-Rubocop enforces **200 lines max**. Split responsibilities into submodules (see `lib/github/build/`, `lib/github/retry/`).
-
-### No Documentation Cops
-
-`Style/Documentation` is disabled. Do not add class-level docblock comments unless there is a non-obvious invariant to explain. One-line comments for _why_, not _what_.
-
----
-
-## Models
-
-### Enums
-
-Status enums follow this shared pattern across `CiJob`, `Stage`, and `AuditStatus`:
-
-```ruby
-enum status: {
-  queued:      0,
-  in_progress: 1,
-  success:     2,
-  cancelled:  -1,
-  failure:    -2,
-  skipped:    -3
-}
-```
-
-Use the symbol form everywhere: `ci_job.success!`, `stage.in_progress?`, `CiJob.where(status: :failure)`.
-
-### Associations
-
-Declare associations at the top of the model, before validations and scopes:
-
-```ruby
-class CiJob < ApplicationRecord
-  belongs_to :check_suite
-  belongs_to :stage
-  has_many   :topotest_failures, dependent: :destroy
-  has_many   :audit_statuses,    as: :auditable, dependent: :destroy
-
-  enum status: { ... }
-
-  scope :failure_only, -> { where(status: :failure) }
-end
-```
-
-### Migrations
-
-- Always create a numbered migration: `rails generate migration AddColumnToTable` or write by hand following `db/migrate/` naming.
-- Never edit `db/schema.rb` by hand — it is regenerated by `rake db:migrate:reset`.
-- Validate that `schema.rb` matches migrations in CI: `diff <(rake db:schema:dump) db/schema.rb`.
-
----
-
-## Workers (Delayed Job)
-
-Workers are plain Ruby classes enqueued with `.delay`:
-
-```ruby
-# Enqueue
-CreateExecutionByPlan.new.delay(queue: 2).perform(check_suite_id: suite.id)
-
-# Worker
-class CreateExecutionByPlan
-  def perform(check_suite_id:)
-    suite = CheckSuite.find(check_suite_id)
-    # ...
-  end
-end
-```
-
-**Rules:**
-- Workers live in `workers/`, not in `lib/`.
-- Workers do not inherit from `ActiveJob::Base` — use plain Ruby classes.
-- Keep workers thin: delegate logic to `lib/` classes.
-- Queue numbers 0–9 are meaningful (see `config.ru` for priority tiers).
-- Max 5 attempts, 5-minute timeout per job (configured in `config/delayed_job.rb`).
-
----
-
-## Testing
-
-### Framework
-
-RSpec with `--format=documentation --order=random`. Always run with `bundle exec rspec`.
-
-### Test File Location
-
-Mirror the source path:
-
-```
-lib/github/build_plan.rb        → spec/lib/github/build_plan_spec.rb
-workers/ci_job_status.rb        → spec/workers/ci_job_status_spec.rb
-app/github_app.rb               → spec/app/github_app_spec.rb
-```
-
-### Structure Template
-
-```ruby
-# frozen_string_literal: true
-
-describe Github::BuildPlan do
-  let(:payload) { create(:pull_request_payload) }
-
-  describe '#create' do
-    context 'when the repository is configured' do
-      before { allow_any_instance_of(Github::Check).to receive(:create).and_return(true) }
-
-      it 'creates a check suite' do
-        expect { described_class.new(payload).create }.to change(CheckSuite, :count).by(1)
-      end
-    end
-
-    context 'when the repository is not configured' do
-      it 'returns early without creating records' do
-        expect { described_class.new(payload).create }.not_to change(CheckSuite, :count)
-      end
-    end
-  end
-end
-```
-
-### Factories
-
-Factories live in `spec/factories/`. Use traits for associations, not nested factories:
-
-```ruby
-FactoryBot.define do
-  factory :check_suite do
-    commit_sha_ref { Faker::Alphanumeric.alphanumeric(number: 40) }
-    author         { Faker::Internet.username }
-
-    trait :with_ci_jobs do
-      after(:create) do |suite|
-        create_list(:ci_job, 3, check_suite: suite)
-      end
-    end
-  end
-end
-```
-
-### HTTP Mocking
-
-All external HTTP calls must be mocked with WebMock. No real network calls in tests:
-
-```ruby
-before do
-  stub_request(:post, %r{bamboo/rest/api/latest/queue})
-    .to_return(status: 200, body: { buildResultKey: 'PROJ-123' }.to_json)
-end
-```
-
-### Coverage Requirements
-
-SimpleCov enforces **90% branch coverage minimum per group**. Use `:nocov:` only for genuinely untestable blocks (e.g., rescue blocks for infrastructure failures):
-
-```ruby
-# :nocov:
-rescue StandardError => e
-  logger.error(e.message)
-# :nocov:
-end
-```
-
----
-
-## Configuration
-
-Runtime configuration is loaded from `config.yml` (not committed — see `config_template.yml`):
-
-```ruby
-config = GitHubApp::Configuration.instance
-config.reload                           # re-reads YAML from disk
-config.all_logins                       # GitHub app login names
-config.bamboo_url                       # Bamboo base URL
-```
-
-Never hardcode URLs, credentials, or repo names. Always read from `GitHubApp::Configuration.instance`.
-
----
-
-## Logging
-
-Use the project logger — do not use `puts` or `p`:
-
-```ruby
-logger = GithubLogger.instance.create('github_app.log', Logger::INFO)
-logger.info { "[#{self.class}] Starting plan #{plan.id}" }
-logger.error { "[#{self.class}] Failed: #{e.message}" }
-```
-
-Log file names map to components (see `lib/helpers/github_logger.rb`). Use the closest existing log file for your component.
-
----
-
-## Metrics
-
-Increment Prometheus counters/histograms for any new external call or user-visible operation:
-
-```ruby
-PrometheusMet.instance.http_requests.increment(labels: { method: 'POST', status: '200' })
-```
-
-Do not add new metric names without first checking `lib/helpers/prometheus_metrics.rb` for an existing one that fits.
-
----
-
-## CI/CD
-
-The GitHub Actions workflow (`.github/workflows/ruby.yml`) runs on every push/PR:
-
-1. **Rubocop** — lint check via reviewdog (inline PR comments on violations).
-2. **RSpec** — full test suite with a real PostgreSQL 14 service.
-
-Before opening a PR:
+# AGENTS.md — guide for AI agents and contributors
+
+Project: **netdef-ci-github-app**, a standalone Python service (a GitHub App that
+connects Pull Requests to Bamboo CI). Design notes and deliberate behaviours are recorded in
+`doc/07-design-notes.md`.
+
+Read this whole file before changing code. The "Code conventions" section describes how the existing code is written;
+new code must look like the code around it. When in doubt, copy the closest existing example named below.
+
+## Read `doc/` before implementing
+
+Before implementing anything, an AI agent (or contributor) must read the pages of `doc/` that cover the area being
+changed, so the change follows the decisions already taken instead of inventing a new pattern. At minimum read
+`doc/01-overview.md` (architecture) and `doc/07-design-notes.md` (deliberate behaviours), plus the pages below that
+match the task. If what you are about to do contradicts something in `doc/`, stop and ask instead of silently
+diverging.
+
+| Task touches                                         | Read first                                           |
+|------------------------------------------------------|------------------------------------------------------|
+| Any change                                           | `doc/01-overview.md`, `doc/07-design-notes.md`       |
+| Features, flows or their tests                       | `doc/02-feature-test-matrix.md`, `doc/11-testing.md` |
+| Python version, dependencies, libraries, tooling     | `doc/03-technical-decisions.md`                      |
+| Settings, environment variables, GitHub App, secrets | `doc/04-configuration-and-environment.md`            |
+| HTTP routes, webhooks, request/response formats      | `doc/05-api-endpoints.md`                            |
+| Models, migrations, rollout/rollback                 | `doc/06-database-and-rollout.md`                     |
+| Jobs, locks, retries, idempotency, failure handling  | `doc/08-persistence-concurrency-failures.md`         |
+| Logs, metrics, health checks, systemd units          | `doc/09-operations.md`                               |
+| Ansible roles, inventories, deploy                   | `doc/10-ansible-deploy.md`                           |
+| A new Bamboo plan or repository                      | `doc/12-adding-a-plan.md`                            |
+| Creating, installing or activating the GitHub App    | `doc/13-github-app-setup.md`                         |
+
+## Document every change
+
+A change is not finished until the documentation describes it. In the same change (same commit/PR) as the code:
+
+- Update the `doc/` page(s) from the table above whose content the change affects: new or changed behaviour, setting,
+  endpoint, job, metric, table/column, deploy step or operational procedure. Remove or correct text that became wrong.
+- Record deliberate behaviour decisions (and why they were taken) in `doc/07-design-notes.md`.
+- Add new features and their tests to `doc/02-feature-test-matrix.md`.
+- If a new topic does not fit any existing page, add a new numbered page in `doc/` and link it from `README.md`.
+- Keep `AGENTS.md` itself current when a convention or project rule changes.
+
+## Language rule
+
+**Everything written in this repository is in English**: documentation (`README.md`, `doc/`), code comments,
+docstrings, log/error/user-facing messages, commit messages, Ansible task names and comments, test names.
+
+## Project rules
+
+- Python **3.13** (3.13.18 pinned in CI, containers and Ansible; see `doc/03-technical-decisions.md`).
+  Dependencies **only** in `requirements.txt` (runtime) and `requirements-dev.txt`, always pinned. Do not introduce
+  Poetry/Pipenv. Avoid new dependencies.
+- Layout `src/netdef_ci/`: `web/` only authenticates and delegates; business rules in `services/`; external calls in
+  `clients/`; queue in `jobs/`; models in `models.py`. Routes never make slow external calls: they enqueue a job.
+- Every `.py` file starts with the SPDX/NetDEF header (copy from an existing one).
+- Typing is mandatory (`mypy src` clean), `ruff check` and `ruff format` clean, lines up to 120 columns.
+- Never log tokens, keys or secrets (`logs.py` redacts known patterns, but do not rely on it alone).
+- Operations with non-idempotent external side effects (starting a Bamboo plan) run with `max_attempts=1`.
+- Tests: `pytest` in `tests/unit` and `tests/integration`; external HTTP only through `respx`/doubles in `tests/fakes.py`.
+  No test touches real resources. Test database: PostgreSQL via `TEST_DATABASE_URL` (or SQLite).
+- Deliberate behaviour decisions must be recorded in `doc/07-design-notes.md`.
+- Markdown tables stay aligned: after touching one, run `make docs-tables` (skill `.claude/skills/align-doc-tables/SKILL.md`).
+- Schema: changes only through Alembic migrations in `migrations/versions/` (revision `0001_initial_schema` is the baseline).
+
+## Code conventions
+
+### Module layout and responsibilities
+
+| Package / module  | Owns                                                                                                 | Never does                                                 |
+|-------------------|------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| `web/app.py`      | FastAPI routes, HMAC/Basic auth (`security.py`), JSON parsing, metrics of the request                | business rules, ORM queries, calls to GitHub/Bamboo        |
+| `web/webhooks.py` | Delivery de-duplication and dispatch of a GitHub event / Bamboo callback to a service                | the work itself                                            |
+| `services/`       | Business rules; one module per flow (`build_plan.py`, `retry.py`, `finished.py`, ...)                | building `httpx` clients, reading env vars directly        |
+| `clients/`        | HTTP to GitHub, Bamboo and Slack (`httpx`), auth, retries, response parsing                          | ORM writes or business decisions                           |
+| `jobs/`           | Queue (`queue.py`), handler registry, handlers (`handlers.py`), per-PR locks (`locks.py`)            | business rules (handlers only open a session and delegate) |
+| `models.py`       | SQLAlchemy models and small model-level helpers (status transitions, check run updates)              | HTTP calls other than through the `github` passed in       |
+| `container.py`    | Process-wide client instances (`container.bamboo()`, `container.slack()`, `container.github(suite)`) | —                                                          |
+| `config.py`       | Every setting (`Settings`, `get_settings()`)                                                         | —                                                          |
+| `cli/main.py`     | `python -m netdef_ci <command>` (argparse subcommands: worker, watch-dog, migrate, ...)              | business rules (it calls `services/`)                      |
+
+### File skeleton
+
+Every module follows the same shape (see `src/netdef_ci/services/plan_run.py`):
+
+1. SPDX/NetDEF header with the path relative to `src/netdef_ci/` (e.g. `#  services/plan_run.py`).
+2. A module docstring that says what the module does in one or two sentences. Modules ported from the original Ruby
+   application name the origin: `(port of BambooCi::PlanRun)`.
+3. `from __future__ import annotations`.
+4. Imports sorted by ruff (`I`): stdlib, third party, `netdef_ci.*`. Always absolute imports (`from netdef_ci.x import y`),
+   never relative ones. Import local modules with an alias when the name is ambiguous
+   (`from netdef_ci.jobs import queue as jobs_queue`).
+5. Module constants in `UPPER_CASE`, with a trailing comment when the value is not obvious.
+
+### Typing
+
+- Annotate every function, including `-> None`. Use builtin generics and `X | None` (`list[str]`, `dict[str, Any]`),
+  `collections.abc` for `Callable`, `Iterator`, `Sequence`.
+- Common aliases: `Response = tuple[int, str]` in services and `web/webhooks.py`; `Json`/`JsonDict = dict[str, Any]` in
+  clients. Reuse them instead of inventing new names.
+- Narrow optionals with `assert x is not None` (the codebase does this for relationships such as
+  `check_suite.pull_request`). Use `# type: ignore[code]` only with the specific error code.
+- Model columns use `Mapped[...]` + `mapped_column(...)` (SQLAlchemy 2.0 style).
+
+### Services
+
+- A flow is either a class with the session and payload in `__init__` and a public verb method returning a `Response`
+  (`BuildPlan(session, payload).create()`, `RetryComment(session, payload).schedule()`,
+  `UpdateStatus(session, payload).update()`), or a plain function taking `session` first
+  (`tasks.ci_job_status(session, bamboo_ci_ref, ci_job_id)`).
+- Job-driven flows expose a `@classmethod run(cls, session, ...)` that loads rows by id and does the work inside
+  `pull_request_lock(pull_request_id)` when it cancels/starts executions (see `services/executions.py`).
+- Results to the caller are `(http_status, message)` tuples — `200/202` for accepted work, `4xx` for invalid input
+  or nothing to do, `5xx` only when the delivery should be retried. Exceptions are for programming errors and
+  unavailable dependencies (`BambooUnavailable`), not for ordinary "ignore this event" outcomes.
+- Reach external systems only through `container.bamboo()`, `container.slack()` and `container.github(check_suite)`;
+  never instantiate a client in a service. This is what lets tests swap them with `container.override(...)`.
+- Read nested payload values with `dig(payload, "pull_request", "head", "sha")` from `services/executions.py`; do not
+  write another copy of it. Shared query helpers live in `services/common.py` (e.g. `find_pull_request`).
+- Long waits take an injectable `sleep: Callable[[float], None] = time.sleep` and are bounded by a setting
+  (see `wait_until_stopped`), so tests never sleep.
+
+### Database and sessions
+
+- Queries use SQLAlchemy 2.0 `select()` with `session.scalars(...)`/`session.execute(...)`/`session.get(...)`. Do not
+  use the legacy `session.query()`. Add `.order_by(...)` whenever the result depends on row order (`.limit(1)`).
+- Outside a request, open sessions with `with session_scope() as session:` (`db.py`). It always closes and rolls back
+  on errors, but **never commits implicitly**: call `session.commit()` explicitly.
+- Model helpers and `jobs_queue.enqueue(...)` accept `commit=False` so several changes and the jobs they schedule land
+  in one transaction; prefer that when a flow writes more than one row.
+- Timestamps are naive UTC: use `db.utcnow()`, never `datetime.now()`/`datetime.utcnow()` for values stored in the
+  database.
+- Status columns use `enums.Status` (stable integer values) and the groups `RUNNING_STATUSES` / `FAILED_STATUSES`.
+  Never store raw integers or strings for a status.
+- Code must run on PostgreSQL (production) and SQLite (fast tests). PostgreSQL-only features (advisory locks,
+  `NOTIFY`, `CONCURRENTLY`) are guarded by `dialect.name == "postgresql"`, as in `jobs/locks.py` and `jobs/queue.py`.
+- A schema change needs a new Alembic revision (`000N_<short_name>.py`, `down_revision` = previous one) **and** the
+  matching change in `models.py`. Index names follow `index_<table>_on_<column>`.
+
+### Background jobs
+
+- A job is a function in `jobs/handlers.py` decorated with `@job_handler("<name>")`. It opens a `session_scope()`
+  and delegates to a service in one or two lines; no logic in the handler.
+- Job arguments are JSON-serializable values (ids, strings, the webhook payload dict), never ORM objects. The service
+  reloads rows by id.
+- Enqueue with `jobs_queue.enqueue(session, "<name>", [args...], queue=..., delay_seconds=..., max_attempts=...)`.
+  Flows that start Bamboo plans use `queue=jobs_queue.execution_queue(name, github_pr_id)` and `max_attempts=1`
+  with a comment saying why. Debounced work uses `jobs_queue.replace_pending(...)` with a `dedupe_key`.
+- Raise an exception from a handler only when retrying the job is safe and useful.
+
+### External clients
+
+- Clients take `Settings` in `__init__` plus injectable `transport: httpx.BaseTransport | None` and `sleep` for tests
+  (see `BambooClient`). They own one `httpx.Client` with `timeout=settings.http_timeout_seconds`.
+- Retries go through `clients/http.request_with_retries`: transport errors and 5xx are retried only for idempotent
+  methods; POST is never repeated except on rate limits.
+- Bamboo/Slack helpers return `None` (or a falsy value) and log on failure instead of raising, so a CI flow is not
+  interrupted by a notification. GitHub errors raise `GithubError`/`GithubNotFound`.
+- Summarize HTTP responses in logs with `response_summary(response)`; never log headers or request bodies with
+  credentials.
+
+### Configuration
+
+- Every setting is a field of `Settings` in `config.py`: `snake_case` name, `UPPER_CASE` env alias, a safe default and
+  bounds (`ge=`, `gt=`, `le=`), e.g. `Field(60, alias="RUNNING_PLAN_WAIT_SECONDS", ge=0)`. Durations carry the unit in
+  the name (`_seconds`, `_minutes`, `_hours`). Secrets are `SecretStr` and are read with `.get_secret_value()` only
+  where they are used.
+- Put a comment above a non-obvious setting explaining what it controls, and document new variables in
+  `doc/04-configuration-and-environment.md` (and in the Ansible role defaults when deployed values change).
+- Read settings with `get_settings()` at call time, not at import time.
+
+### Logging and metrics
+
+- Use `Log("<component>", pr_id)` from `logs.py` (`self.log = Log(...)` in classes, module-level `log = Log(...)`
+  otherwise). Passing the pull request number mirrors the line into that PR's log file.
+- Use `%s` placeholders with arguments (`log.info("Starting Plan: %s", plan.name)`), never f-strings in log calls.
+- Messages say what happened and identify the objects involved (plan, check suite id, Bamboo ref, HTTP status).
+  `error` for failures that need attention, `warning` for ignored/odd input, `info` for flow milestones, `debug` for
+  noise. `print` is only allowed in `cli/` (ruff `T20`).
+- Prometheus metrics are declared once in `metrics.py` (`UPPER_CASE` names) and updated from services/clients with
+  low-cardinality labels. Metrics decisions go to `doc/07-design-notes.md` section 3.
+
+### Comments and docstrings
+
+- Docstrings are short and explain *why* or the contract (return value, units, side effects), not a line-by-line
+  narration. Mention the setting that bounds a behaviour (e.g. "bounded by RUNNING_PLAN_WAIT_SECONDS").
+- Inline comments are reserved for non-obvious decisions (`# starts a Bamboo plan: never repeated automatically`).
+- Sections of long classes may be separated with `# ----- <name>` rulers, as in `clients/bamboo.py` and `web/app.py`.
+- Private helpers start with `_`. Public names are what other modules or tests import.
+
+### Tests
+
+- Every behaviour change comes with tests; coverage must stay at or above 90 % (`fail_under` in `pyproject.toml`).
+- Unit tests live in `tests/unit/test_<module>.py`; HTTP-level tests in `tests/integration/` use the signed `Api`
+  client from `tests/integration/conftest.py`.
+- Test names describe the behaviour as a sentence: `test_unplanned_repository_returns_422`,
+  `test_valid_event_creates_pr_user_and_schedules_one_job_per_plan`.
+- Fixtures from `tests/conftest.py`: `session` (clean database per test), `clients` (installs `FakeGithub`,
+  `FakeBamboo`, `FakeSlack` through `container.override`), `github`/`bamboo`/`slack` (the fakes, to assert calls),
+  `settings`. Use `monkeypatch.setattr(settings, ...)` to change a setting inside a test.
+- Build rows with `tests/factories.py` (`from tests import factories as f`; `f.World(session)` gives a PR, plan,
+  check suite, two stages and two jobs) and webhook bodies with `tests/payloads.py`. Do not hand-build payloads that a
+  helper already produces; extend the helper instead.
+- Client tests mock HTTP with `respx` (`respx.mock(assert_all_called=False)`) and inject `sleep=list.append` to assert
+  back-off without waiting.
+- Assert the observable result: the returned `(status, body)`, rows in the database, enqueued `Job` rows
+  (handler, queue, `max_attempts`) and calls recorded by the fakes. `pytest.mark.parametrize` covers variants of the
+  same rule.
+- PostgreSQL-only behaviour is skipped on SQLite with `IS_PG` from `tests/conftest.py`.
+
+### Checklist before finishing a change
+
+1. `make check` passes (ruff lint + format, Markdown tables, mypy, tests with coverage).
+2. New settings documented; new behaviours recorded in `doc/07-design-notes.md`; schema changes have a migration.
+3. Every affected `doc/` page updated to describe what was changed (see "Document every change").
+4. No secrets in logs, tests or docs; all new text in English.
+
+## Commands
 
 ```bash
-bundle exec rubocop                    # must pass with zero offenses
-bundle exec rspec                      # must pass at ≥90% coverage
-rake db:migrate:reset                  # verify migrations apply cleanly
+make install-dev && make check          # lint + mypy + tests with coverage
+scripts/test-with-podman.sh             # same gate with Python 3.13.18 and PostgreSQL in containers
+make smoke                              # starts real uvicorn + worker against a test PostgreSQL
+make docs-tables                        # aligns every Markdown table (lint runs it with --check)
+make github-app ENV=<inventory> REPO=<owner>/<repo> URL=<webhook URL>   # first GitHub App of an environment (doc/13)
 ```
-
----
-
-## Common Pitfalls
-
-- **Do not use `ActiveJob`** — this project uses Delayed Job with plain Ruby workers.
-- **Do not call external services from within a Sinatra route** — enqueue a worker instead.
-- **Do not modify `db/schema.rb` by hand** — generate a migration.
-- **Do not add logic to `app/github_app.rb`** — it should only instantiate and delegate.
-- **Do not stub `Time.now` or `Date.today` globally** — use `Timecop` if a test requires time control (not currently a dependency — add it if needed).
-- **Do not create new queue numbers** beyond 0–9 without updating `config.ru`.
-- **Run `rubocop -A` before committing** — unformatted code fails CI immediately.
-
----
-
-## Checklist for New Features
-
-- [ ] New files include the frozen string literal comment and SPDX header.
-- [ ] Business logic lives in `lib/`, not in `app/`, `workers/`, or models.
-- [ ] New ActiveRecord model includes a migration and status enum (if applicable).
-- [ ] New Delayed Job worker lives in `workers/` and delegates to `lib/`.
-- [ ] External HTTP calls are wrapped in a class under `lib/bamboo_ci/` or `lib/github/`.
-- [ ] Tests mirror the source path and achieve ≥90% branch coverage.
-- [ ] WebMock stubs cover all new HTTP calls in tests.
-- [ ] `rubocop` passes with no new offenses.
-- [ ] `rake db:migrate:reset && bundle exec rspec` passes locally.

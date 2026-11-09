@@ -1,0 +1,12 @@
+---
+- name: Apply database migrations with the new release
+  ansible.builtin.command:
+    cmd: "{{ netdef_ci_release_dir }}/venv/bin/python -m netdef_ci migrate"
+    chdir: "{{ netdef_ci_release_dir }}"
+  environment: "{{ netdef_ci_env_vars | combine({'PYTHONPATH': netdef_ci_release_dir ~ '/src'}) }}"
+  become: true
+  become_user: "{{ netdef_ci_user }}"
+  register: netdef_ci_migration
+  changed_when: "'upgraded' in netdef_ci_migration.stdout"
+  no_log: true
+  run_once: true

@@ -1,0 +1,12 @@
+---
+# Distribution interpreter (python_runtime_system: true): only the packages are installed, nothing is compiled.
+- name: Install the distribution interpreter packages of Python {{ python_runtime_version }}
+  ansible.builtin.package:
+    name: "{{ python_runtime_system_packages }}"
+    state: present
+
+- name: Verify the distribution interpreter version
+  ansible.builtin.command: "{{ python_runtime_system_bin }} --version"
+  register: python_runtime_reported
+  changed_when: false
+  failed_when: python_runtime_version not in python_runtime_reported.stdout

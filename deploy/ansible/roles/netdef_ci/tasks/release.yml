@@ -1,0 +1,86 @@
+---
+- name: Resolve the source from git
+  when: netdef_ci_source_strategy == 'git'
+  block:
+    - name: Update the local repository cache at the requested version
+      ansible.builtin.git:
+        repo: "{{ netdef_ci_repo_url }}"
+        dest: "{{ netdef_ci_base_dir }}/repo.git"
+        version: "{{ netdef_ci_version }}"
+        bare: true
+        key_file: "{{ netdef_ci_git_key_file | default(omit, true) }}"
+        accept_newhostkey: true
+        force: true
+      register: netdef_ci_git
+
+    - name: Resolve the requested version to a commit (branch, tag or SHA)  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: git --git-dir={{ netdef_ci_base_dir }}/repo.git rev-parse --verify --quiet "{{ netdef_ci_version }}^{commit}"
+      register: netdef_ci_resolved
+      changed_when: false
+      failed_when: netdef_ci_resolved.rc != 0 or netdef_ci_resolved.stdout | length != 40
+
+    - name: Name the release after the resolved commit
+      ansible.builtin.set_fact:
+        netdef_ci_release: "{{ netdef_ci_resolved.stdout[:12] }}"
+
+    - name: Check out the release
+      ansible.builtin.git:
+        repo: "{{ netdef_ci_base_dir }}/repo.git"
+        dest: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}"
+        version: "{{ netdef_ci_resolved.stdout }}"
+        force: true
+      register: netdef_ci_checkout
+
+- name: Unpack the source archive
+  when: netdef_ci_source_strategy == 'archive'
+  block:
+    - name: Name the release
+      ansible.builtin.set_fact:
+        netdef_ci_release: "{{ netdef_ci_release_id }}"
+
+    - name: Create the release directory
+      ansible.builtin.file:
+        path: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Unpack the archive
+      ansible.builtin.unarchive:
+        src: "{{ netdef_ci_source_archive }}"
+        dest: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}"
+        owner: root
+        group: root
+        creates: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}/requirements.txt"
+
+- name: Check that the release contains the application
+  ansible.builtin.stat:
+    path: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}/requirements.txt"
+  register: netdef_ci_requirements
+
+- name: Fail with a clear message when the requested version is not the Python application
+  ansible.builtin.assert:
+    that: netdef_ci_requirements.stat.exists
+    fail_msg: >-
+      requirements.txt not found in release {{ netdef_ci_release }}: the version "{{ netdef_ci_version }}" did not resolve
+      to a commit of this application (is the branch/tag pushed to {{ netdef_ci_repo_url }}?).
+    quiet: true
+
+- name: Remember the release directory
+  ansible.builtin.set_fact:
+    netdef_ci_release_dir: "{{ netdef_ci_releases_dir }}/{{ netdef_ci_release }}"
+
+- name: Create the virtualenv and install the pinned requirements
+  ansible.builtin.pip:
+    requirements: "{{ netdef_ci_release_dir }}/requirements.txt"
+    virtualenv: "{{ netdef_ci_release_dir }}/venv"
+    virtualenv_command: "{{ netdef_ci_python_bin }} -m venv"
+    extra_args: "--only-binary=:all:"
+
+- name: Check that the virtualenv uses the expected Python
+  ansible.builtin.command: "{{ netdef_ci_release_dir }}/venv/bin/python --version"
+  register: netdef_ci_venv_python
+  changed_when: false
+  failed_when: netdef_ci_python_version not in netdef_ci_venv_python.stdout

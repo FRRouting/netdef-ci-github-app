@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+[Unit]
+Description=NetDEF CI GitHub App - {{ item.key }} ({{ netdef_ci_env }})
+After=network-online.target
+
+[Service]
+Type=oneshot
+User={{ netdef_ci_user }}
+Group={{ netdef_ci_group }}
+WorkingDirectory={{ netdef_ci_current_link }}
+EnvironmentFile={{ netdef_ci_env_file }}
+ExecStart={{ netdef_ci_current_link }}/venv/bin/python -m netdef_ci {{ netdef_ci_timer_commands[item.key] }}
+RuntimeDirectory={{ netdef_ci_runtime_dir_name }}
+RuntimeDirectoryPreserve=yes
+TimeoutStartSec=1800
+{% include 'hardening.conf.j2' %}
