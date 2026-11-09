@@ -42,7 +42,7 @@ What the role installs (Debian/Ubuntu with systemd — the current infrastructur
 | Hardening     | `NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome`, `PrivateTmp/Devices`, empty `CapabilityBoundingSet=`, `RestrictAddressFamilies`, `UMask=0027`… (`systemd-analyze security`: 3.2 OK)                                                                                                                                                 |
 | Migrations    | `python -m netdef_ci migrate` with the **new** release, before switching the `current` link (additive, compatible with the previous release)                                                                                                                                                                                                  |
 | Restart       | the `Restart netdef-ci` handler only fires when config, unit or the `current` link changes                                                                                                                                                                                                                                                    |
-| Verification  | `/readyz` (with retries), `/healthz`, `/ping` and `active` state of each unit                                                                                                                                                                                                                                                                 |
+| Verification  | `/readyz` (with retries), `/healthz`, `/ping`, `active` state of each unit and `check-github` (GitHub App; off with `netdef_ci_check_github: false`)                                                                                                                                                                                          |
 | Retention     | keeps `netdef_ci_keep_releases` releases (dev 3, prod 5)                                                                                                                                                                                                                                                                                      |
 
 ## Prerequisites
@@ -53,18 +53,25 @@ What the role installs (Debian/Ubuntu with systemd — the current infrastructur
 
 ## Values that must be filled in
 
-| Where                                       | Variable                       | Description                                                                |
-|---------------------------------------------|--------------------------------|----------------------------------------------------------------------------|
-| `inventories/<env>/hosts.yml`               | `ansible_host`, `ansible_user` | server and SSH user                                                        |
-| `inventories/<env>/group_vars/all/main.yml` | `netdef_ci_repo_url`           | repository URL                                                             |
-| same                                        | `netdef_ci_version`            | tag/commit (mandatory in production)                                       |
-| same                                        | `netdef_ci_settings.CI_URL`    | Bamboo host used in links                                                  |
-| same                                        | `netdef_ci_timers`             | schedules equivalent to the current cron                                   |
-| `vault.yml` (encrypted)                     | `vault_netdef_ci_*`            | database, webhook secret (≥ 16 characters), GitHub Apps passwords and keys |
+| Where                                       | Variable                       | Description                                                                               |
+|---------------------------------------------|--------------------------------|-------------------------------------------------------------------------------------------|
+| `inventories/<env>/hosts.yml`               | `ansible_host`, `ansible_user` | server and SSH user                                                                       |
+| `inventories/<env>/group_vars/all/main.yml` | `netdef_ci_repo_url`           | repository URL                                                                            |
+| same                                        | `netdef_ci_version`            | tag/commit (mandatory in production)                                                      |
+| same                                        | `netdef_ci_settings.CI_URL`    | Bamboo host used in links                                                                 |
+| same                                        | `netdef_ci_timers`             | schedules equivalent to the current cron                                                  |
+| same                                        | `netdef_ci_webhook_public_url` | public webhook URL that `check-github` expects in the App settings (empty = not compared) |
+| `vault.yml` (encrypted)                     | `vault_netdef_ci_*`            | database, webhook secret (≥ 16 characters), GitHub Apps passwords and keys                |
 
 Replay protection: the role sets `WEBHOOK_DEDUPE_TTL_SECONDS` from `netdef_ci_webhook_dedupe_ttl_seconds` (2 days) and `BAMBOO_CALLBACK_MAX_AGE_SECONDS` from `netdef_ci_bamboo_callback_max_age_seconds` (`0`). Raise the latter (for example to `300`) only after the Bamboo notification script sends the signed `timestamp` ([04](04-configuration-and-environment.md)).
 
 ## Secrets with Ansible Vault
+
+For a new environment, `make github-app ENV=<inventory> REPO=<owner>/<repo> URL=https://<public-host>/githubcheck`
+creates the GitHub App and writes its ID, key and the webhook secret into the inventory's encrypted `vault.yml`
+(creating it from `vault.yml.example` when needed), and `netdef_ci_webhook_public_url` into `main.yml`; see
+[13](13-github-app-setup.md#automated-setup-for-a-new-environment-recommended). The other values of the vault are
+filled in by hand as below.
 
 ```bash
 cd deploy/ansible

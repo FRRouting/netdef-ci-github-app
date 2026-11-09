@@ -8,6 +8,65 @@ server with Ansible, and verify the whole path. The reference tables (settings, 
 An existing App can be reused: there is **no need to create a new App** for a new server or a new deploy. Create one
 only for a new GitHub account/organization (see [One installation per App](#one-installation-per-app)).
 
+## Automated setup for a new environment (recommended)
+
+For the first App of a new environment, one command does steps 1 to 5 and 7; only two clicks on GitHub remain
+(creating and installing the App, which GitHub always asks a person to confirm). Run it on the operator's machine (the
+one with the inventory, `ansible-core` and a browser logged in to GitHub as the owner of the account), from the
+repository root after `make install-dev`:
+
+```bash
+make github-app ENV=<inventory> REPO=<owner>/<repo> URL=https://<public-host>/githubcheck
+# same as: python -m netdef_ci create-github-app --inventory deploy/ansible/inventories/<inventory> \
+#            --repo <owner>/<repo> --webhook-url https://<public-host>/githubcheck [--name "<App name>"]
+```
+
+```mermaid
+sequenceDiagram
+    participant Op as Operator
+    participant Cmd as create-github-app
+    participant Br as Browser
+    participant GH as GitHub
+    participant V as vault.yml
+    Op->>Cmd: make github-app (vault password)
+    Cmd->>V: decrypt (checks the password before anything is created)
+    Cmd->>Br: opens 127.0.0.1 page with the App manifest
+    Br->>GH: form pre-filled: URL, permissions, events, private
+    Op->>GH: click 1: Create GitHub App
+    GH->>Br: redirect to 127.0.0.1/callback?code=…
+    Cmd->>GH: POST /app-manifests/{code}/conversions
+    GH-->>Cmd: App ID, slug, private key
+    Cmd->>V: App ID, repo, key (+ webhook secret if missing), encrypted
+    Cmd->>GH: PATCH /app/hook/config (the environment's secret)
+    Cmd->>Br: opens the installation page
+    Op->>GH: click 2: only select repositories → Install
+    Cmd->>GH: polls /app/installations, then runs check-github
+```
+
+What the command does, in order:
+
+1. Decrypts `inventories/<inventory>/group_vars/all/vault.yml` with the password it asks for (or
+   `--vault-password-file`). When the file does not exist yet, it starts from `vault.yml.example` and asks for the new
+   password twice. A wrong password stops it before any App exists.
+2. Opens a local page (`http://127.0.0.1:<port>/`) that sends the [App manifest](#step-2--create-the-github-app) to
+   GitHub: the personal account form or the organization form, depending on the owner of `--repo`. Check the form
+   (the name must be unique on GitHub; `--name` sets it) and click **Create GitHub App**.
+3. Receives the code from GitHub's redirect and exchanges it for the App ID and the private key. The key only exists
+   in memory and in the encrypted vault: it is never written to disk in clear, and neither is the vault password
+   (both go to `ansible-vault` through pipes).
+4. Writes `vault_netdef_ci_github_apps` (replacing the example placeholder, or adding an entry; an entry for the same
+   repository is refused) and keeps `vault_netdef_ci_webhook_secret`, or generates one when it is missing or still a
+   placeholder. The vault is written right after the App is created, so the key is not lost if a later step fails.
+5. Sets the App's webhook URL and secret through the API: GitHub generates its own secret in the manifest flow, and
+   it must match the one the service and the Bamboo plan use.
+6. Saves `netdef_ci_webhook_public_url` in `group_vars/all/main.yml`, so the deploy's `check-github` compares it.
+7. Opens the installation page. Choose **Only select repositories**, select the repository and click **Install**.
+   The command waits for the installation (`--timeout-minutes`, default 15) and runs the `check-github` checks.
+
+It ends by printing the deploy command (step 6). After the deploy, run `check-github --redeliver-ping` on the server
+(step 8), register the Bamboo plan (step 9) and open a test PR (step 10). The manual steps below remain the
+reference, and the way to change an App that already exists.
+
 ## The whole path at a glance
 
 ```mermaid
@@ -17,8 +76,8 @@ flowchart TD
     C --> D[4. Install the App on the<br/>organization, selected repositories]
     D --> E[5. Put App ID, repo, .pem and<br/>webhook secret in the Ansible vault]
     E --> F[6. ansible-playbook deploy.yml]
-    F --> G[7. check-config on the server]
-    G --> H[8. Redeliver the ping<br/>from Recent Deliveries]
+    F --> G[7. check-config and check-github<br/>also run by the deploy]
+    G --> H[8. Redeliver the ping<br/>check-github --redeliver-ping]
     H --> I[9. Register the Bamboo plan<br/>doc/12]
     I --> J[10. Open a test PR:<br/>check runs appear]
 ```
@@ -188,21 +247,55 @@ ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml -
 The role validates that `vault_netdef_ci_github_apps` is not empty and that every entry has a `login`, installs the
 keys and `github_apps.toml`, and restarts the services when they changed.
 
-## Step 7 — Check the configuration on the server
+## Step 7 — Check the configuration and the App
+
+The deploy already runs `check-github` as part of its health check (step 6); its output is shown by the task
+*Show the GitHub App check*. To run both checks by hand on the server:
 
 ```bash
 sudo -u netdef-ci bash -c 'set -a; . /etc/netdef-ci/netdef-ci.env; set +a; cd /opt/netdef-ci/current && PYTHONPATH=src venv/bin/python -m netdef_ci check-config'
+sudo -u netdef-ci bash -c 'set -a; . /etc/netdef-ci/netdef-ci.env; set +a; cd /opt/netdef-ci/current && PYTHONPATH=src venv/bin/python -m netdef_ci check-github --webhook-url https://<public-host>/githubcheck'
 ```
 
-It must print `configuration OK`. The
-GitHub-related errors it reports are `WEBHOOK_SECRET is empty`, `no GitHub App configured (GITHUB_APPS_FILE)`,
-`GITHUB_APPS_FILE unreadable` and `private key of app <App ID> not found: <path>`. `check-config` does not call
-GitHub: a wrong key or a missing installation shows up only at the first API call (step 10).
+`check-config` is local (no call to GitHub) and must print `configuration OK`. Its GitHub-related errors are
+`WEBHOOK_SECRET is empty`, `no GitHub App configured (GITHUB_APPS_FILE)`, `GITHUB_APPS_FILE unreadable` and
+`private key of app <App ID> not found: <path>`.
+
+`check-github` calls the GitHub API with each App's key and prints one line per check (`ok`, `warn` or `FAIL`); it
+exits with `1` when any App has a `FAIL`. It is read-only (except `--redeliver-ping`, step 8). Example:
+
+```text
+GitHub App 1234567:
+  ok   authenticated as netdef-ci (owner FRRouting)
+  ok   App permissions
+  ok   subscribed events
+  ok   installed on FRRouting
+  ok   repository FRRouting/frr accessible
+  ok   webhook URL https://<public-host>/githubcheck
+  ok   last delivery: pull_request at 2026-11-06T10:00:00Z -> 202 OK
+GitHub Apps OK
+```
+
+| Check             | `FAIL` (or `warn`) when                                                                                   | Fix                                                                   |
+|-------------------|-----------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| Authentication    | the key file is missing, or GitHub rejects the JWT (`401`: wrong App ID or key, key revoked)              | step 3 and step 5                                                     |
+| App permissions   | Checks, Pull requests or Issues are not *write*, or Metadata is missing                                   | step 2 (the message links the App's permissions page)                 |
+| Subscribed events | Check run, Check suite, Issue comment or Pull request is not subscribed; `warn` for extra events          | step 2                                                                |
+| Installation      | no installation, **more than one** installation, suspended, or permissions not yet approved by an owner   | step 4, [One installation per App](#one-installation-per-app), step 2 |
+| Repository        | the configured `repo` is not in the installation; `warn` when the App has no `repo` or covers all repos   | step 4 (the message links the installation page)                      |
+| Webhook           | URL empty or different from `--webhook-url`, content type not `json`; `warn` when SSL verification is off | step 2                                                                |
+| Deliveries        | only `warn`: no delivery yet, or failed deliveries among the last 50                                      | step 8                                                                |
+
+In the deploy, `--webhook-url` comes from `netdef_ci_webhook_public_url` (inventory `group_vars`); leave it empty to
+skip the comparison. `netdef_ci_check_github: false` turns the check off (e.g. a host without access to the GitHub
+API).
 
 ## Step 8 — Redeliver the ping
 
-On the App's settings page open **Advanced → Recent Deliveries**, select the `ping` sent when the App was created and
-click **Redeliver**. Expected response: **`200`** with body `PONG!` (or `Duplicate delivery ignored` when that delivery
+From the server, `check-github --redeliver-ping` asks GitHub to redeliver the most recent `ping` and waits up to
+`--wait-seconds` (default 20) for the result, reported as `ping redelivered: … -> <status>`. On GitHub, the same is
+done on the App's settings page: open **Advanced → Recent Deliveries**, select the `ping` sent when the App was created
+and click **Redeliver**. Expected response: **`200`** with body `PONG!` (or `Duplicate delivery ignored` when that delivery
 was already accepted within `WEBHOOK_DEDUPE_TTL_SECONDS`).
 
 | Response                       | Cause                                                         | Fix                                                               |
@@ -249,7 +342,7 @@ sequenceDiagram
 4. A `ci:retry` comment on the PR gets a reaction from the App.
 
 When the delivery is accepted but no check run appears, look at the PR log and at
-[09 — troubleshooting](09-operations.md): `Github Authentication Failed` / `GitHub App <App ID> could not authenticate` means a wrong App
+[09 — troubleshooting](09-operations.md) and run `check-github` (step 7): `Github Authentication Failed` / `GitHub App <App ID> could not authenticate` means a wrong App
 ID or key, a key that was revoked, or an App not installed on the repository (step 4);
 `403 Resource not accessible by integration` means a missing permission or a permission change not yet approved
 (step 2).

@@ -47,10 +47,16 @@ class GithubAuthError(Exception):
 
 
 class AppAuth:
-    """Authenticates one GitHub App: signs the JWT and keeps the installation access token fresh."""
+    """Authenticates one GitHub App: signs the JWT and keeps the installation access token fresh. `private_key`
+    (PEM bytes) replaces reading `config.cert`, for a key that only exists in memory (`create-github-app`)."""
 
     def __init__(
-        self, config: GitHubAppConfig, settings: Settings, client: httpx.Client, sleep: Sleeper = time.sleep
+        self,
+        config: GitHubAppConfig,
+        settings: Settings,
+        client: httpx.Client,
+        sleep: Sleeper = time.sleep,
+        private_key: bytes | None = None,
     ) -> None:
         self.config = config
         self.settings = settings
@@ -60,7 +66,7 @@ class AppAuth:
         self._token: str | None = None
         self._expires_at: datetime | None = None
         self._installation_id: int | None = None
-        self._private_key: bytes | None = None
+        self._private_key = private_key
 
     def app_jwt(self) -> str:
         if self._private_key is None:
@@ -154,6 +160,99 @@ def _raise_for_status(response: httpx.Response) -> None:
     if response.status_code == 404:
         raise GithubNotFound(404, message)
     raise GithubError(response.status_code, message)
+
+
+class GithubAppApi:
+    """App-level API of one GitHub App (JWT, plus its installation token for the repository list), used by
+    `check-github`: the App itself, its installations, webhook configuration and recent deliveries.
+
+    It keeps its own `AppAuth` (not the process registry) so a check always authenticates from scratch."""
+
+    def __init__(
+        self,
+        config: GitHubAppConfig,
+        settings: Settings,
+        *,
+        client: httpx.Client,
+        sleep: Sleeper = time.sleep,
+        private_key: bytes | None = None,
+    ) -> None:
+        self.config = config
+        self.settings = settings
+        self._client = client
+        self._sleep = sleep
+        self._auth = AppAuth(config, settings, client, sleep, private_key)
+
+    def _app_call(self, method: str, path: str, **kwargs: Any) -> Any:
+        response = self._auth._call(method, path, None, **kwargs)
+        _raise_for_status(response)
+        return response.json() if response.content else {}
+
+    def app(self) -> Json:
+        """`GET /app`: slug, owner, permissions and subscribed events of the App."""
+        return self._app_call("GET", "/app")  # type: ignore[no-any-return]
+
+    def installations(self) -> list[Json]:
+        return self._app_call("GET", "/app/installations", params={"per_page": 100})  # type: ignore[no-any-return]
+
+    def installation_repositories(self, max_pages: int = 10) -> list[str]:
+        """`<owner>/<repo>` names visible to the installation the service uses (the first one)."""
+        token = self._auth.token()
+        if token is None:
+            return []
+        headers = {"Authorization": f"Bearer {token}", **_base_headers()}
+        names: list[str] = []
+        for page in range(1, max_pages + 1):
+            response = request_with_retries(
+                self._client,
+                "GET",
+                f"{self.settings.github_api_url}/installation/repositories",
+                max_retries=self.settings.github_max_retries,
+                sleep=self._sleep,
+                logger=github_http_logger(),
+                headers=headers,
+                params={"per_page": 100, "page": page},
+            )
+            _raise_for_status(response)
+            batch = response.json().get("repositories") or []
+            names.extend(str(repo["full_name"]) for repo in batch)
+            if len(batch) < 100:
+                break
+        return names
+
+    def hook_config(self) -> Json:
+        """`GET /app/hook/config`: webhook URL, content type and SSL setting (the secret comes back masked)."""
+        return self._app_call("GET", "/app/hook/config")  # type: ignore[no-any-return]
+
+    def hook_deliveries(self, per_page: int = 50) -> list[Json]:
+        """Most recent webhook deliveries first."""
+        return self._app_call("GET", "/app/hook/deliveries", params={"per_page": per_page})  # type: ignore[no-any-return]
+
+    def redeliver(self, delivery_id: int) -> None:
+        self._app_call("POST", f"/app/hook/deliveries/{delivery_id}/attempts")
+
+    def update_hook_config(self, url: str, secret: str) -> None:
+        """Webhook URL and secret of the App (JSON payloads, SSL verification on)."""
+        self._app_call(
+            "PATCH",
+            "/app/hook/config",
+            json={"url": url, "content_type": "json", "insecure_ssl": "0", "secret": secret},
+        )
+
+
+def convert_app_manifest(settings: Settings, code: str, client: httpx.Client) -> Json:
+    """Exchanges the code of the manifest flow for the new App: `id`, `slug`, `html_url`, `owner` and its `pem`
+    private key (only returned here). Unauthenticated; the code is valid for one hour and only once."""
+    response = client.post(f"{settings.github_api_url}/app-manifests/{code}/conversions", headers=_base_headers())
+    _raise_for_status(response)
+    return response.json()  # type: ignore[no-any-return]
+
+
+def account_type(settings: Settings, login: str, client: httpx.Client) -> str:
+    """`Organization` or `User` (public, unauthenticated `GET /users/{login}`)."""
+    response = client.get(f"{settings.github_api_url}/users/{login}", headers=_base_headers())
+    _raise_for_status(response)
+    return str(response.json().get("type") or "User")
 
 
 class GithubCheck:
