@@ -4,7 +4,7 @@ VENV   ?= .venv
 BIN    := $(VENV)/bin
 export PYTHONPATH := src
 
-.PHONY: venv install install-dev migrate run worker watch-dog test lint typecheck check smoke docs-tables
+.PHONY: venv install install-dev migrate run worker watch-dog test lint typecheck check smoke docs-tables github-app
 
 venv:
 	$(PYTHON) -m venv $(VENV)
@@ -45,3 +45,9 @@ check: lint typecheck test
 
 smoke:
 	$(BIN)/python scripts/smoke_test.py
+
+# First GitHub App of a new environment (doc/13-github-app-setup.md):
+#   make github-app ENV=dev REPO=<owner>/<repo> URL=https://<public-host>/githubcheck
+github-app:
+	$(BIN)/python -m netdef_ci create-github-app --inventory deploy/ansible/inventories/$(ENV) --repo $(REPO) \
+		--webhook-url $(URL)

@@ -111,6 +111,11 @@ netdef_ci_github_apps: "{{ vault_netdef_ci_github_apps | default([]) }}"
 netdef_ci_health_retries: 20
 netdef_ci_health_delay: 3
 netdef_ci_health_url: "http://127.0.0.1:{{ netdef_ci_listen_port }}"
+# `check-github` after the health checks: App key, single installation, repository access, permissions, events and
+# webhook configuration, through the GitHub API (needs outbound HTTPS to GITHUB_API_URL).
+netdef_ci_check_github: true
+# Public webhook URL expected in the GitHub App settings, e.g. https://<public-host>/githubcheck; empty = not compared.
+netdef_ci_webhook_public_url: ""
 
 # Rollback: set to a release id (see {{ netdef_ci_history_file }}) to pick the target explicitly; default = previous release.
 netdef_ci_rollback_to: ""

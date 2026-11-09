@@ -17,9 +17,9 @@ from typing import Any
 import httpx
 
 from netdef_ci.clients.bamboo import BambooClient
-from netdef_ci.clients.github import GithubCheck, reset_app_auth_registry
+from netdef_ci.clients.github import GithubAppApi, GithubCheck, reset_app_auth_registry
 from netdef_ci.clients.slack import SlackBot
-from netdef_ci.config import get_settings
+from netdef_ci.config import GitHubAppConfig, get_settings
 
 _lock = threading.Lock()
 _instances: dict[str, Any] = {}
@@ -43,13 +43,22 @@ def slack() -> SlackBot:
 
 def github(check_suite: Any | None = None) -> GithubCheck:
     """Equivalent of `Github::Check.new(check_suite)`."""
-    global _github_client
     if _github_factory is not None:
         return _github_factory(check_suite)
+    return GithubCheck(check_suite, get_settings(), client=_shared_github_client())
+
+
+def github_app(config: GitHubAppConfig) -> GithubAppApi:
+    """App-level API of one configured GitHub App (`check-github`); shares the GitHub HTTP client."""
+    return GithubAppApi(config, get_settings(), client=_shared_github_client())
+
+
+def _shared_github_client() -> httpx.Client:
+    global _github_client
     with _lock:
         if _github_client is None:
             _github_client = httpx.Client(timeout=get_settings().http_timeout_seconds)
-    return GithubCheck(check_suite, get_settings(), client=_github_client)
+        return _github_client
 
 
 def override(*, bamboo: Any = None, slack: Any = None, github_factory: Callable[[Any], Any] | None = None) -> None:

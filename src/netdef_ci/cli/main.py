@@ -24,6 +24,7 @@ from netdef_ci.config import get_settings
 from netdef_ci.db import init_engine, session_scope
 from netdef_ci.logs import configure_logging
 from netdef_ci.models import GithubUser, Organization
+from netdef_ci.services.app_check import AppReport
 
 BAMBOO_AUTH_OPTIONS = "BAMBOO_CLIENT_ID/SECRET, BAMBOO_TOKEN, BAMBOO_USERNAME/PASSWORD or ~/.netrc"
 
@@ -50,6 +51,21 @@ def _build_parser() -> argparse.ArgumentParser:
     bamboo = sub.add_parser("check-bamboo", help="probe the Bamboo connection with the service's own client")
     bamboo.add_argument("--plan", help="also read a plan key, e.g. PROJ-PLAN")
     bamboo.add_argument("--result", help="also read an execution key, e.g. PROJ-PLAN-123 (jobs and status)")
+    github = sub.add_parser("check-github", help="verify each GitHub App: key, installation, permissions, webhook")
+    github.add_argument("--webhook-url", help="public webhook URL expected in the App settings")
+    github.add_argument("--redeliver-ping", action="store_true", help="redeliver the last ping and report its result")
+    github.add_argument(
+        "--wait-seconds", type=float, default=20.0, help="how long to wait for the redelivered ping (default 20)"
+    )
+    create = sub.add_parser(
+        "create-github-app", help="create, store and install the GitHub App of a new environment (operator machine)"
+    )
+    create.add_argument("--inventory", required=True, help="Ansible inventory, e.g. deploy/ansible/inventories/dev")
+    create.add_argument("--repo", required=True, help="repository served by the App, <owner>/<repo>")
+    create.add_argument("--webhook-url", required=True, help="public webhook URL, e.g. https://<host>/githubcheck")
+    create.add_argument("--name", help="App name (unique on GitHub); default 'NetDEF CI <inventory>'")
+    create.add_argument("--vault-password-file", help="file with the vault password (default: asked)")
+    create.add_argument("--timeout-minutes", type=float, default=15.0, help="wait for each browser step (default 15)")
     sub.add_parser("purge-jobs", help="delete every pending background job")
 
     org = sub.add_parser("org", help="organizations").add_subparsers(dest="action", required=True)
@@ -85,6 +101,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         "stamp-baseline": _stamp,
         "check-config": _check_config,
         "check-bamboo": _check_bamboo,
+        "check-github": _check_github,
+        "create-github-app": _create_github_app,
         "purge-jobs": _purge_jobs,
         "org": _org,
         "user": _user,
@@ -273,6 +291,77 @@ def _check_config(_: argparse.Namespace) -> int:
         print(f"error: {problem}", file=sys.stderr)
     print("configuration OK" if not problems else f"{len(problems)} problem(s) found")
     return 1 if problems else 0
+
+
+def _check_github(args: argparse.Namespace) -> int:
+    """Real HTTP calls to GitHub with each App's JWT (read-only unless --redeliver-ping)."""
+    from netdef_ci.services.app_check import check_github_apps
+
+    apps = get_settings().github_apps()
+    if not apps:
+        print("error: no GitHub App configured (GITHUB_APPS_FILE)", file=sys.stderr)
+        return 1
+    reports = check_github_apps(
+        apps, webhook_url=args.webhook_url, redeliver_ping=args.redeliver_ping, wait_seconds=args.wait_seconds
+    )
+    for report in reports:
+        _print_report(report)
+    failed = sum(1 for report in reports if report.failed)
+    print("GitHub Apps OK" if not failed else f"{failed} GitHub App(s) with problems")
+    return 1 if failed else 0
+
+
+def _print_report(report: AppReport) -> None:
+    print(f"GitHub App {report.login}:")
+    for level, message in report.findings:
+        print(f"  {level:<4} {message}")
+
+
+def _create_github_app(args: argparse.Namespace) -> int:
+    """Interactive: opens the browser twice (create, install) and asks for the vault password."""
+    import getpass
+    import webbrowser
+
+    import httpx
+
+    from netdef_ci.services.app_setup import AppSetupError, AppSetupRequest, CreateGithubApp, VaultFile
+
+    settings = get_settings()
+    request = AppSetupRequest(
+        inventory=Path(args.inventory),
+        repo=args.repo,
+        webhook_url=args.webhook_url,
+        name=args.name,
+        timeout_seconds=args.timeout_minutes * 60,
+    )
+    if args.vault_password_file:
+        password = Path(args.vault_password_file).read_text().strip()
+    else:
+        password = getpass.getpass(f"Vault password for {request.vault_path}: ")
+        if not request.vault_path.exists() and getpass.getpass("Confirm the new vault password: ") != password:
+            print("error: the passwords do not match", file=sys.stderr)
+            return 1
+    try:
+        with httpx.Client(timeout=settings.http_timeout_seconds) as client:
+            report = CreateGithubApp(
+                request,
+                settings,
+                VaultFile(request.vault_path, password),
+                client=client,
+                open_browser=webbrowser.open,
+                notify=print,
+            ).run()
+    except AppSetupError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 1
+    _print_report(report)
+    playbook_dir = request.inventory.parent.parent
+    print(
+        f"Next: cd {playbook_dir} && ansible-playbook -i {request.inventory.relative_to(playbook_dir)}/hosts.yml "
+        "playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=<tag>"
+    )
+    print("After the deploy: check-github --redeliver-ping on the server (doc/13, step 8).")
+    return 1 if report.failed else 0
 
 
 # ---------------------------------------------------------------------------- console (bin/console)

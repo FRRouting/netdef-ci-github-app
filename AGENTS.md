@@ -221,4 +221,5 @@ make install-dev && make check          # lint + mypy + tests with coverage
 scripts/test-with-podman.sh             # same gate with Python 3.13.18 and PostgreSQL in containers
 make smoke                              # starts real uvicorn + worker against a test PostgreSQL
 make docs-tables                        # aligns every Markdown table (lint runs it with --check)
+make github-app ENV=<inventory> REPO=<owner>/<repo> URL=<webhook URL>   # first GitHub App of an environment (doc/13)
 ```
