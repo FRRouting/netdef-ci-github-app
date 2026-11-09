@@ -110,6 +110,9 @@ class Settings(BaseSettings):
     status_debounce_seconds: int = Field(30, alias="STATUS_DEBOUNCE_SECONDS", ge=0)
     create_execution_delay_seconds: int = Field(5, alias="CREATE_EXECUTION_DELAY_SECONDS", ge=0)
     rerun_delay_seconds: int = Field(1, alias="RERUN_DELAY_SECONDS", ge=0)
+    # After a `ci:retry`/`ci:rerun` (comment or Checks UI) started, the same pull request refuses another one (409) for
+    # this long, so a late duplicate cannot stop the execution the first one just started. 0 disables it.
+    ci_command_cooldown_seconds: int = Field(60, alias="CI_COMMAND_COOLDOWN_SECONDS", ge=0)
     running_plan_wait_seconds: int = Field(60, alias="RUNNING_PLAN_WAIT_SECONDS", ge=0)
     running_plan_poll_seconds: float = Field(3.0, alias="RUNNING_PLAN_POLL_SECONDS", gt=0)
     timeout_check_minutes: int = Field(10, alias="TIMEOUT_CHECK_MINUTES", ge=1)
