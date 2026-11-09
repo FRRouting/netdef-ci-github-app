@@ -23,12 +23,15 @@ from netdef_ci.jobs import queue as jobs_queue
 from netdef_ci.jobs.locks import pull_request_lock
 from netdef_ci.logs import Log
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, PullRequestSubscription, Stage, StageConfiguration
+from netdef_ci.services.command_guard import CommandGuard
 from netdef_ci.services.common import find_pull_request
 from netdef_ci.services.executions import dig
 from netdef_ci.services.unavailable_jobs import UnavailableJobs
 from netdef_ci.services.user_info import sync_user_info
 
 Response = tuple[int, str]
+
+REFUSED = (404, 406, 409, 422)  # answers that mean "nothing was retried" (the comment gets :-1:)
 
 
 class BuildRetry:
@@ -96,20 +99,24 @@ class RetryBase:
 
     def schedule(self) -> Response:
         """Webhook side: answer the requests that cannot be retried right away and leave the retry (Bamboo stop and
-        restart, check runs, Slack) to a `retry_execution` job; it restarts a Bamboo plan, so it runs only once."""
+        restart, check runs, Slack) to a `retry_execution` job. Admitted by `CommandGuard`: one ci:retry/ci:rerun at
+        a time per pull request, none again within CI_COMMAND_COOLDOWN_SECONDS."""
         refusal = self._refusal()
         if refusal is not None:
             return refusal
         assert self.stage is not None
         suite = self.stage.check_suite
-        pr_id = suite.pull_request.github_pr_id if suite is not None and suite.pull_request is not None else None
-        jobs_queue.enqueue(
-            self.session,
-            "retry_execution",
-            [self.KIND, self.payload],
-            queue=jobs_queue.execution_queue("retry_execution", pr_id),
-            max_attempts=1,
-        )
+        if suite is None or suite.pull_request is None:
+            return 404, "Stage not found"
+        guard = CommandGuard(self.session, suite.pull_request.id)
+        with guard.admission() as refused:
+            if refused is not None:
+                return refused
+            guard.enqueue(
+                "retry_execution",
+                [self.KIND, self.payload],
+                queue=jobs_queue.execution_queue("retry_execution", suite.pull_request.github_pr_id),
+            )
         return 200, "Retry scheduled"
 
     def start(self) -> Response:
@@ -235,24 +242,33 @@ class RetryComment(RetryBase):
     def start(self) -> Response:
         output = super().start()
         self.log.info("Github::Retry::Comment - response %s", output)
-        self._reaction(self.comment_id, up=output[0] not in (404, 406, 422))
+        self._reaction(self.comment_id, up=output[0] not in REFUSED)
         return output
 
     def schedule(self) -> Response:
         output = super().schedule()
-        if output[0] in (404, 406, 422):  # refused now; the job reacts to the outcome of a scheduled retry
+        if output[0] in REFUSED:  # refused now; the job reacts to the outcome of a scheduled retry
             self._reaction(self.comment_id, up=False)
         return output
 
 
+def _build(session: Session, kind: str, payload: dict[str, Any]) -> RetryBase:
+    return {RetryCommand.KIND: RetryCommand, RetryComment.KIND: RetryComment}[kind](session, payload)
+
+
 def run(session: Session, kind: str, payload: dict[str, Any]) -> Response:
     """`retry_execution` job: the retry itself, serialized with the executions of the same pull request."""
-    retry: RetryBase = {RetryCommand.KIND: RetryCommand, RetryComment.KIND: RetryComment}[kind](session, payload)
+    retry = _build(session, kind, payload)
     suite = retry.stage.check_suite if retry.stage is not None else None
     if suite is None or suite.pull_request_id is None:
         output = retry.start()
     else:
         with pull_request_lock(suite.pull_request_id):
+            # The rows were read before waiting for the lock, possibly before another retry of this suite committed:
+            # end that transaction (nothing was written), forget the loaded rows and decide again from the database.
+            session.rollback()
+            session.expire_all()
+            retry = _build(session, kind, payload)
             output = retry.start()
     retry.log.info("Retry (%s) finished with %s", kind, output)
     return output

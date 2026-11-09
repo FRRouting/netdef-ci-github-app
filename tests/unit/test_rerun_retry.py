@@ -198,3 +198,92 @@ def test_retry_job_for_a_stage_that_disappeared(session, clients) -> None:
     from netdef_ci.services import retry
 
     assert retry.run(session, "command", payloads.check_run(31337)) == (404, "Stage not found")
+
+
+# ---------------------------------------------------------------------------- bursts of ci:retry / ci:rerun
+BUSY = (409, "Another ci:retry/ci:rerun is in progress for this pull request")
+RECENT = (409, "A ci:retry/ci:rerun started moments ago for this pull request")
+
+
+def test_burst_of_retry_requests_stops_and_restarts_bamboo_once(session, clients, bamboo, github) -> None:
+    """FRR-PULLREQ3-24017: three retries of one suite within 2 s; the later ones stopped the build the first restarted."""
+    from netdef_ci.services import retry
+
+    w = finished_world(session)
+    first = payloads.check_run(int(w.tests_stage.check_ref))
+    assert RetryCommand(session, first).schedule() == (200, "Retry scheduled")
+    comment = payloads.issue_comment("ci:retry", number=w.pr.github_pr_id)
+    assert RetryComment(session, comment).schedule() == BUSY
+    assert RetryCommand(session, first).schedule() == BUSY
+    assert github.reactions == [("org/repo", 99, "-1")]  # the refused comment knows nothing was started
+    job = session.scalars(select(Job).where(Job.handler == "retry_execution")).one()
+    assert (job.args, job.max_attempts, job.dedupe_key) == (["command", first], 1, f"ci-command:{w.pr.id}")
+    assert retry.run(session, *job.args) == (200, "Retrying failure jobs")
+    session.delete(job)  # what the worker does with a finished job
+    session.commit()
+    for stage in (w.tests_stage, w.build_stage):  # the restarted build failed again right away
+        stage.status = Status.FAILURE
+    session.commit()
+    session.refresh(w.tests_stage)  # the retry created a new check run for the stage
+    assert RetryCommand(session, payloads.check_run(int(w.tests_stage.check_ref))).schedule() == RECENT
+    assert bamboo.stopped == ["PROJ-PLAN-77"] and bamboo.restarted == ["PROJ-PLAN-77"]
+
+
+def test_burst_of_rerun_requests_starts_one_execution_per_plan(session, clients, github) -> None:
+    w = f.World(session)
+    f.plan(session, name="second", bamboo="PROJ-B", pull_request=w.pr)
+    comment = payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id)
+    assert ReRunComment(session, comment).start() == (200, "Scheduled Plan Runs")
+    assert (
+        ReRunComment(session, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id, comment_id=100)).start()
+        == BUSY
+    )
+    checks_ui = payloads.check_suite(w.suite.commit_sha_ref, number=w.pr.github_pr_id)
+    assert ReRunCommand(session, checks_ui).start() == BUSY
+    assert github.reactions == [("org/repo", 99, "rocket"), ("org/repo", 100, "-1")]
+    jobs = session.scalars(select(Job).order_by(Job.id)).all()
+    assert [(j.handler, j.dedupe_key) for j in jobs] == [("create_execution_by_comment", f"ci-command:{w.pr.id}")] * 2
+
+
+def test_retry_and_rerun_of_one_pull_request_exclude_each_other(session, clients, github) -> None:
+    w = finished_world(session)
+    assert ReRunComment(session, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id)).start()[0] == 200
+    assert RetryCommand(session, payloads.check_run(int(w.tests_stage.check_ref))).schedule() == BUSY
+
+
+def test_rerun_right_after_a_rerun_started_is_refused_unless_the_cooldown_is_off(
+    session, clients, settings, monkeypatch
+) -> None:
+    w = f.World(session)
+    session.add(AuditRetry(check_suite_id=w.suite.id, retry_type="full"))
+    session.commit()
+    checks_ui = payloads.check_suite(w.suite.commit_sha_ref, number=w.pr.github_pr_id)
+    assert ReRunCommand(session, checks_ui).start() == RECENT
+    monkeypatch.setattr(settings, "ci_command_cooldown_seconds", 0)
+    assert ReRunCommand(session, checks_ui).start() == (200, "Scheduled Plan Runs")
+
+
+def test_retry_job_decides_from_the_state_after_taking_the_lock(session, clients, bamboo, monkeypatch) -> None:
+    from contextlib import contextmanager
+
+    from sqlalchemy import update
+
+    from netdef_ci.models import Stage
+    from netdef_ci.services import retry
+
+    w = finished_world(session)
+
+    @contextmanager
+    def lock_released_after_another_retry(pull_request_id):
+        # Another worker retried this suite while this job waited for the lock.
+        session.execute(
+            update(Stage).where(Stage.id == w.tests_stage.id).values(status=Status.QUEUED),
+            execution_options={"synchronize_session": False},
+        )
+        session.commit()
+        yield
+
+    monkeypatch.setattr(retry, "pull_request_lock", lock_released_after_another_retry)
+    payload = payloads.check_run(int(w.tests_stage.check_ref))
+    assert retry.run(session, "command", payload) == (406, "Already enqueued this execution")
+    assert bamboo.stopped == [] and bamboo.restarted == []
