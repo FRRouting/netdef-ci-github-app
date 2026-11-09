@@ -391,10 +391,15 @@ class Stage(Base):
         self._finish(github, Status.SUCCESS, github.success, output, agent)
 
     def _finish(self, github: GithubCheck, status: Status, call: Any, output: Output | None, agent: str) -> None:
-        # Finishing a stage creates a fresh check run and completes it.
-        check_run = github.create(self.full_name())
-        call(check_run["id"], output or {})
-        self._record(status, agent, check_ref=str(check_run["id"]))
+        # An open stage concludes the check run the pull request is waiting on; a fresh one would leave it queued or
+        # in progress forever. Only a stage without a check run, or one already concluded (re-conclusion), gets a
+        # new check run, so the previous result stays in GitHub's history.
+        if self.check_ref is None or self.state not in RUNNING_STATUSES:
+            check_ref = str(github.create(self.full_name())["id"])
+        else:
+            check_ref = self.check_ref
+        call(check_ref, output or {})
+        self._record(status, agent, check_ref=check_ref)
         from netdef_ci import container
 
         container.slack().stage_finished_notification(self)
