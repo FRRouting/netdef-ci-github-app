@@ -326,6 +326,75 @@ describe Github::Build::Summary do
     end
   end
 
+  context 'when a previous stage is stuck in_progress after pipeline advances' do
+    let(:stage1_config) { create(:stage_configuration, position: 1) }
+    let(:stage2_config) { create(:stage_configuration, position: 2) }
+    let(:stage1) { create(:stage, :in_progress, name: 'Build', configuration: stage1_config, check_suite: check_suite) }
+    let(:stage2) { create(:stage, :in_progress, name: 'Tests', configuration: stage2_config, check_suite: check_suite) }
+    let(:ci_job_stage1) { create(:ci_job, :success, check_suite: check_suite, stage: stage1) }
+    let(:ci_job) { create(:ci_job, :in_progress, check_suite: check_suite, stage: stage2) }
+
+    before do
+      ci_job_stage1
+      ci_job
+    end
+
+    it 'finalizes the stuck previous stage' do
+      summary.build_summary
+      expect(stage1.reload.status).to eq('success')
+      expect(stage2.reload.status).to eq('in_progress')
+    end
+  end
+
+  context 'when multiple previous stages are stuck in_progress after pipeline advances' do
+    let(:stage1_config) { create(:stage_configuration, position: 1) }
+    let(:stage2_config) { create(:stage_configuration, position: 2) }
+    let(:stage3_config) { create(:stage_configuration, position: 3) }
+    let(:stage1) { create(:stage, :in_progress, name: 'Build', configuration: stage1_config, check_suite: check_suite) }
+    let(:stage2) { create(:stage, :in_progress, name: 'Tests', configuration: stage2_config, check_suite: check_suite) }
+    let(:stage3) do
+      create(:stage, :in_progress, name: 'Verify Source', configuration: stage3_config, check_suite: check_suite)
+    end
+    let(:ci_job_stage1) { create(:ci_job, :success, check_suite: check_suite, stage: stage1) }
+    let(:ci_job_stage2) { create(:ci_job, :success, check_suite: check_suite, stage: stage2) }
+    let(:ci_job) { create(:ci_job, :in_progress, check_suite: check_suite, stage: stage3) }
+
+    before do
+      ci_job_stage1
+      ci_job_stage2
+      ci_job
+    end
+
+    it 'finalizes all previous stages with no running jobs' do
+      summary.build_summary
+      expect(stage1.reload.status).to eq('success')
+      expect(stage2.reload.status).to eq('success')
+      expect(stage3.reload.status).to eq('in_progress')
+    end
+  end
+
+  context 'when a previous stage is stuck in_progress but still has running jobs' do
+    let(:stage1_config) { create(:stage_configuration, position: 1) }
+    let(:stage2_config) { create(:stage_configuration, position: 2) }
+    let(:stage1) { create(:stage, :in_progress, name: 'Build', configuration: stage1_config, check_suite: check_suite) }
+    let(:stage2) { create(:stage, :in_progress, name: 'Tests', configuration: stage2_config, check_suite: check_suite) }
+    let(:ci_job_stage1_done) { create(:ci_job, :success, check_suite: check_suite, stage: stage1) }
+    let(:ci_job_stage1_running) { create(:ci_job, :in_progress, check_suite: check_suite, stage: stage1) }
+    let(:ci_job) { create(:ci_job, :in_progress, check_suite: check_suite, stage: stage2) }
+
+    before do
+      ci_job_stage1_done
+      ci_job_stage1_running
+      ci_job
+    end
+
+    it 'does not prematurely finalize a stage with active jobs' do
+      summary.build_summary
+      expect(stage1.reload.status).to eq('in_progress')
+      expect(stage2.reload.status).to eq('in_progress')
+    end
+  end
+
   context 'when the current stage is cancelled' do
     let(:stage) { create(:stage, :cancelled, check_suite: check_suite) }
     let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
