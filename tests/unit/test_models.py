@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import pytest
 from sqlalchemy import select
 
 from netdef_ci.db import utcnow
@@ -69,14 +70,45 @@ def test_stage_in_progress_is_idempotent_and_notifies(session, clients, github, 
     assert slack.names() == ["stage_in_progress"]
 
 
-def test_stage_finish_creates_a_fresh_check_run(session, clients, github, slack) -> None:
+@pytest.mark.parametrize(
+    ("status", "finish", "conclusion"),
+    [
+        (Status.QUEUED, "success", "success"),
+        (Status.IN_PROGRESS, "failure", "failure"),
+        (Status.IN_PROGRESS, "cancelled", "cancelled"),
+    ],
+)
+def test_finishing_an_open_stage_concludes_its_existing_check_run(
+    session, clients, github, slack, status, finish, conclusion
+) -> None:
+    w = f.World(session, statuses=(status, status))
+    getattr(w.build_stage, finish)(github, output={"title": "t", "summary": "s"})
+    assert w.build_stage.check_ref == "501"
+    assert github.calls_named("create") == []
+    assert github.check_runs[501]["status"] == "completed"
+    assert github.check_runs[501]["conclusion"] == conclusion
+    assert slack.names() == ["stage_finished"]
+
+
+def test_finishing_a_stage_without_check_run_creates_one(session, clients, github, slack) -> None:
     w = f.World(session)
-    old_ref = w.build_stage.check_ref
+    w.build_stage.check_ref = None
+    session.commit()
     w.build_stage.success(github, output={"title": "t", "summary": "s"})
     assert w.build_stage.state == Status.SUCCESS
-    assert w.build_stage.check_ref != old_ref
+    assert github.calls_named("create") == [("[CI] Build",)]
     assert github.check_runs[int(w.build_stage.check_ref)]["conclusion"] == "success"
-    assert slack.names() == ["stage_finished"]
+
+
+def test_reconcluding_a_finished_stage_creates_a_fresh_check_run(session, clients, github, slack) -> None:
+    w = f.World(session)
+    w.build_stage.failure(github, output={"title": "t", "summary": "s"})
+    w.build_stage.success(github, output={"title": "t", "summary": "s"})
+    assert w.build_stage.state == Status.SUCCESS
+    assert w.build_stage.check_ref != "501"
+    assert github.check_runs[501]["conclusion"] == "failure"
+    assert github.check_runs[int(w.build_stage.check_ref)]["conclusion"] == "success"
+    assert [run["status"] for run in github.by_name("[CI] Build")] == ["completed"]
 
 
 def test_check_suite_running_and_finished(session) -> None:
