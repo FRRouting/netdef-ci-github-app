@@ -289,6 +289,11 @@ class GithubCheck:
         assert self._auth is not None
         return self._auth
 
+    def authenticate(self) -> None:
+        """Authenticate now instead of on the first API call; raises GithubAuthError (DNS, timeouts and refused tokens
+        included). Flows that must not write anything when GitHub is unreachable call it first."""
+        self._app_auth()
+
     def _authenticate(self) -> None:
         apps = self.settings.github_apps()
         by_repo = [a for a in apps if a.repo and a.repo == self.repository]
@@ -396,14 +401,14 @@ class GithubCheck:
     def delete_comment_reaction(self, repo: str, comment_id: int, reaction_id: int) -> Json:
         return self._request("DELETE", f"/repos/{repo}/issues/comments/{comment_id}/reactions/{reaction_id}")
 
-    def create(self, name: str) -> Json:
+    def create(self, name: str, output: dict[str, str] | None = None) -> Json:
+        """New check run (`queued`); `output` is sent in the same request, so no PATCH has to follow it."""
         if self.check_suite is None:
             raise GithubError(0, "cannot create a check run without a check suite")
-        return self._request(
-            "POST",
-            f"/repos/{self._repo()}/check-runs",
-            json={"name": name, "head_sha": self.check_suite.commit_sha_ref},
-        )
+        body: Json = {"name": name, "head_sha": self.check_suite.commit_sha_ref}
+        if (clean := self._output(output)) is not None:
+            body["output"] = clean
+        return self._request("POST", f"/repos/{self._repo()}/check-runs", json=body)
 
     def queued(self, check_ref: str | int, output: dict[str, str] | None = None) -> Json:
         return self._basic_status(check_ref, "queued", output)

@@ -30,10 +30,23 @@ class FakeGithub:
         self.pulls: list[dict[str, Any]] = []
         self.secret = "test-secret"
         self.fail_reactions = False
+        # Like the real client, which authenticates on its first API call: every call raises GithubAuthError.
+        self.fail_auth = False
+        # Errors raised by the next calls of a method, e.g. {"create": [GithubNotFound(404, "")]}; consumed in order.
+        self.failures: dict[str, list[BaseException]] = {}
 
     # -- helpers
     def _record(self, name: str, *args: Any) -> None:
+        self._check_auth()
+        if self.failures.get(name):
+            raise self.failures[name].pop(0)
         self.calls.append((name, args))
+
+    def _check_auth(self) -> None:
+        if self.fail_auth:
+            from netdef_ci.clients.github import GithubAuthError
+
+            raise GithubAuthError("Github Authentication Failed")
 
     def calls_named(self, name: str) -> list[tuple[Any, ...]]:
         return [args for call, args in self.calls if call == name]
@@ -42,11 +55,14 @@ class FakeGithub:
         return [c for c in self.check_runs.values() if c["name"] == name]
 
     # -- API used by the app
-    def create(self, name: str) -> dict[str, Any]:
-        self.next_id += 1
-        run = {"id": self.next_id, "name": name, "status": "queued", "conclusion": None, "output": {}}
-        self.check_runs[self.next_id] = run
+    def authenticate(self) -> None:
+        self._check_auth()
+
+    def create(self, name: str, output: dict | None = None) -> dict[str, Any]:
         self._record("create", name)
+        self.next_id += 1
+        run = {"id": self.next_id, "name": name, "status": "queued", "conclusion": None, "output": output or {}}
+        self.check_runs[self.next_id] = run
         return dict(run)
 
     def _update(self, check_ref: Any, **changes: Any) -> dict[str, Any]:
@@ -93,6 +109,8 @@ class FakeGithub:
         return {"check_runs": self.listed_check_runs.get(status, [])}
 
     def fetch_username(self, github_id: Any) -> dict[str, Any] | None:
+        if self.fail_auth:
+            return None  # the real client logs any error and returns None
         return self.users.get(
             github_id, {"login": f"user{github_id}", "name": "User", "email": None, "type": "User", "company": "ACME"}
         )

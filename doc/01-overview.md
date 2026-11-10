@@ -62,13 +62,17 @@ sequenceDiagram
     WEB->>DB: job create_execution_by_plan (+5 s, 1 attempt)
     WEB-->>GH: 200 Scheduled Plan Runs
     W->>DB: reserves the job (SKIP LOCKED) + PR advisory lock
-    W->>DB: CheckSuite, then cancel the previous execution (jobs, stages, StopPlan)
+    W->>GH: authenticate (failure: nothing saved, job enqueued again)
+    W->>DB: CheckSuite; previous execution's running jobs cancelled
+    W->>B: StopPlan of the previous execution, wait until stopped
     W->>B: POST queue/<plan> (customRevision, github_*, signature_secret)
     B-->>W: buildResultKey
     W->>B: comment on the result
+    Note over W,GH: GitHub setup (ChecksSetup); any error → job setup_github_checks
     W->>SL: execution started
+    W->>GH: cancel the previous execution's open check runs
     W->>B: result/<key>?expand=stages.stage.results
-    W->>GH: SkipOldTests + Check Run per stage (queued)
+    W->>GH: SkipOldTests + Check Run per stage (queued, output in the POST)
     W->>DB: Stage, CiJob, job timeout_execution (+10 min)
 ```
 

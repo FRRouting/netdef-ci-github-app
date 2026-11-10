@@ -220,6 +220,7 @@ def test_registered_handlers_cover_every_enqueued_job_name() -> None:
     assert set(handlers.REGISTERED) == {
         "create_execution_by_plan",
         "create_execution_by_comment",
+        "setup_github_checks",
         "create_execution_by_command",
         "ci_job_status",
         "timeout_execution",

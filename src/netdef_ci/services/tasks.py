@@ -65,6 +65,7 @@ def timeout_execution(session: Session, check_suite_id: int) -> bool:
         [check_suite_id],
         queue="timeout_execution",
         delay_seconds=settings.timeout_check_minutes * 60,
+        dedupe_key=f"suite-{check_suite_id}",  # same key as action.timeout_dedupe_key
     )
     return False
 
