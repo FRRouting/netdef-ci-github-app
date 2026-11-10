@@ -193,3 +193,4 @@ The validations above were recorded with Python 3.15.2, before the switch to 3.1
 convergence test now builds 3.13.18 and has not been re-run since.
 
 Validation limitations: there was no real SSH access, real GitHub App, Bamboo or Slack; the container uses a `local` connection (it does not exercise SSH/`become`); the `RedHat` configuration and the use of `--check` on new hosts (the `--check` of the `pip`/`command` module depends on the release already existing) were not exercised. The container needed `--privileged` (rootless) because of systemd's sandbox options.
+
