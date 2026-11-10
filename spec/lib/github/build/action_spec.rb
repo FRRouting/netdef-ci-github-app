@@ -187,4 +187,45 @@ describe Github::Build::Action do
         .not_to raise_error
     end
   end
+
+  context 'when resuming a summary that an earlier attempt left half done' do
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+
+    it 'creates the missing check run of a stage that has none' do
+      stage.update(check_ref: nil)
+
+      action.create_summary(resume: true)
+
+      expect(fake_github_check).to have_received(:create).with('[CI] Build', output: anything)
+      expect(stage.reload.check_ref).not_to be_nil
+    end
+
+    it 'does not create a new check run for a stage that already has one' do
+      action.create_summary(resume: true)
+
+      expect(fake_github_check).not_to have_received(:create).with('[CI] Build', output: anything)
+    end
+
+    it 'puts a start-in-progress stage in progress' do
+      stage.configuration.update(start_in_progress: true)
+
+      action.create_summary(resume: true)
+
+      expect(stage.reload.status).to eq('in_progress')
+    end
+
+    it 'does not duplicate CI jobs that already exist' do
+      ci_job
+
+      expect { action.create_summary(resume: true) }.not_to change(CiJob, :count)
+    end
+
+    it 'creates the stages that do not exist yet' do
+      config = create(:stage_configuration, github_check_run_name: 'Missing Stage')
+
+      action.create_summary(resume: true)
+
+      expect(Stage.find_by(check_suite: check_suite, configuration: config)).not_to be_nil
+    end
+  end
 end

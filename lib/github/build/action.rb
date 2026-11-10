@@ -49,17 +49,19 @@ module Github
       # Creates a summary for the CheckSuite, including jobs and timeout workers.
       #
       # @param [Boolean] rerun Indicates if the jobs should be rerun (default: false).
-      def create_summary(rerun: false)
+      # @param [Boolean] resume Completes a summary that an earlier attempt left half done:
+      #   existing stages only get what they are missing and existing CI jobs are kept.
+      def create_summary(rerun: false, resume: false)
         logger(Logger::INFO, "SUMMARY #{@stages_config.inspect}")
 
         Github::Build::SkipOldTests.new(@check_suite).skip_old_tests
 
         @stages_config.each do |stage_config|
-          create_check_run_stage(stage_config)
+          resume ? resume_check_run_stage(stage_config) : create_check_run_stage(stage_config)
         end
 
         logger(Logger::INFO, "@jobs - #{@jobs.inspect}")
-        create_jobs(rerun)
+        create_jobs(rerun, resume)
         create_timeout_worker
       end
 
@@ -69,8 +71,11 @@ module Github
       # Creates jobs for the CheckSuite.
       #
       # @param [Boolean] rerun Indicates if the jobs should be rerun.
-      def create_jobs(rerun)
+      # @param [Boolean] resume Skips jobs already created by an earlier attempt.
+      def create_jobs(rerun, resume)
         @jobs.each do |job|
+          next if resume and CiJob.exists?(check_suite: @check_suite, job_ref: job[:job_ref])
+
           ci_job = create_ci_job(job)
 
           next if ci_job.nil?
@@ -143,6 +148,19 @@ module Github
       end
 
       ##
+      # Creates the stage, or finishes the GitHub side of a stage an earlier attempt created.
+      #
+      # @param [StageConfiguration] stage_config The stage configuration.
+      def resume_check_run_stage(stage_config)
+        stage = Stage.find_by(name: stage_name(stage_config), check_suite_id: @check_suite.id)
+
+        return create_stage(stage_config) if stage.nil?
+
+        stage.enqueue(@github, output: stage_output(stage)) if stage.check_ref.nil?
+        stage.in_progress(@github) if stage_config.start_in_progress?
+      end
+
+      ##
       # Creates a new stage for the given stage configuration.
       #
       # @param [StageConfiguration] stage_config The stage configuration.
@@ -156,13 +174,16 @@ module Github
                        status: 'queued',
                        name: name)
 
-        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
-        output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
-
-        stage.enqueue(@github, output: output)
+        stage.enqueue(@github, output: stage_output(stage))
         stage.in_progress(@github) if stage_config.start_in_progress?
 
         stage
+      end
+
+      def stage_output(stage)
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
+
+        { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
       end
 
       ##
