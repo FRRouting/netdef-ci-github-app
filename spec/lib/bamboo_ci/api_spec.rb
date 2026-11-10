@@ -12,7 +12,7 @@ class Dummy
   include BambooCi::Api
 
   def initialize
-    @logger_manager = [Logger.new('/dev/null')]
+    @logger_manager = [Logger.new(File::NULL)]
   end
 end
 

@@ -65,7 +65,7 @@ end
 
 return unless __FILE__ == $PROGRAM_NAME
 
-ActiveRecord::Base.logger = Logger.new('/dev/null')
+ActiveRecord::Base.logger = Logger.new(File::NULL)
 
 begin_date = ARGV[0]
 end_date = ARGV[1]

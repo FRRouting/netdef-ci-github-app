@@ -15,7 +15,7 @@ class CiJobFetchTopotestFailures
     @retrieve_error = Github::TopotestFailures::RetrieveError.new(@job)
     @retrieve_error.retrieve
 
-    return if rescheduling(count)
+    return if rescheduled?(count)
 
     @failures = @retrieve_error.failures
 
@@ -28,7 +28,7 @@ class CiJobFetchTopotestFailures
     end
   end
 
-  def self.rescheduling(count)
+  def self.rescheduled?(count)
     return true if count > 3
 
     if @retrieve_error.failures.empty?

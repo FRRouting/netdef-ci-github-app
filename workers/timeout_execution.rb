@@ -57,8 +57,6 @@ class TimeoutExecution
       Github::PlanExecution::Finished
         .new({ 'check_suite_id' => check_suite.id, 'hanged' => true })
         .finished
-
-      true
     end
 
     ##
@@ -72,7 +70,7 @@ class TimeoutExecution
         .delay(run_at: 30.minute.from_now.utc, queue: 'timeout_execution')
         .timeout(check_suite_id)
 
-      false
+      nil
     end
   end
 end

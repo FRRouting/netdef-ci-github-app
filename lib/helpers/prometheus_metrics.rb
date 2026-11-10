@@ -20,12 +20,11 @@ module PrometheusMetrics
   REGISTRY = Prometheus::Client.registry
   DJ_MAX_ATTEMPTS = 5
   DJ_MAX_RUN_TIME = 300 # 5 minutes, matches Delayed::Worker.max_run_time
-end
 
-require_relative 'prometheus_metrics/metrics_definitions'
-require_relative 'prometheus_metrics/refresh_helpers'
+  # Loaded here because they depend on the constants above.
+  require_relative 'prometheus_metrics/metrics_definitions'
+  require_relative 'prometheus_metrics/refresh_helpers'
 
-module PrometheusMetrics
   def self.track_bamboo(operation)
     start = Time.now
     result = yield
