@@ -23,6 +23,12 @@ module Github
       claim?(CheckSuite, check_suite.id, :retry_requested_at)
     end
 
+    # Frees the claim after a failed attempt, so the user can retry right away
+    # instead of having the next request dropped as a duplicate.
+    def self.release_retry(check_suite)
+      CheckSuite.unscoped.where(id: check_suite.id).update_all(retry_requested_at: nil)
+    end
+
     def self.claim_rerun?(pull_request)
       claim?(PullRequest, pull_request.id, :rerun_requested_at)
     end

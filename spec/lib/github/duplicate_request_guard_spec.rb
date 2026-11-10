@@ -32,6 +32,18 @@ describe Github::DuplicateRequestGuard do
     end
   end
 
+  describe '.release_retry' do
+    let(:check_suite) { create(:check_suite) }
+
+    it 'allows a new request right after a released claim' do
+      described_class.claim_retry?(check_suite)
+      described_class.release_retry(check_suite)
+
+      expect(check_suite.reload.retry_requested_at).to be_nil
+      expect(described_class.claim_retry?(check_suite)).to be(true)
+    end
+  end
+
   describe '.claim_rerun?' do
     let(:pull_request) { create(:pull_request) }
 
