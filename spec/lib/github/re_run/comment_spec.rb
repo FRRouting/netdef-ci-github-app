@@ -102,6 +102,49 @@ describe Github::ReRun::Comment do
       end
     end
 
+    context 'when receives the same command twice in a row' do
+      let(:pull_request) { create(:pull_request, github_pr_id: 22, repository: 'test') }
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }]
+      end
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1 },
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+      let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
+
+      before do
+        check_suite
+
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive_messages(create: check_suite, fetch_username: {}, check_runs_for_ref: {})
+        %i[add_comment cancelled in_progress queued comment_reaction_thumb_up].each do |method|
+          allow(fake_github_check).to receive(method)
+        end
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive_messages(start_plan: 200, bamboo_reference: 'CHK-01')
+
+        allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
+      end
+
+      it 'schedules only the first one' do
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
+        expect(described_class.new(payload).start).to eq([202, 'Rerun already scheduled'])
+        expect(check_suites.size).to eq(2)
+      end
+    end
+
     context 'when receives a valid command but can save' do
       let(:pull_request) { create(:pull_request) }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
