@@ -9,6 +9,19 @@
 #   frozen_string_literal: true
 
 class CreateExecutionByPlan
+  CHECKS_SETUP_RETRY_DELAY = 10 # seconds
+
+  # GitHub-only retry of a failed Checks setup. Delayed Job may retry this one freely:
+  # it never creates a CheckSuite and never starts or stops a Bamboo plan.
+  def self.setup_github_checks(check_suite_id, plan_id, last_check_suite_id)
+    Github::Build::ChecksSetup.new(
+      CheckSuite.find(check_suite_id),
+      Plan.find(plan_id),
+      last_check_suite: CheckSuite.find_by(id: last_check_suite_id),
+      resume: true
+    ).run
+  end
+
   def self.create(pull_request_id, payload, plan_id)
     logger = GithubLogger.instance.create('github_app.log', Logger::INFO)
     plan = Plan.find_by(id: plan_id)
@@ -80,17 +93,33 @@ class CreateExecutionByPlan
 
     SlackBot.instance.execution_started_notification(@check_suite)
 
-    jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
-
-    return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
-
-    action = Github::Build::Action.new(@check_suite, @github_check, jobs, plan.name)
-    action.create_summary
-
     @logger.info ">>> @has_previous_exec: #{@has_previous_exec}"
-    stop_execution_message if @has_previous_exec
 
-    [200, 'Pull Request created']
+    Github::Build::ChecksSetup
+      .new(@check_suite, plan, github_check: @github_check, last_check_suite: previous_check_suite)
+      .run
+  rescue StandardError => e
+    reschedule_checks_setup(plan, e)
+  end
+
+  # The Bamboo plan is already running at this point. If the error reached Delayed Job,
+  # it would re-run this whole job: create another CheckSuite, stop the plan we just
+  # started (often still in "Checkout Code" -> "Failed to prepare the build") and start
+  # yet another one. Retry only the GitHub side instead.
+  def reschedule_checks_setup(plan, error)
+    GithubLogger.instance.create('github_app.log', Logger::INFO)
+                .error("CreateExecutionByPlan: GitHub Checks setup failed for CheckSuite #{@check_suite.id} " \
+                       "(#{error.class}: #{error.message}) - rescheduling GitHub-only setup")
+
+    CreateExecutionByPlan
+      .delay(run_at: CHECKS_SETUP_RETRY_DELAY.seconds.from_now.utc, queue: 'create_execution_by_plan')
+      .setup_github_checks(@check_suite.id, plan.id, previous_check_suite&.id)
+
+    [202, 'GitHub Checks setup rescheduled']
+  end
+
+  def previous_check_suite
+    @has_previous_exec ? @last_check_suite : nil
   end
 
   def start_new_execution(plan)
@@ -168,10 +197,5 @@ class CreateExecutionByPlan
     ci_vars << { value: @github_check.signature, name: 'signature_secret' }
 
     ci_vars
-  end
-
-  def stop_execution_message
-    @check_suite.update(cancelled_previous_check_suite_id: @last_check_suite.id)
-    BambooCi::StopPlan.comment(@last_check_suite, @check_suite)
   end
 end

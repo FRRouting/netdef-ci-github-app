@@ -103,5 +103,86 @@ describe CreateExecutionByPlan do
         expect(new_suite.plan).to eq(plan)
       end
     end
+
+    # Regression: a GitHub API error after the Bamboo plan started used to propagate to
+    # Delayed Job, which re-ran the whole job (new CheckSuite, stop of the plan just started,
+    # start of another one) -> "Failed to prepare the build" on the Checkout Code job.
+    context 'when the GitHub Checks setup fails after the Bamboo plan started' do
+      let(:plan) { pull_request.plans.last }
+      let(:delayed_proxy) { double('Delayed proxy') }
+
+      before do
+        allow(fake_action).to receive(:create_summary).and_raise(RuntimeError, 'GitHub API error')
+        allow(described_class).to receive(:delay).and_return(delayed_proxy)
+        allow(delayed_proxy).to receive(:setup_github_checks)
+      end
+
+      it 'does not raise, so Delayed Job does not re-run the whole job' do
+        expect(described_class.create(pull_request.id, payload, plan.id))
+          .to eq([202, 'GitHub Checks setup rescheduled'])
+      end
+
+      it 'starts the Bamboo plan only once' do
+        described_class.create(pull_request.id, payload, plan.id)
+        expect(fake_plan_run).to have_received(:start_plan).once
+      end
+
+      it 'reschedules only the GitHub side for the same check suite' do
+        described_class.create(pull_request.id, payload, plan.id)
+        expect(delayed_proxy).to have_received(:setup_github_checks).with(CheckSuite.last.id, plan.id, nil)
+      end
+    end
+  end
+
+  describe '.setup_github_checks' do
+    let(:plan) { pull_request.plans.last }
+    let(:check_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
+    let(:running_jobs) do
+      [{ name: 'Checkout Code', job_ref: 'CHECKOUT-1', stage: 'Get Sourcecode' },
+       { name: 'Build', job_ref: 'BUILD-1', stage: 'Building Stage' }]
+    end
+
+    before do
+      allow(BambooCi::RunningPlan).to receive(:fetch).and_return(running_jobs)
+      allow(BambooCi::StopPlan).to receive(:build)
+      allow(BambooCi::StopPlan).to receive(:comment)
+    end
+
+    it 'creates the GitHub Checks without touching Bamboo or creating a check suite' do
+      check_suite
+
+      expect { described_class.setup_github_checks(check_suite.id, plan.id, nil) }
+        .not_to change(CheckSuite, :count)
+      expect(BambooCi::PlanRun).not_to have_received(:new)
+      expect(BambooCi::StopPlan).not_to have_received(:build)
+      expect(fake_action).to have_received(:create_summary)
+    end
+
+    it 'skips CI jobs a previous attempt already created' do
+      create(:ci_job, check_suite: check_suite, job_ref: 'CHECKOUT-1')
+
+      described_class.setup_github_checks(check_suite.id, plan.id, nil)
+
+      expect(Github::Build::Action).to have_received(:new).with(check_suite, anything, [running_jobs.last], plan.name)
+    end
+
+    it 'posts the "previous execution stopped" comment when it stopped a previous check suite' do
+      previous = create(:check_suite, pull_request: pull_request, plan: plan)
+      check_suite
+
+      described_class.setup_github_checks(check_suite.id, plan.id, previous.id)
+
+      expect(BambooCi::StopPlan).to have_received(:comment).with(previous, check_suite)
+      expect(check_suite.reload.cancelled_previous_check_suite_id).to eq(previous.id)
+    end
+
+    it 'does nothing when a newer check suite superseded this one' do
+      check_suite
+      create(:check_suite, pull_request: pull_request, plan: plan)
+
+      expect(described_class.setup_github_checks(check_suite.id, plan.id, nil))
+        .to eq([200, 'CheckSuite superseded'])
+      expect(Github::Build::Action).not_to have_received(:new)
+    end
   end
 end

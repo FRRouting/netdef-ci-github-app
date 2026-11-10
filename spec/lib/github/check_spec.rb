@@ -351,6 +351,40 @@ describe Github::Check do
     end
   end
 
+  # Regression: GitHub returns 404 to a PATCH sent right after the check run was created.
+  describe 'retry basic_status on Octokit::NotFound' do
+    let(:id) { 1 }
+
+    before { allow(check).to receive(:sleep) }
+
+    context 'when GitHub returns 404 once and then succeeds' do
+      before do
+        calls = 0
+        allow(fake_client).to receive(:update_check_run) do
+          calls += 1
+          raise Octokit::NotFound if calls == 1
+
+          { status: 'queued' }
+        end
+      end
+
+      it 'returns the updated check run' do
+        expect(check.queued(id)).to eq({ status: 'queued' })
+        expect(fake_client).to have_received(:update_check_run).twice
+      end
+    end
+
+    context 'when GitHub keeps returning 404' do
+      before { allow(fake_client).to receive(:update_check_run).and_raise(Octokit::NotFound) }
+
+      it 'raises after the retries are exhausted' do
+        expect { check.in_progress(id) }.to raise_error(Octokit::NotFound)
+        expect(fake_client).to have_received(:update_check_run)
+          .exactly(Github::Check::UPDATE_NOT_FOUND_RETRIES + 1).times
+      end
+    end
+  end
+
   describe 'retry send_update ' do
     let(:id) { 1 }
     let(:status) { 'completed' }
