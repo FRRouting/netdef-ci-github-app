@@ -12,9 +12,9 @@ import pytest
 from sqlalchemy import select
 
 from netdef_ci.enums import Status
-from netdef_ci.jobs.handlers import REGISTERED
+from netdef_ci.github.build.checks_setup import ChecksSetup
 from netdef_ci.models import CheckSuite, CiJob, Job, Stage
-from netdef_ci.services.checks_setup import ChecksSetup
+from netdef_ci.workers.loader_workers import REGISTERED
 from tests import factories as f
 
 JOBS = [
@@ -162,8 +162,8 @@ def test_rerun_setup_job_moves_jobs_removed_from_the_plan(session, started, bamb
 
 
 def test_slack_failure_on_the_first_run_is_logged_and_never_rescheduled(session, started, slack, github) -> None:
-    from netdef_ci.logs import Log
-    from netdef_ci.services.checks_setup import setup_or_defer
+    from netdef_ci.github.build.checks_setup import setup_or_defer
+    from netdef_ci.helpers.logs import Log
 
     suite, plan, _configs, _previous = started
 

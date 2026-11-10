@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from netdef_ci.config import Settings
+from netdef_ci.helpers.config import Settings
 
 
 def make(**env: str) -> Settings:

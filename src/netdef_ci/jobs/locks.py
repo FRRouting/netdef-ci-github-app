@@ -17,7 +17,7 @@ from contextlib import contextmanager
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from netdef_ci.db import get_engine
+from netdef_ci.helpers.db import get_engine
 
 _NAMESPACE = 0x4E44_0000_0000  # "ND" namespace so that ids cannot collide with other advisory-lock users
 

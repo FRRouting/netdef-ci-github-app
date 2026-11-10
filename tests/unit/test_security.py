@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import base64
 
-from netdef_ci.config import Credentials
-from netdef_ci.security import check_basic, compute_signature, is_fresh, parse_basic, verify_hmac
+from netdef_ci.helpers.config import Credentials
+from netdef_ci.helpers.security import check_basic, compute_signature, is_fresh, parse_basic, verify_hmac
 
 SECRET = "s3cret"
 BODY = b'{"a": 1}'

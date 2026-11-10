@@ -13,9 +13,9 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-from netdef_ci.db import utcnow
+from netdef_ci.github.duplicate_request_guard import CommandGuard
+from netdef_ci.helpers.db import utcnow
 from netdef_ci.models import AuditRetry, Job
-from netdef_ci.services.command_guard import CommandGuard
 from tests import factories as f
 
 

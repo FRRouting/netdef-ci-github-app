@@ -103,7 +103,7 @@ def test_check_bamboo_reports_each_probe(clients, capsys) -> None:
 
     from netdef_ci import container
     from netdef_ci.clients.bamboo import BambooClient
-    from netdef_ci.config import get_settings
+    from netdef_ci.helpers.config import get_settings
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -127,7 +127,7 @@ def test_check_bamboo_explains_disabled_basic_auth(clients, capsys) -> None:
 
     from netdef_ci import container
     from netdef_ci.clients.bamboo import BambooClient
-    from netdef_ci.config import get_settings
+    from netdef_ci.helpers.config import get_settings
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(403, json={"message": "Basic Authentication has been disabled on this instance."})
@@ -184,7 +184,7 @@ def test_check_bamboo_reports_connection_errors(clients, capsys) -> None:
 
     from netdef_ci import container
     from netdef_ci.clients.bamboo import BambooClient
-    from netdef_ci.config import get_settings
+    from netdef_ci.helpers.config import get_settings
 
     def down(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused")

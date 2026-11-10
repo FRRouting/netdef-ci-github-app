@@ -19,7 +19,7 @@ migrate:
 	$(BIN)/python -m netdef_ci migrate
 
 run:
-	$(BIN)/python -m uvicorn --factory netdef_ci.web.app:app_factory --host 0.0.0.0 --port $${PORT:-9292}
+	$(BIN)/python -m uvicorn --factory netdef_ci.app.github_app:app_factory --host 0.0.0.0 --port $${PORT:-9292}
 
 worker:
 	$(BIN)/python -m netdef_ci worker

@@ -11,8 +11,8 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import select
 
+from netdef_ci.github.build_plan import BuildPlan
 from netdef_ci.models import GithubUser, Job, Plan, PullRequest
-from netdef_ci.services.build_plan import BuildPlan
 from tests import factories as f
 from tests import payloads
 

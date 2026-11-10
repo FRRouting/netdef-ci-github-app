@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 from netdef_ci.enums import Status
-from netdef_ci.services.finished import Finished
+from netdef_ci.github.plan_execution.finished import Finished
 from tests import factories as f
 
 
@@ -113,7 +113,7 @@ def test_suite_without_bamboo_reference_is_closed_without_calling_bamboo(session
 
 
 def test_summaries_are_rebuilt_once_per_stage_not_once_per_job(session, clients, bamboo, monkeypatch) -> None:
-    from netdef_ci.services import finished as finished_module
+    from netdef_ci.github.plan_execution import finished as finished_module
 
     w = f.World(session, statuses=(Status.IN_PROGRESS, Status.IN_PROGRESS))
     extra = [

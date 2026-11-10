@@ -19,7 +19,7 @@ import httpx
 from netdef_ci.clients.bamboo import BambooClient
 from netdef_ci.clients.github import GithubAppApi, GithubCheck, reset_app_auth_registry
 from netdef_ci.clients.slack import SlackBot
-from netdef_ci.config import GitHubAppConfig, get_settings
+from netdef_ci.helpers.config import GitHubAppConfig, get_settings
 
 _lock = threading.Lock()
 _instances: dict[str, Any] = {}

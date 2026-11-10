@@ -13,8 +13,8 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-from netdef_ci.db import utcnow
 from netdef_ci.enums import Status
+from netdef_ci.helpers.db import utcnow
 from netdef_ci.models import AuditStatus, CheckSuite
 from tests import factories as f
 

@@ -13,7 +13,7 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-from netdef_ci.db import new_session, utcnow
+from netdef_ci.helpers.db import new_session, utcnow
 from netdef_ci.jobs import queue
 from netdef_ci.jobs.registry import HANDLERS, job_handler
 from netdef_ci.models import Job

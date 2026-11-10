@@ -9,8 +9,8 @@
 from __future__ import annotations
 
 from netdef_ci.enums import Status
+from netdef_ci.github.build.message_formatter import MAX_SUMMARY, MessageFormatter
 from netdef_ci.models import TopotestFailure
-from netdef_ci.services.message_formatter import MAX_SUMMARY, MessageFormatter
 from tests import factories as f
 
 

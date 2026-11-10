@@ -13,10 +13,10 @@ from datetime import timedelta
 import pytest
 from sqlalchemy import select
 
-from netdef_ci.db import utcnow
 from netdef_ci.enums import Status
+from netdef_ci.github.update_status import UpdateStatus
+from netdef_ci.helpers.db import utcnow
 from netdef_ci.models import Job, TopotestFailure
-from netdef_ci.services.update_status import UpdateStatus
 from tests import factories as f
 
 

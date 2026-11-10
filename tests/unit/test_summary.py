@@ -11,7 +11,7 @@ from __future__ import annotations
 import pytest
 
 from netdef_ci.enums import Status
-from netdef_ci.services.summary import Summary
+from netdef_ci.github.build.summary import Summary
 from tests import factories as f
 
 

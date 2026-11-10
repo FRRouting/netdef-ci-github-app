@@ -15,7 +15,7 @@ import pytest
 import respx
 
 from netdef_ci.clients.bamboo import BambooClient
-from netdef_ci.config import get_settings
+from netdef_ci.helpers.config import get_settings
 from tests import factories as f
 
 BASE = "https://127.0.0.1"

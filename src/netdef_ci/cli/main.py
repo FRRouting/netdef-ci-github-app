@@ -20,11 +20,11 @@ from pathlib import Path
 from sqlalchemy import select
 
 from netdef_ci import __version__
-from netdef_ci.config import get_settings
-from netdef_ci.db import init_engine, session_scope
-from netdef_ci.logs import configure_logging
+from netdef_ci.github.app_check import AppReport
+from netdef_ci.helpers.config import get_settings
+from netdef_ci.helpers.db import init_engine, session_scope
+from netdef_ci.helpers.logs import configure_logging
 from netdef_ci.models import GithubUser, Organization
-from netdef_ci.services.app_check import AppReport
 
 BAMBOO_AUTH_OPTIONS = "BAMBOO_CLIENT_ID/SECRET, BAMBOO_TOKEN, BAMBOO_USERNAME/PASSWORD or ~/.netrc"
 
@@ -112,9 +112,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 # ---------------------------------------------------------------------------- operations
 def _worker(args: argparse.Namespace) -> int:
-    from netdef_ci import metrics
-    from netdef_ci.jobs import handlers  # noqa: F401 - registers handlers
+    from netdef_ci.helpers import metrics
     from netdef_ci.jobs.queue import Worker
+    from netdef_ci.workers import loader_workers  # noqa: F401 - registers handlers
 
     settings = get_settings()
     # One job at a time: the web-sized pool would only keep idle connections open on the database.
@@ -129,29 +129,29 @@ def _worker(args: argparse.Namespace) -> int:
 
 
 def _watch_dog(_: argparse.Namespace) -> int:
-    from netdef_ci.services import tasks
+    from netdef_ci.workers.watch_dog import watch_dog
 
     init_engine()
     with session_scope() as session:
-        tasks.watch_dog(session)
+        watch_dog(session)
     return 0
 
 
 def _pr_bamboo_sync(_: argparse.Namespace) -> int:
-    from netdef_ci.services import tasks
+    from netdef_ci.workers.pr_bamboo_sync import pr_bamboo_sync
 
     init_engine()
     with session_scope() as session:
-        tasks.pr_bamboo_sync(session)
+        pr_bamboo_sync(session)
     return 0
 
 
 def _single_sync(args: argparse.Namespace) -> int:
-    from netdef_ci.services import tasks
+    from netdef_ci.workers.single_sync import single_sync
 
     init_engine()
     with session_scope() as session:
-        return 0 if tasks.single_sync(session, args.bamboo_ref) else 1
+        return 0 if single_sync(session, args.bamboo_ref) else 1
 
 
 def _alembic_config() -> object:
@@ -295,7 +295,7 @@ def _check_config(_: argparse.Namespace) -> int:
 
 def _check_github(args: argparse.Namespace) -> int:
     """Real HTTP calls to GitHub with each App's JWT (read-only unless --redeliver-ping)."""
-    from netdef_ci.services.app_check import check_github_apps
+    from netdef_ci.github.app_check import check_github_apps
 
     apps = get_settings().github_apps()
     if not apps:
@@ -324,7 +324,7 @@ def _create_github_app(args: argparse.Namespace) -> int:
 
     import httpx
 
-    from netdef_ci.services.app_setup import AppSetupError, AppSetupRequest, CreateGithubApp, VaultFile
+    from netdef_ci.github.app_setup import AppSetupError, AppSetupRequest, CreateGithubApp, VaultFile
 
     settings = get_settings()
     request = AppSetupRequest(
@@ -417,10 +417,10 @@ def _user(args: argparse.Namespace) -> int:
             session.commit()
             print(f"Github user removed from organization: {user.github_login}")
         elif args.action == "link-slack":
-            from netdef_ci.services import tasks
+            from netdef_ci.workers.slack_username2_id import slack_username_to_id
 
             user.slack_username = args.slack_user
             session.commit()
-            tasks.slack_username_to_id(session, args.login, args.slack_user)
+            slack_username_to_id(session, args.login, args.slack_user)
             print(f"Slack user linked to github user: {user.github_login} -> {args.slack_user}")
     return 0

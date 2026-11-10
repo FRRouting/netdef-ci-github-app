@@ -2,7 +2,7 @@
 
 ## Schema
 
-The service uses a single PostgreSQL database. The schema is defined by the SQLAlchemy models in `models.py` and versioned with Alembic (`migrations/versions/`).
+The service uses a single PostgreSQL database. The schema is defined by the SQLAlchemy models in `models/` (one module per table) and versioned with Alembic (`migrations/versions/`).
 
 | Group              | Tables                                                                                                                                                                                                                                | Created by            |
 |--------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------|

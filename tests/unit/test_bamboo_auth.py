@@ -16,7 +16,7 @@ from pydantic import SecretStr
 
 from netdef_ci.clients.bamboo import BambooClient
 from netdef_ci.clients.bamboo_auth import ServiceAccountAuth, response_summary, scope_set
-from netdef_ci.config import Settings
+from netdef_ci.helpers.config import Settings
 
 BASE = "https://127.0.0.1"
 TOKEN_URL = f"{BASE}/rest/oauth2/latest/token"

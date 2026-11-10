@@ -20,10 +20,10 @@ from typing import Any
 import httpx
 import jwt
 
-from netdef_ci import metrics
 from netdef_ci.clients.http import Sleeper, request_with_retries
-from netdef_ci.config import GitHubAppConfig, Settings
-from netdef_ci.logs import Log, PullRequestAdapter, github_http_logger
+from netdef_ci.helpers import metrics
+from netdef_ci.helpers.config import GitHubAppConfig, Settings
+from netdef_ci.helpers.logs import Log, PullRequestAdapter, github_http_logger
 
 Json = dict[str, Any]
 TOKEN_REFRESH_MARGIN = timedelta(minutes=5)

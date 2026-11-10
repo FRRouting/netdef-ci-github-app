@@ -8,7 +8,7 @@ Request` and nothing runs (there is no default plan).
 ## How a plan is used
 
 1. GitHub sends `pull_request` (`opened`, `synchronize`, `reopened`) to the webhook.
-2. `services/build_plan.py` selects every row with `plans.github_repo_name = <repository.full_name>` (ordered by `id`),
+2. `github/build_plan.py` selects every row with `plans.github_repo_name = <repository.full_name>` (ordered by `id`),
    assigns them to the pull request and enqueues one `create_execution_by_plan` job per plan (`max_attempts=1`).
 3. The job creates a check suite, stops the previous execution of the same plan and calls
    `POST /rest/api/latest/queue/<bamboo_ci_plan_name>` in Bamboo with the PR variables (`github_repo`, `github_pullreq`,
