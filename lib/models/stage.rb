@@ -59,10 +59,10 @@ class Stage < ActiveRecord::Base
   end
 
   def enqueue(github, output: {}, agent: 'Github')
-    check_run = github.create(github_stage_full_name(name))
-    github.queued(check_run.id, output)
-    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
+    # A new check run is already queued, so no update is needed right after creating it.
+    check_run = github.create(github_stage_full_name(name), output: output)
     update(check_ref: check_run.id, status: :queued)
+    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
   end
 
   def in_progress(github, output: output_in_progress, agent: 'Github')

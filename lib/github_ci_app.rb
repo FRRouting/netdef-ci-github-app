@@ -32,6 +32,7 @@ require_relative 'github/user_info'
 require_relative 'github/build/skip_old_tests'
 require_relative 'github/topotest_failures/retrieve_error'
 require_relative 'github/build/plan_run'
+require_relative 'github/build/checks_setup'
 
 # Helpers libs
 require_relative 'helpers/configuration'

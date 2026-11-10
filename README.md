@@ -4,6 +4,8 @@ that server can trigger executions on a CI and control the
 creation of Check Suite and Run for each new creation and 
 commit in a PR.
 
+New to the project? Start with the [architecture overview](doc/general/architecture.md).
+
 # Installation
 
 ### Packages
