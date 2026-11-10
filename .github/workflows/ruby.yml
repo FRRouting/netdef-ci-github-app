@@ -9,11 +9,11 @@ name: Ruby
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "stable" ]
     paths-ignore:
       - 'README.md'
   pull_request:
-    branches: [ "master", "develop" ]
+    branches: [ "master", "develop", "stable" ]
     paths-ignore:
       - 'README.md'
 
