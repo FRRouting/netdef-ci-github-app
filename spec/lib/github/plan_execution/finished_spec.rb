@@ -84,9 +84,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+                }
               }
             ]
           }
@@ -133,9 +135,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+                }
               }
             ]
           }
@@ -154,9 +158,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Failed' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Failed' } }
+                }
               }
             ]
           }
@@ -175,9 +181,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Unknown' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Unknown' } }
+                }
               }
             ]
           }
@@ -196,9 +204,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'DONE' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'DONE' } }
+                }
               }
             ]
           }
@@ -217,9 +227,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+                }
               }
             ]
           }
@@ -239,9 +251,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+                }
               }
             ]
           }
@@ -261,9 +275,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { { 'buildResultKey' => 'test', 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { { 'buildResultKey' => 'test', 'state' => 'Successful' } }
+                }
               }
             ]
           }
@@ -283,9 +299,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+                }
               }
             ]
           }
@@ -304,9 +322,11 @@ describe Github::PlanExecution::Finished do
         {
           'stages' => {
             'stage' => [
-              'results' => {
-                'result' =>
-                  check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+              {
+                'results' => {
+                  'result' =>
+                    check_suite.ci_jobs.map { |job| { 'buildResultKey' => job.job_ref, 'state' => 'Successful' } }
+                }
               }
             ]
           }

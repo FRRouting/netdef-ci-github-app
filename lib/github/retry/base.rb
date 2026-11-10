@@ -17,6 +17,7 @@ require_relative '../../bamboo_ci/stop_plan'
 require_relative '../../github/build/retry'
 
 require_relative '../check'
+require_relative '../duplicate_request_guard'
 require_relative '../build/unavailable_jobs'
 
 module Github
@@ -38,10 +39,25 @@ module Github
 
         return enqueued if @check_suite.in_progress?
 
-        normal_flow
+        retry_once
       end
 
       private
+
+      def retry_once
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_retry?(@check_suite)
+
+        normal_flow
+      rescue StandardError
+        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        raise
+      end
+
+      def duplicated_request
+        logger(Logger::WARN, ">>> Duplicated retry request ignored for check suite #{@check_suite.id}")
+
+        [202, 'Retry already in progress']
+      end
 
       def github_reaction_feedback(comment_id)
         return if comment_id.nil?

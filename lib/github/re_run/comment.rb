@@ -18,7 +18,7 @@ module Github
       TIMER = 1 # seconds
 
       def initialize(payload, logger_level: Logger::INFO)
-        super(payload, logger_level: logger_level)
+        super
 
         @logger_manager << GithubLogger.instance.create('github_rerun_comment.log', logger_level)
         @logger_manager << Logger.new($stdout)
@@ -40,6 +40,8 @@ module Github
         return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
 
         github_reaction_feedback(comment_id)
+
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_rerun?(@pull_request)
 
         fetch_plans.each do |plan|
           CreateExecutionByComment

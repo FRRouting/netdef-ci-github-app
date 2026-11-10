@@ -13,6 +13,7 @@ require 'yaml'
 module GitHubApp
   class Configuration
     include Singleton
+
     attr_reader :config
 
     def initialize

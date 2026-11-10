@@ -7,3 +7,5 @@ puma.pid
 config/development/*
 config/production/*
 config/test/*
+
+logs/*

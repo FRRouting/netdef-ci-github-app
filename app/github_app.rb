@@ -111,7 +111,7 @@ class GithubApp < Sinatra::Base
   end
 
   post '/slack' do
-    halt 401 unless slack_authentication
+    halt 401 unless slack_authenticated?
 
     payload = JSON.parse(fetch_message)
 
@@ -128,7 +128,7 @@ class GithubApp < Sinatra::Base
   end
 
   post '/slack/settings' do
-    halt 401 unless slack_authentication
+    halt 401 unless slack_authenticated?
 
     payload = fetch_message
 
@@ -208,13 +208,11 @@ class GithubApp < Sinatra::Base
       logger.debug '======= POST DONE ========'
     end
 
-    def slack_authentication
+    def slack_authenticated?
       netrc = Netrc.read
       user, passwd = netrc['slack_bot.netdef.org']
 
-      return false if basic_encode(user, passwd) != request.env['HTTP_AUTHORIZATION']
-
-      true
+      basic_encode(user, passwd) == request.env['HTTP_AUTHORIZATION']
     end
 
     def basic_encode(account, password)

@@ -17,6 +17,7 @@ require_relative 'bamboo_ci/running_plan'
 require_relative 'bamboo_ci/stop_plan'
 
 # GitHub libs
+require_relative 'github/duplicate_request_guard'
 require_relative 'github/parsers/pull_request_commit'
 require_relative 'github/re_run/base'
 require_relative 'github/re_run/command'
@@ -31,6 +32,7 @@ require_relative 'github/user_info'
 require_relative 'github/build/skip_old_tests'
 require_relative 'github/topotest_failures/retrieve_error'
 require_relative 'github/build/plan_run'
+require_relative 'github/build/checks_setup'
 
 # Helpers libs
 require_relative 'helpers/configuration'

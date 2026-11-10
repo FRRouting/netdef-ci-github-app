@@ -16,7 +16,7 @@ module Github
       TIMER = 1 # seconds
 
       def initialize(payload, logger_level: Logger::INFO)
-        super(payload, logger_level: logger_level)
+        super
 
         @logger_manager << GithubLogger.instance.create('github_rerun_command.log', logger_level)
       end
@@ -29,6 +29,7 @@ module Github
         check_suite = fetch_check_suite
 
         return [404, 'Failed to fetch a check suite'] if check_suite.nil?
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_rerun?(check_suite.pull_request)
 
         @github_check = Github::Check.new(check_suite)
 

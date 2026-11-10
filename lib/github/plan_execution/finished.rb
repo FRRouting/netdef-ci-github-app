@@ -200,17 +200,17 @@ module Github
         summary = Github::Build::Summary.new(ci_job, agent: 'WatchDog')
         summary.build_summary
 
-        finished_execution?(ci_job.check_suite)
+        notify_if_execution_finished(ci_job.check_suite)
       end
 
       ##
-      # Checks if the execution of the CheckSuite has finished.
+      # Sends the Slack "execution finished" notification when the CheckSuite
+      # is the PR's current execution and has finished.
       #
       # @param [CheckSuite] check_suite The CheckSuite to check.
-      # @return [Boolean] Returns true if the execution has finished, false otherwise.
-      def finished_execution?(check_suite)
-        return false unless check_suite.pull_request.current_execution?(check_suite)
-        return false unless check_suite.finished?
+      def notify_if_execution_finished(check_suite)
+        return unless check_suite.pull_request.current_execution?(check_suite)
+        return unless check_suite.finished?
 
         SlackBot.instance.execution_finished_notification(check_suite)
       end

@@ -107,6 +107,14 @@ describe Stage do
       stage.enqueue(github)
       expect(stage.reload.status).to eq('queued')
     end
+
+    it 'creates the check run with the output and does not update it right after' do
+      output = { title: 'Build summary', summary: 'Uninitialized stage' }
+      stage.enqueue(github, output: output)
+
+      expect(github).to have_received(:create).with("[CI] #{stage.name}", output: output)
+      expect(github).not_to have_received(:queued)
+    end
   end
 
   describe '#in_progress' do

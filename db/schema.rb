@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2025_08_22_071834) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_09_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -61,6 +61,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_08_22_071834) do
     t.bigint "stopped_in_stage_id"
     t.bigint "cancelled_previous_check_suite_id"
     t.bigint "plan_id"
+    t.datetime "retry_requested_at", precision: nil
     t.index ["cancelled_previous_check_suite_id"], name: "index_check_suites_on_cancelled_previous_check_suite_id"
     t.index ["github_user_id"], name: "index_check_suites_on_github_user_id"
     t.index ["plan_id"], name: "index_check_suites_on_plan_id"
@@ -158,6 +159,7 @@ ActiveRecord::Schema[7.2].define(version: 2025_08_22_071834) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "github_user_id"
+    t.datetime "rerun_requested_at", precision: nil
     t.index ["github_user_id"], name: "index_pull_requests_on_github_user_id"
   end
 
