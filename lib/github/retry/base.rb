@@ -48,6 +48,9 @@ module Github
         return duplicated_request unless Github::DuplicateRequestGuard.claim_retry?(@check_suite)
 
         normal_flow
+      rescue StandardError
+        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        raise
       end
 
       def duplicated_request

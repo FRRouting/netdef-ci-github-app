@@ -118,6 +118,17 @@ describe Github::Retry::Command do
         expect(ci_job_checkout_code.reload.status).to eq('failure')
       end
 
+      context 'when Bamboo fails while restarting the plan' do
+        before do
+          allow(BambooCi::Retry).to receive(:restart).and_raise(StandardError, 'Bamboo unavailable')
+        end
+
+        it 'releases the claim so the next retry is not dropped as a duplicate' do
+          expect { github_retry.start }.to raise_error(StandardError, 'Bamboo unavailable')
+          expect(check_suite.reload.retry_requested_at).to be_nil
+        end
+      end
+
       context 'when a retry for the same check suite has just started' do
         before { check_suite.update(retry_requested_at: 1.second.ago) }
 
