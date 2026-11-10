@@ -27,11 +27,13 @@ module Github
       end
 
       def run
-        return [200, 'Superseded by a newer execution'] if @resume and superseded?
-
         @github = Github::Check.new(@check_suite)
 
+        # Even when superseded: the newer execution only cancels this suite's checks, not the ones before it.
         cancel_previous_checks
+
+        return [200, 'Superseded by a newer execution'] if @resume and superseded?
+
         notify_execution_started unless @resume
         Github::UserInfo.new(@github_user_id, check_suite: @check_suite) unless @github_user_id.nil?
 

@@ -157,7 +157,8 @@ module Github
         return create_stage(stage_config) if stage.nil?
 
         stage.enqueue(@github, output: stage_output(stage)) if stage.check_ref.nil?
-        stage.in_progress(@github) if stage_config.start_in_progress?
+        # Bamboo may have finished (or a failure cancelled) the stage while the resume was waiting.
+        stage.in_progress(@github) if stage_config.start_in_progress? and stage.queued?
       end
 
       ##

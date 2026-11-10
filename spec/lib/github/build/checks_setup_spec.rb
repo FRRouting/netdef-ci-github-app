@@ -130,9 +130,16 @@ describe Github::Build::ChecksSetup do
         create(:check_suite, pull_request: pull_request, plan: plan)
       end
 
-      it 'does nothing' do
+      it 'does not set up the checks of the superseded execution' do
         expect(setup.run).to eq([200, 'Superseded by a newer execution'])
         expect(Github::Build::Action).not_to have_received(:new)
+        expect(SlackBot.instance).not_to have_received(:execution_started_notification)
+      end
+
+      it 'still cancels the open checks of the execution it had stopped' do
+        setup.run
+
+        expect(previous.stages.reload.map(&:status)).to all(eq('cancelled'))
       end
     end
   end

@@ -15,7 +15,8 @@
 #   3. GitHub checks (Github::Build::ChecksSetup). Errors here do not reach Delayed Job:
 #      only this part is rescheduled, through .setup_github_checks.
 class CreateExecutionByPlan
-  GITHUB_SETUP_RETRY_DELAY = 30 # seconds
+  # Short on purpose: until the resume creates the CI jobs, Bamboo status callbacks find no job and are dropped.
+  GITHUB_SETUP_RETRY_DELAY = 10 # seconds
 
   def self.create(pull_request_id, payload, plan_id)
     logger = GithubLogger.instance.create('github_app.log', Logger::INFO)

@@ -214,6 +214,26 @@ describe Github::Build::Action do
       expect(stage.reload.status).to eq('in_progress')
     end
 
+    it 'does not move a start-in-progress stage that Bamboo already finished back to in progress' do
+      stage.configuration.update(start_in_progress: true)
+      stage.update(status: :success)
+      allow(fake_github_check).to receive(:in_progress)
+
+      action.create_summary(resume: true)
+
+      expect(stage.reload.status).to eq('success')
+      expect(fake_github_check).not_to have_received(:in_progress).with(stage.check_ref, anything)
+    end
+
+    it 'does not move a cancelled start-in-progress stage back to in progress' do
+      stage.configuration.update(start_in_progress: true)
+      stage.update(status: :cancelled)
+
+      action.create_summary(resume: true)
+
+      expect(stage.reload.status).to eq('cancelled')
+    end
+
     it 'does not duplicate CI jobs that already exist' do
       ci_job
 
