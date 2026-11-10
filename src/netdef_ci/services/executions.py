@@ -9,25 +9,30 @@
 """Creation of CI executions: PR events, `ci:rerun` comments and check-suite re-requests.
 
 Ports workers/create_execution_by_{plan,comment,command}.rb and Github::ReRun::Base. These flows start Bamboo plans
-(not idempotent), so they run as single-attempt jobs and are serialized per pull request."""
+(not idempotent), so they run as single-attempt jobs and are serialized per pull request. Each one runs in phases so
+that a GitHub failure never leaves a started build untracked or blocks the next one: (1) authenticate to GitHub before
+anything is written, (2) stop the previous execution in Bamboo, (3) start the new plan, (4) the GitHub-only setup in
+`services/checks_setup.py`, which is deferred to the retryable `setup_github_checks` job when it fails."""
 
 from __future__ import annotations
 
 import re
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import Session
 
 from netdef_ci import container, metrics
+from netdef_ci.clients.github import GithubAuthError
+from netdef_ci.config import get_settings
 from netdef_ci.enums import RUNNING_STATUSES, Status
+from netdef_ci.jobs import queue as jobs_queue
 from netdef_ci.jobs.locks import pull_request_lock
 from netdef_ci.logs import Log
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, Plan, PullRequest, Stage
-from netdef_ci.services.action import Action
-from netdef_ci.services.common import find_pull_request, wait_for_running_jobs, wait_until_stopped
+from netdef_ci.services.checks_setup import setup_or_defer
+from netdef_ci.services.common import find_pull_request, wait_until_stopped
 from netdef_ci.services.plan_run import PlanRun
-from netdef_ci.services.unavailable_jobs import UnavailableJobs
 from netdef_ci.services.user_info import sync_user_info
 
 Response = tuple[int, str]
@@ -64,6 +69,30 @@ def ci_vars(github: Any) -> list[dict[str, str]]:
     return [{"value": github.signature(), "name": "signature_secret"}]
 
 
+def _started_without_checks(session: Session, check_suite: CheckSuite) -> bool:
+    """Started in Bamboo, but its GitHub setup died before creating any stage or CI job (PR 8118). Its stages cannot
+    tell whether it still runs, so Bamboo is asked."""
+    if not check_suite.bamboo_ci_ref:
+        return False
+    has_rows = session.scalar(
+        select(
+            or_(
+                exists().where(Stage.check_suite_id == check_suite.id),
+                exists().where(CiJob.check_suite_id == check_suite.id),
+            )
+        )
+    )
+    return not has_rows and not container.bamboo().is_stopped(check_suite.bamboo_ci_ref)
+
+
+def _cancel_jobs_without_check_run(jobs: list[CiJob], github: Any) -> None:
+    """Database-only cancellation before the Bamboo stop: late callbacks of the stopped build then find the jobs
+    closed. Jobs with a check run (never created by this app) are cancelled on GitHub by ChecksSetup."""
+    for ci_job in jobs:
+        if ci_job.check_ref is None:
+            ci_job.cancelled(github, commit=False)
+
+
 class CreateExecutionByPlan:
     """New execution for a plan after a pull_request event."""
 
@@ -82,27 +111,57 @@ class CreateExecutionByPlan:
         self.log = Log("create_execution_by_plan", self.pull_request.github_pr_id)
 
     @classmethod
-    def run(cls, session: Session, pull_request_id: int, payload: dict[str, Any], plan_id: int) -> Response | tuple:
+    def run(
+        cls,
+        session: Session,
+        pull_request_id: int,
+        payload: dict[str, Any],
+        plan_id: int,
+        attempt: int = 1,
+        latest_check_suite_id: int | None = None,
+    ) -> Response | tuple:
+        """`attempt` > 1 is a retry scheduled after GitHub authentication failed (nothing was written then);
+        `latest_check_suite_id` is the newest suite of the plan at that time: a newer one means a later push already
+        started, and the retry must not stop it."""
         plan = session.get(Plan, plan_id)
         if plan is None:
             return 422, "Plan not found"
         instance = cls(session, pull_request_id, payload, plan_id)
         with pull_request_lock(pull_request_id):
-            instance.execute()
+            if attempt > 1 and instance.superseded(latest_check_suite_id):
+                instance.log.info("Retry %s of plan '%s' skipped: a newer execution exists", attempt, plan.name)
+                return 409, "Superseded by a newer execution"
+            instance.execute(attempt)
         instance.log.info(
             "Plan '%s' for Pull Request ID %s finished with status %s", plan.name, pull_request_id, instance.status
         )
         return instance.status
 
-    def execute(self) -> None:
+    def superseded(self, latest_check_suite_id: int | None) -> bool:
+        assert self.plan is not None and self.pull_request is not None
+        newest = self._newest_suite_id()
+        return newest is not None and newest > (latest_check_suite_id or 0)
+
+    def _newest_suite_id(self) -> int | None:
+        assert self.plan is not None and self.pull_request is not None
+        return self.session.scalars(
+            select(CheckSuite.id)
+            .where(CheckSuite.pull_request_id == self.pull_request.id, CheckSuite.plan_id == self.plan.id)
+            .order_by(CheckSuite.id.desc())
+            .limit(1)
+        ).first()
+
+    def execute(self, attempt: int = 1) -> None:
         plan = self.plan
         assert plan is not None and self.pull_request is not None
         self.log.info("Starting Plan: %s", plan.name)
+        # Only suites that reached Bamboo: one whose creation failed before the start has nothing to stop.
         self.last_check_suite = self.session.scalars(
             select(CheckSuite)
             .where(
                 CheckSuite.pull_request_id == self.pull_request.id,
                 or_(CheckSuite.plan_id == plan.id, CheckSuite.plan_id.is_(None)),
+                CheckSuite.bamboo_ci_ref.is_not(None),
             )
             .order_by(CheckSuite.id.desc())
             .limit(1)
@@ -113,7 +172,8 @@ class CreateExecutionByPlan:
             self.status = (422, "Failed to save Check Suite")
             return
         self.check_suite = CheckSuite(
-            pull_request_id=self.pull_request.id,
+            pull_request=self.pull_request,
+            plan_id=plan.id,
             author=author,
             commit_sha_ref=sha,
             work_branch=dig(payload, "pull_request", "head", "ref"),
@@ -121,9 +181,14 @@ class CreateExecutionByPlan:
             merge_branch=dig(payload, "pull_request", "base", "ref"),
         )
         self.session.add(self.check_suite)
-        self.session.commit()
         self.github = container.github(self.check_suite)
-        self.check_suite.plan_id = plan.id
+        try:
+            self.github.authenticate()  # before the first commit: a failure leaves nothing behind
+        except GithubAuthError as error:
+            self.session.rollback()
+            self.check_suite = None
+            self._retry_authentication(attempt, error)
+            return
         self.session.commit()
         self.log.info("Check Suite created: %s", self.check_suite.id)
         self._stop_previous_execution()
@@ -131,55 +196,79 @@ class CreateExecutionByPlan:
         if status != 200:
             self.status = (status, "Failed to create CI Plan")
             return
-        self.status = self._ci_jobs(plan)
+        previous = [self.last_check_suite.id] if self.has_previous_exec and self.last_check_suite else []
+        self.status = setup_or_defer(
+            self.session,
+            self.check_suite,
+            plan,
+            previous,
+            rerun=False,
+            queue=jobs_queue.execution_queue("create_execution_by_plan", self.pull_request.github_pr_id),
+            log=self.log,
+        )
 
     # ------------------------------------------------------------------
-    def _stop_previous_execution(self) -> None:
-        last = self.last_check_suite
-        if last is None or last.is_finished():
+    def _retry_authentication(self, attempt: int, error: Exception) -> None:
+        """Nothing was written and nothing was started, so the whole creation may run again (bounded by
+        JOB_MAX_ATTEMPTS, with the job queue back-off)."""
+        assert self.plan is not None and self.pull_request is not None
+        max_attempts = get_settings().job_max_attempts
+        if attempt >= max_attempts:
+            self.log.error(
+                "GitHub authentication failed for plan '%s' (attempt %s of %s): %s; no execution was created",
+                self.plan.name,
+                attempt,
+                max_attempts,
+                error,
+            )
+            self.status = (503, "GitHub authentication failed")
             return
-        self.log.info("Stopping previous execution %s", last.id)
-        for ci_job in last.running_jobs():
-            self.log.warning("Cancelling Job %s", ci_job.id)
-            ci_job.cancelled(self.github, commit=False)
+        delay = 5 + attempt**4
+        self.log.error(
+            "GitHub authentication failed for plan '%s' (attempt %s of %s): %s; nothing was saved, retrying in %ss",
+            self.plan.name,
+            attempt,
+            max_attempts,
+            error,
+            delay,
+        )
+        jobs_queue.enqueue(
+            self.session,
+            "create_execution_by_plan",
+            [self.pull_request.id, self.payload, self.plan.id, attempt + 1, self._newest_suite_id()],
+            queue=jobs_queue.execution_queue("create_execution_by_plan", self.pull_request.github_pr_id),
+            delay_seconds=delay,
+            max_attempts=1,  # starts a Bamboo plan: never repeated automatically
+        )
+        self.status = (503, "GitHub authentication failed; retry scheduled")
+
+    def _stop_previous_execution(self) -> None:
+        """Bamboo first: GitHub is only called afterwards (ChecksSetup), so a GitHub error can no longer leave the old
+        build running and the new one not started."""
+        last = self.last_check_suite
+        if last is None or (last.is_finished() and not _started_without_checks(self.session, last)):
+            return
+        self.log.info("Stopping previous execution %s (%s)", last.id, last.bamboo_ci_ref)
+        _cancel_jobs_without_check_run(last.running_jobs(), self.github)
         last.stopped_in_stage_id = getattr(_last_in_progress_stage(self.session, last), "id", None)
         self.session.commit()
-        for stage in [s for s in last.stages if s.state in (Status.QUEUED, Status.IN_PROGRESS)]:
-            stage.cancelled(self.github)
         self.has_previous_exec = True
         container.bamboo().stop_plan(last.bamboo_ci_ref)
         # The new execution only starts once Bamboo confirms the stop (or the wait limit is reached).
         wait_until_stopped([last.bamboo_ci_ref], self.log)
 
     def _start_new_execution(self, plan: Plan) -> int:
-        assert self.check_suite is not None and self.pull_request is not None
-        self.check_suite.pull_request_id = self.pull_request.id
-        self.session.commit()
+        assert self.check_suite is not None
         sync_user_info(self.session, dig(self.payload, "pull_request", "user", "id"), check_suite=self.check_suite)
         run = PlanRun(self.check_suite, plan)
         run.ci_variables = ci_vars(self.github)
         return run.start_plan()
 
-    def _ci_jobs(self, plan: Plan) -> Response:
-        assert self.check_suite is not None
-        container.slack().execution_started_notification(self.check_suite)
-        jobs = wait_for_running_jobs(self.check_suite.bamboo_ci_ref)
-        if not jobs:
-            return 422, "Failed to fetch RunningPlan"
-        Action(self.check_suite, self.github, jobs, plan.name).create_summary()
-        if self.has_previous_exec:
-            self._stop_execution_message()
-        return 200, "Pull Request created"
-
-    def _stop_execution_message(self) -> None:
-        assert self.check_suite is not None and self.last_check_suite is not None
-        self.check_suite.cancelled_previous_check_suite_id = self.last_check_suite.id
-        self.session.commit()
-        container.bamboo().comment_cancelled(self.last_check_suite, self.check_suite)
-
 
 class RerunBase:
     """Shared behaviour of `ci:rerun` flows (Github::ReRun::Base)."""
+
+    QUEUE = ""  # per-PR queue of the creation job, reused by its `setup_github_checks` job
 
     def __init__(self, session: Session, payload: dict[str, Any], log: Log) -> None:
         self.session = session
@@ -212,7 +301,30 @@ class RerunBase:
             .distinct()
             .order_by(CheckSuite.id)
         )
-        return list(self.session.scalars(stmt))
+        suites = list(self.session.scalars(stmt))
+        untracked = self._started_without_checks(plan)
+        if untracked is not None and untracked not in suites:
+            suites.append(untracked)
+        return suites
+
+    def _started_without_checks(self, plan: Plan) -> CheckSuite | None:
+        """The newest execution of the plan, when Bamboo started it but its GitHub setup never created a stage or CI
+        job (the query above only sees suites with running CI jobs)."""
+        newest = self.session.scalars(
+            select(CheckSuite)
+            .join(PullRequest, CheckSuite.pull_request_id == PullRequest.id)
+            .where(
+                PullRequest.github_pr_id == self.pr_id,
+                PullRequest.repository == self.repo,
+                or_(CheckSuite.plan_id == plan.id, CheckSuite.plan_id.is_(None)),
+                CheckSuite.bamboo_ci_ref.is_not(None),
+            )
+            .order_by(CheckSuite.id.desc())
+            .limit(1)
+        ).first()
+        if newest is None or not _started_without_checks(self.session, newest):
+            return None
+        return newest
 
     def stop_previous_execution(self, plan: Plan) -> None:
         suites = self._running_suites(plan)
@@ -226,20 +338,16 @@ class RerunBase:
         wait_until_stopped([suite.bamboo_ci_ref for suite in suites], self.log)
 
     def _stop_and_update(self, check_suite: CheckSuite) -> None:
+        """Database and Bamboo only; the open check runs of `check_suite` are cancelled by ChecksSetup after the new
+        plan started, so a GitHub error cannot keep the old build running or the new one from starting."""
         stage = getattr(_last_in_progress_stage(self.session, check_suite), "id", None)
         if self.last_check_suite is None:
             check_suite.stopped_in_stage_id = stage
         else:
             check_suite.cancelled_previous_check_suite_id = self.last_check_suite.id
             self.last_check_suite.stopped_in_stage_id = stage
-        for ci_job in [j for j in check_suite.ci_jobs if j.state != Status.SKIPPED]:
-            ci_job.cancelled(self.github, commit=False)
+        _cancel_jobs_without_check_run([j for j in check_suite.ci_jobs if j.state != Status.SKIPPED], self.github)
         self.session.commit()
-        # A rerun reuses the commit, so an open stage finished later by a late Bamboo callback would create a newer
-        # check run with the same name and hide the queued one of the new execution.
-        github = container.github(check_suite)
-        for open_stage in [s for s in check_suite.stages if s.state in RUNNING_STATUSES]:
-            open_stage.cancelled(github)
         self.last_check_suite = check_suite
         container.bamboo().stop_plan(check_suite.bamboo_ci_ref)
 
@@ -264,28 +372,19 @@ class RerunBase:
         return status
 
     def ci_jobs(self, check_suite: CheckSuite, plan: Plan) -> None:
-        container.slack().execution_started_notification(check_suite)
-        check_suite.cancelled_previous_check_suite_id = self.last_check_suite.id if self.last_check_suite else None
-        self.session.commit()
-        # Same note as a new commit leaves, so the stopped Bamboo builds point to the execution that replaced them.
-        for stopped in self.stopped_suites:
-            container.bamboo().comment_cancelled(stopped, check_suite)
-        jobs = wait_for_running_jobs(check_suite.bamboo_ci_ref)
-        if not jobs:  # without jobs the stages would stay at "0/0" forever
-            self.log.error(
-                "No jobs were listed for %s; stages and check runs were not created", check_suite.bamboo_ci_ref
-            )
-            return
-        Action(check_suite, self.github, jobs, plan.name).create_summary(rerun=True)
-        running_plans: dict[str | None, list[str | None]] = {}
-        for suite in list(
-            self.session.scalars(
-                select(CheckSuite)
-                .where(CheckSuite.commit_sha_ref == check_suite.commit_sha_ref)
-                .order_by(CheckSuite.id)
-            )
-        ):
-            UnavailableJobs(suite).update(new_check_suite=check_suite, running_plans=running_plans)
+        """GitHub phase (ChecksSetup): closes the stopped executions' check runs, comments on their Bamboo builds,
+        creates the new stages and check runs and skips jobs removed from the plan; deferred when GitHub fails."""
+        pull_request = check_suite.pull_request
+        assert pull_request is not None
+        setup_or_defer(
+            self.session,
+            check_suite,
+            plan,
+            [suite.id for suite in self.stopped_suites],
+            rerun=True,
+            queue=jobs_queue.execution_queue(self.QUEUE, pull_request.github_pr_id),
+            log=self.log,
+        )
 
     def copy_check_suite(self, source: CheckSuite, pull_request: PullRequest | None = None) -> CheckSuite:
         suite = CheckSuite(
@@ -304,6 +403,8 @@ class RerunBase:
 
 class CreateExecutionByCommand(RerunBase):
     """Re-run requested through the Checks UI (check_suite `rerequested`)."""
+
+    QUEUE = "create_execution_by_command"
 
     @classmethod
     def run(cls, session: Session, plan_id: int, check_suite_id: int, payload: dict[str, Any]) -> Response:
@@ -331,6 +432,8 @@ class CreateExecutionByCommand(RerunBase):
 
 class CreateExecutionByComment(RerunBase):
     """`ci:rerun [#sha]` comment."""
+
+    QUEUE = "create_execution_by_comment"
 
     @classmethod
     def run(

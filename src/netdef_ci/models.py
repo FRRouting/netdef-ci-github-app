@@ -360,8 +360,9 @@ class Stage(Base):
 
     # --- transitions (port of lib/models/stage.rb) ---------------------------------------------
     def enqueue(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:
-        check_run = github.create(self.full_name())
-        github.queued(check_run["id"], output or {})
+        # A new check run is already queued: sending the output with it saves a PATCH that GitHub often answered 404
+        # (read-after-write lag), plus the GET and back-off of its verification, while the PR lock is held.
+        check_run = github.create(self.full_name(), output=output)
         self._record(Status.QUEUED, agent, check_ref=str(check_run["id"]))
 
     def in_progress(self, github: GithubCheck, output: Output | None = None, agent: str = "Github") -> None:

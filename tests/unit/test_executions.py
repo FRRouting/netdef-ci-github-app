@@ -10,9 +10,11 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import httpx
 import pytest
 from sqlalchemy import select
 
+from netdef_ci.clients.github import GithubError, GithubNotFound
 from netdef_ci.db import utcnow
 from netdef_ci.enums import Status
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, GithubUser, Job, Stage
@@ -162,6 +164,135 @@ def test_old_checks_of_this_app_are_skipped_but_foreign_ones_are_not(session, re
     assert [c[0] for c in skipped] == [1]
     assert [c[2] for c in github.calls_named("check_runs_for_ref")] == [None]  # one listing, every status
     assert skipped[0][1] == {"title": "[CI] Removed stage summary", "summary": "Old test suite, skipping..."}
+
+
+# ---------------------------------------------------------------------------- failures part-way (Ruby incident 2026-11-09)
+def setup_jobs(session) -> list[Job]:
+    return list(session.scalars(select(Job).where(Job.handler == "setup_github_checks").order_by(Job.id)))
+
+
+@pytest.mark.parametrize("with_previous", [False, True])
+def test_github_authentication_failure_leaves_no_check_suite_and_does_not_call_bamboo(
+    session, ready, bamboo, github, with_previous
+) -> None:
+    pr, plan = ready
+    if with_previous:
+        w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+        pr, plan = w.pr, w.plan
+    suites_before = session.scalars(select(CheckSuite)).all()
+    github.fail_auth = True
+    status = CreateExecutionByPlan.run(session, pr.id, payloads.pull_request(number=pr.github_pr_id), plan.id)
+    assert status[0] == 503
+    assert session.scalars(select(CheckSuite)).all() == suites_before
+    assert bamboo.submissions == [] and bamboo.stopped == []
+    retry = session.scalars(select(Job).where(Job.handler == "create_execution_by_plan")).one()
+    assert retry.args[:4] == [pr.id, payloads.pull_request(number=pr.github_pr_id), plan.id, 2]
+    assert retry.max_attempts == 1 and retry.queue == "create_execution_by_plan"
+
+
+def test_authentication_retry_is_dropped_when_a_newer_execution_exists(session, ready, bamboo) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    newer = f.check_suite(session, w.pr, w.plan, ref="PROJ-PLAN-78")
+    status = CreateExecutionByPlan.run(
+        session, w.pr.id, payloads.pull_request(number=w.pr.github_pr_id), w.plan.id, 2, w.suite.id
+    )
+    assert status == (409, "Superseded by a newer execution")
+    assert bamboo.submissions == [] and bamboo.stopped == []
+    assert session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first().id == newer.id
+
+
+def test_authentication_retries_are_bounded(session, ready, bamboo, github, settings) -> None:
+    pr, plan = ready
+    github.fail_auth = True
+    status = CreateExecutionByPlan.run(session, pr.id, payloads.pull_request(), plan.id, settings.job_max_attempts)
+    assert status[0] == 503
+    assert session.scalars(select(Job)).all() == [] and bamboo.submissions == []
+
+
+@pytest.mark.parametrize(
+    "error", [GithubNotFound(404, "Not Found"), httpx.ConnectError("getaddrinfo failed")], ids=["404", "dns"]
+)
+def test_github_error_after_start_plan_defers_the_checks_setup(session, ready, bamboo, github, settings, error) -> None:
+    pr, plan = ready
+    github.failures["create"] = [error]
+    status = CreateExecutionByPlan.run(session, pr.id, payloads.pull_request(), plan.id)
+    assert status == (202, "GitHub checks setup scheduled")
+    assert len(bamboo.submissions) == 1
+    suite = session.scalars(select(CheckSuite)).one()
+    assert suite.bamboo_ci_ref == "PROJ-PLAN-1" and suite.plan_id == plan.id
+    job = setup_jobs(session)[0]
+    assert job.args == [suite.id, plan.id, [], False]
+    assert job.queue == "create_execution_by_plan" and job.max_attempts == settings.job_max_attempts
+    # Short delay: Bamboo callbacks are dropped until the resume creates the CI jobs.
+    assert timedelta(seconds=5) < job.run_at - utcnow() <= timedelta(seconds=10)
+
+
+def test_previous_execution_started_without_stages_is_stopped(session, ready, bamboo, github) -> None:
+    """PR 8118: the previous job started FRR-PULLREQ3-24204 and died before creating any stage."""
+    pr, plan = ready
+    started = f.check_suite(session, pr, plan, ref="FRR-PULLREQ3-24204")
+    CreateExecutionByPlan.run(session, pr.id, payloads.pull_request(sha="9" * 40), plan.id)
+    assert bamboo.stopped == ["FRR-PULLREQ3-24204"]
+    assert bamboo.events.index(("stop", "FRR-PULLREQ3-24204")) < bamboo.events.index(("submit", "9" * 40))
+    new = session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first()
+    assert new.cancelled_previous_check_suite_id == started.id
+    assert bamboo.cancel_comments == [("FRR-PULLREQ3-24204", "PROJ-PLAN-1")]
+
+
+def test_previous_execution_without_stages_already_finished_in_bamboo_is_not_stopped(session, ready, bamboo) -> None:
+    pr, plan = ready
+    f.check_suite(session, pr, plan, ref="PROJ-PLAN-5")
+    bamboo.is_stopped = lambda _ref: True  # Bamboo reports it finished
+    CreateExecutionByPlan.run(session, pr.id, payloads.pull_request(sha="9" * 40), plan.id)
+    assert bamboo.stopped == [] and bamboo.cancel_comments == []
+
+
+def test_newer_suite_without_bamboo_reference_is_ignored(session, ready, bamboo, github) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    orphan = CheckSuite(
+        pull_request_id=w.pr.id, author="alice", commit_sha_ref="8" * 40, base_sha_ref="b" * 40, plan_id=None
+    )
+    session.add(orphan)
+    session.commit()
+    CreateExecutionByPlan.run(
+        session, w.pr.id, payloads.pull_request(sha="9" * 40, number=w.pr.github_pr_id), w.plan.id
+    )
+    assert bamboo.stopped == ["PROJ-PLAN-77"]
+    for stage in (w.build_stage, w.tests_stage):
+        session.refresh(stage)
+        assert stage.state == Status.CANCELLED
+    new = session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first()
+    assert new.cancelled_previous_check_suite_id == w.suite.id
+
+
+def test_bamboo_is_stopped_before_github_and_a_github_error_does_not_block_the_new_build(
+    session, ready, bamboo, github
+) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    github.failures["cancelled"] = [GithubError(502, "Bad Gateway")]
+    status = CreateExecutionByPlan.run(
+        session, w.pr.id, payloads.pull_request(sha="9" * 40, number=w.pr.github_pr_id), w.plan.id
+    )
+    assert status == (202, "GitHub checks setup scheduled")
+    assert [e for e in bamboo.events if e[0] != "check"] == [("stop", "PROJ-PLAN-77"), ("submit", "9" * 40)]
+    new = session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first()
+    assert setup_jobs(session)[0].args == [new.id, w.plan.id, [w.suite.id], False]
+    session.refresh(w.build_job)
+    assert w.build_job.state == Status.CANCELLED  # stored before the stop, so late callbacks find it closed
+
+
+def test_rerun_github_error_after_start_plan_defers_the_checks_setup(session, ready, bamboo, github) -> None:
+    w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
+    github.commits = [[{"sha": "c" * 40}]]
+    github.failures["cancelled"] = [httpx.ConnectError("getaddrinfo failed")]
+    status = CreateExecutionByComment.run(
+        session, w.pr.id, payloads.issue_comment("ci:rerun", number=w.pr.github_pr_id), w.plan.id
+    )
+    assert status == (201, "Starting re-run (comment)")
+    assert [e for e in bamboo.events if e[0] != "check"] == [("stop", "PROJ-PLAN-77"), ("submit", "c" * 40)]
+    new = session.scalars(select(CheckSuite).order_by(CheckSuite.id.desc())).first()
+    job = setup_jobs(session)[0]
+    assert job.args == [new.id, w.plan.id, [w.suite.id], True] and job.queue == "create_execution_by_comment"
 
 
 # ---------------------------------------------------------------------------- ci:rerun comment

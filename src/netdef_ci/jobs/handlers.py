@@ -15,13 +15,20 @@ from typing import Any
 from netdef_ci.db import session_scope
 from netdef_ci.jobs.registry import HANDLERS, job_handler
 from netdef_ci.services import executions, retry, tasks
+from netdef_ci.services.checks_setup import ChecksSetup
 from netdef_ci.services.finished import BambooUnavailable, Finished
 
 
 @job_handler("create_execution_by_plan")
-def create_execution_by_plan(pull_request_id: int, payload: dict[str, Any], plan_id: int) -> None:
+def create_execution_by_plan(
+    pull_request_id: int,
+    payload: dict[str, Any],
+    plan_id: int,
+    attempt: int = 1,
+    latest_check_suite_id: int | None = None,
+) -> None:
     with session_scope() as session:
-        executions.CreateExecutionByPlan.run(session, pull_request_id, payload, plan_id)
+        executions.CreateExecutionByPlan.run(session, pull_request_id, payload, plan_id, attempt, latest_check_suite_id)
 
 
 @job_handler("create_execution_by_comment")
@@ -36,6 +43,12 @@ def create_execution_by_comment(
 def create_execution_by_command(plan_id: int, check_suite_id: int, payload: dict[str, Any]) -> None:
     with session_scope() as session:
         executions.CreateExecutionByCommand.run(session, plan_id, check_suite_id, payload)
+
+
+@job_handler("setup_github_checks")
+def setup_github_checks(check_suite_id: int, plan_id: int, previous_check_suite_ids: list[int], rerun: bool) -> None:
+    with session_scope() as session:
+        ChecksSetup.run(session, check_suite_id, plan_id, previous_check_suite_ids, rerun)
 
 
 @job_handler("ci_job_status")

@@ -19,6 +19,7 @@ import respx
 from netdef_ci.clients import github as gh
 from netdef_ci.clients.github import GithubAuthError, GithubCheck, GithubError
 from netdef_ci.config import get_settings
+from netdef_ci.enums import Status
 from tests import factories as f
 
 API = "https://api.github.com"
@@ -137,6 +138,20 @@ def test_create_check_run_posts_name_and_head_sha(suite, mock_api) -> None:
     import json
 
     assert json.loads(route.calls.last.request.content) == {"name": "[CI] Build", "head_sha": suite.commit_sha_ref}
+
+
+def test_stage_enqueue_sends_the_output_with_the_new_check_run_and_no_patch(session, suite, mock_api) -> None:
+    import json
+
+    stage = f.stage(session, suite, None, name="Build")
+    create = mock_api.post(f"{API}/repos/org/repo/check-runs").respond(201, json={"id": 9, "status": "queued"})
+    patch = mock_api.patch(url__regex=rf"{API}/repos/org/repo/check-runs/\d+")
+    stage.enqueue(make(suite), output={"title": "Build summary", "summary": "x" * (gh.MAX_SUMMARY + 10)})
+    sent = json.loads(create.calls.last.request.content)
+    assert sent["name"] == "[CI] Build" and sent["output"]["title"] == "Build summary"
+    assert len(sent["output"]["summary"]) == gh.MAX_SUMMARY  # same truncation as the updates
+    assert patch.call_count == 0
+    assert (stage.check_ref, stage.status) == ("9", Status.QUEUED)
 
 
 CHECK_RUN = f"{API}/repos/org/repo/check-runs/9"
