@@ -129,6 +129,11 @@ ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/rollback.yml
 
 The playbook switches the `current` link, restarts `netdef-ci.target` and runs the health check. The database is **not** rolled back (additive migrations). For database rollout notes, see `06-database-and-rollout.md`.
 
+The units are **not** rendered again, so the restored release runs with the units of the newest one. Their
+`ExecStart` lines must therefore name entry points that every release provides: `python -m netdef_ci <command>` for
+the workers and timers, and `netdef_ci.web.app:app_factory` for the web unit, kept as a stable alias although the
+application moved to `app/github_app.py` (see `07-design-notes.md`).
+
 ## Stopping the application (Ruby → Python transition)
 
 While production moves from the Ruby application to this one, `stop.yml` is the emergency switch: if the Python

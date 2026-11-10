@@ -160,6 +160,7 @@ netdef-ci-github-app-python/
 │   ├── helpers/{config.py,logs.py,metrics.py,db.py,security.py,payload.py}
 │   ├── clients/{github.py,bamboo.py,slack.py,http.py}   # HTTP only (Ruby: lib/github/check.rb, lib/bamboo_ci/api.rb, lib/slack_bot/)
 │   ├── jobs/{queue.py,registry.py,locks.py}       # replaces Delayed Job
+│   ├── web/app.py                                 # stable entry point of the systemd unit only (doc/07)
 │   ├── container.py  enums.py
 │   └── cli/main.py
 ├── tests/{unit,integration,fakes.py,factories.py,payloads.py}

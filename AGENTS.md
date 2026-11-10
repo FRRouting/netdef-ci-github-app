@@ -82,6 +82,7 @@ docstrings, log/error/user-facing messages, commit messages, Ansible task names 
 | `helpers/`          | Settings (`config.py`), logging (`logs.py`), metrics (`metrics.py`), sessions (`db.py`), HMAC/Basic (`security.py`), payload reading (`payload.py`)                                         | business rules                                       |
 | `container.py`      | Process-wide client instances (`container.bamboo()`, `container.slack()`, `container.github(suite)`)                                                                                        | —                                                    |
 | `cli/main.py`       | `python -m netdef_ci <command>` (argparse subcommands: worker, watch-dog, migrate, ...)                                                                                                     | business rules (it calls `workers/` and `github/`)   |
+| `web/app.py`        | Only the stable entry point of the systemd web unit (`netdef_ci.web.app:app_factory`, see `doc/07`)                                                                                         | anything else                                        |
 
 ### File skeleton
 

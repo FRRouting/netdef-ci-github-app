@@ -277,3 +277,14 @@ def test_size_is_not_checked_on_every_line(tmp_path, monkeypatch) -> None:
     handler.close()
     assert len(checks) == 1  # only the first record
 
+
+def test_the_systemd_web_unit_names_an_entry_point_every_release_provides() -> None:
+    """A rollback restarts the old release with the unit of the new one: the unit keeps `netdef_ci.web.app`."""
+    from pathlib import Path
+
+    from netdef_ci.app import github_app
+    from netdef_ci.web import app as stable_entry_point
+
+    unit = Path(__file__).parents[2] / "deploy/ansible/roles/netdef_ci/templates/netdef-ci-web.service.j2"
+    assert "--factory netdef_ci.web.app:app_factory" in unit.read_text()
+    assert stable_entry_point.app_factory is github_app.app_factory

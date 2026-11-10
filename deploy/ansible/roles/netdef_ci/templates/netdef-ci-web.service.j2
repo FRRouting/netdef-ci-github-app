@@ -11,7 +11,8 @@ User={{ netdef_ci_user }}
 Group={{ netdef_ci_group }}
 WorkingDirectory={{ netdef_ci_current_link }}
 EnvironmentFile={{ netdef_ci_env_file }}
-ExecStart={{ netdef_ci_current_link }}/venv/bin/python -m uvicorn --factory netdef_ci.app.github_app:app_factory --host {{ netdef_ci_listen_host }} --port {{ netdef_ci_listen_port }} --workers {{ netdef_ci_web_workers }}
+# netdef_ci.web.app stays on purpose: a rollback does not render this unit again, and every release has it (doc/07).
+ExecStart={{ netdef_ci_current_link }}/venv/bin/python -m uvicorn --factory netdef_ci.web.app:app_factory --host {{ netdef_ci_listen_host }} --port {{ netdef_ci_listen_port }} --workers {{ netdef_ci_web_workers }}
 Restart=always
 RestartSec=5
 TimeoutStopSec=30
