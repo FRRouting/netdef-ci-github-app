@@ -41,6 +41,8 @@ module Github
 
         github_reaction_feedback(comment_id)
 
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_rerun?(@pull_request)
+
         fetch_plans.each do |plan|
           CreateExecutionByComment
             .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_comment')

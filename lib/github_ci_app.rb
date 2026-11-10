@@ -17,6 +17,7 @@ require_relative 'bamboo_ci/running_plan'
 require_relative 'bamboo_ci/stop_plan'
 
 # GitHub libs
+require_relative 'github/duplicate_request_guard'
 require_relative 'github/parsers/pull_request_commit'
 require_relative 'github/re_run/base'
 require_relative 'github/re_run/command'

@@ -91,6 +91,31 @@ describe Github::ReRun::Command do
       end
     end
 
+    context 'when a rerun for the same pull request has just been scheduled' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'check_suite' => {
+            'head_sha' => check_suite.commit_sha_ref,
+            'pull_requests' => [{ 'number' => check_suite.pull_request.github_pr_id }]
+          },
+          'repository' => { 'full_name' => check_suite.pull_request.repository }
+        }
+      end
+
+      before do
+        check_suite.pull_request.update(rerun_requested_at: 1.second.ago)
+        allow(BambooCi::StopPlan).to receive(:build)
+      end
+
+      it 'ignores the duplicate' do
+        expect(rerun.start).to eq([202, 'Rerun already scheduled'])
+        expect(BambooCi::StopPlan).not_to have_received(:build)
+        expect(CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref).size).to eq(1)
+      end
+    end
+
     context 'when the pull request has no associated plans (legacy)' do
       let(:plan) { create(:plan, github_repo_name: 'Unit/Test') }
       let(:pull_request) { create(:pull_request, repository: 'Unit/Test', plans: []) }

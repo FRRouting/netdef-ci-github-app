@@ -80,6 +80,32 @@ describe Github::Retry::Comment do
       end
     end
 
+    context 'when a retry for the same check suite has just started' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:ci_jobs) { [] }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+
+      before do
+        check_suite.stages.each { |stage| stage.update(status: :failure) }
+        check_suite.stages.last.jobs.each { |job| job.update(status: :failure) }
+        check_suite.update(retry_requested_at: 2.seconds.ago)
+      end
+
+      it 'ignores the duplicate without stopping or restarting Bamboo' do
+        expect(github_retry.start).to eq([202, 'Retry already in progress'])
+        expect(BambooCi::StopPlan).not_to have_received(:build)
+        expect(BambooCi::Retry).not_to have_received(:restart)
+        expect(check_suite.reload.retry).to eq(0)
+      end
+    end
+
     context 'when receives a valid command - but still running' do
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
       let(:ci_jobs) do

@@ -14,6 +14,7 @@ require_relative '../../bamboo_ci/stop_plan'
 require_relative '../parsers/pull_request_commit'
 
 require_relative '../check'
+require_relative '../duplicate_request_guard'
 require_relative '../build/action'
 require_relative '../build/unavailable_jobs'
 require_relative '../user_info'
@@ -31,6 +32,12 @@ module Github
       end
 
       private
+
+      def duplicated_request
+        logger(Logger::WARN, ">>> Duplicated rerun request ignored for PR #{pr_id} (#{repo})")
+
+        [202, 'Rerun already scheduled']
+      end
 
       def fetch_run_ci_by_pr(plan)
         CheckSuite
