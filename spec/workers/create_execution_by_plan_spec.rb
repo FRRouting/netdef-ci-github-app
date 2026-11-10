@@ -9,7 +9,7 @@
 #   frozen_string_literal: true
 
 describe CreateExecutionByPlan do
-  let(:pull_request) { create(:pull_request, id: 25) }
+  let(:pull_request) { create(:pull_request) }
   let(:payload) do
     {
       'pull_request' => {
