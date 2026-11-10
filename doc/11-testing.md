@@ -42,7 +42,7 @@ Environment: Python **3.15.2** (built from the python.org tarball), PostgreSQL 1
 | Smoke test         | `python scripts/smoke_test.py`                                    | 12 `ok` checks (migrations, `/ping`, `/healthz`, `/readyz`, signed webhook/no signature/wrong signature, `/metrics` aggregating 2 workers, clean worker shutdown) |
 | Ansible            | `ansible-playbook --syntax-check` ×3, `ansible-lint` (production) | OK / 0 failures; convergence in a systemd container (see `10`)                                                                                                    |
 
-Coverage per module (branches included): the business modules (`services/*`, `web/*`, `jobs/*`, `models`, `security`) sit between 91 % and 100 %; the lowest are `clients/slack.py` (85 %), `container.py` (79 %, real client wiring) and `commits.py` (84 %).
+Coverage per module (branches included): the business modules (`github/*`, `bamboo_ci/*`, `slack/*`, `workers/*`, `app/*`, `jobs/*`, `models/*`, `helpers/security.py`) sit between 91 % and 100 %; the lowest are `clients/slack.py` (85 %), `container.py` (79 %, real client wiring) and `commits.py` (84 %).
 
 Not executed/validated: see `12-limitations-and-pending.md`.
 

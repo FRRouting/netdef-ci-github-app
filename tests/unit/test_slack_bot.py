@@ -14,7 +14,7 @@ import httpx
 import pytest
 
 from netdef_ci.clients.slack import SlackBot
-from netdef_ci.config import get_settings
+from netdef_ci.helpers.config import get_settings
 from netdef_ci.models import PullRequestSubscription
 from tests import factories as f
 

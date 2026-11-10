@@ -44,8 +44,9 @@ from cryptography.hazmat.primitives.asymmetric import rsa  # noqa: E402
 from sqlalchemy import text  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
-from netdef_ci import container, db  # noqa: E402
-from netdef_ci.config import get_settings, reset_settings_cache  # noqa: E402
+from netdef_ci import container  # noqa: E402
+from netdef_ci.helpers import db  # noqa: E402
+from netdef_ci.helpers.config import get_settings, reset_settings_cache  # noqa: E402
 from netdef_ci.models import Base  # noqa: E402
 from tests.fakes import FakeBamboo, FakeGithub, FakeSlack  # noqa: E402
 

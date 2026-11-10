@@ -18,8 +18,8 @@ import respx
 
 from netdef_ci.clients import github as gh
 from netdef_ci.clients.github import GithubAuthError, GithubCheck, GithubError
-from netdef_ci.config import get_settings
 from netdef_ci.enums import Status
+from netdef_ci.helpers.config import get_settings
 from tests import factories as f
 
 API = "https://api.github.com"

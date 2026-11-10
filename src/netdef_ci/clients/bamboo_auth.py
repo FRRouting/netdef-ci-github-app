@@ -18,7 +18,7 @@ from collections.abc import Callable, Generator
 
 import httpx
 
-from netdef_ci.logs import Log
+from netdef_ci.helpers.logs import Log
 
 TOKEN_PATH = "/rest/oauth2/latest/token"
 # A token is replaced this long before Bamboo says it expires, so a request never leaves with an expired one.

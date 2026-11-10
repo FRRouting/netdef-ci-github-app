@@ -22,9 +22,9 @@ import httpx
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session, object_session
 
-from netdef_ci import metrics
-from netdef_ci.config import Settings
-from netdef_ci.logs import Log
+from netdef_ci.helpers import metrics
+from netdef_ci.helpers.config import Settings
+from netdef_ci.helpers.logs import Log
 from netdef_ci.models import CheckSuite, CiJob, PullRequest, PullRequestSubscription, Stage
 
 _CACHE_KEY = "netdef_slack_cache"

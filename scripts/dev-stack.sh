@@ -66,7 +66,7 @@ PY
 
 start() { name=$1; shift; "$@" >"$RUN_DIR/logs/$name.out" 2>&1 & pids+=($!); echo "   started $name (pid $!)"; }
 echo ">> processes (output in $RUN_DIR/logs/*.out)"
-start web "$PYTHON" -m uvicorn --factory netdef_ci.web.app:app_factory --host 127.0.0.1 --port "$PORT" --workers 2
+start web "$PYTHON" -m uvicorn --factory netdef_ci.app.github_app:app_factory --host 127.0.0.1 --port "$PORT" --workers 2
 start worker-q0-4 "$PYTHON" -m netdef_ci worker --queues 0,1,2,3,4
 start worker-q5-9 "$PYTHON" -m netdef_ci worker --queues 5,6,7,8,9
 # EXECUTION_QUEUE_PARTITIONS is 1 here: the plan-starting queues keep their plain names.

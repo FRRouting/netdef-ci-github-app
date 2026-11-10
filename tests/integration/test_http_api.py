@@ -43,7 +43,7 @@ def test_health_and_readiness(api) -> None:
 
 
 def test_readiness_fails_when_the_database_is_down(api, monkeypatch) -> None:
-    from netdef_ci.web import app as app_module
+    from netdef_ci.app import github_app as app_module
 
     def broken():
         raise ConnectionError("db down")
@@ -67,7 +67,7 @@ def test_metrics_require_basic_auth(api) -> None:
 
 
 def test_metrics_expose_the_expected_metric_names(api) -> None:
-    from netdef_ci import metrics
+    from netdef_ci.helpers import metrics
 
     metrics.track_bamboo("probe", lambda: None)
     api.http.get("/ping")
@@ -157,7 +157,7 @@ def test_retry_webhook_only_schedules_the_retry(api, session, bamboo) -> None:
 
 
 def test_unexpected_errors_are_500_json_without_details(api, monkeypatch) -> None:
-    from netdef_ci.web import webhooks
+    from netdef_ci.app import webhooks
 
     def explode(*_a, **_k):
         raise RuntimeError("secret internals")
@@ -282,7 +282,7 @@ def test_duplicate_deliveries_are_ignored_only_when_enabled(api, session, settin
 
 
 def test_a_failed_delivery_can_be_redelivered(api, session, settings, monkeypatch) -> None:
-    from netdef_ci.web import webhooks
+    from netdef_ci.app import webhooks
 
     monkeypatch.setattr(settings, "webhook_dedupe_ttl_seconds", 600)
     original = webhooks.dispatch
@@ -334,7 +334,7 @@ def test_a_replayed_callback_is_ignored(api, session, settings, monkeypatch) -> 
 
 
 def test_a_failed_callback_can_be_sent_again(api, settings, monkeypatch) -> None:
-    from netdef_ci.web import webhooks
+    from netdef_ci.app import webhooks
 
     monkeypatch.setattr(settings, "bamboo_callback_max_age_seconds", 300)
     original = webhooks.UpdateStatus
@@ -350,7 +350,7 @@ def test_a_failed_callback_can_be_sent_again(api, settings, monkeypatch) -> None
 
 
 def test_github_and_callback_records_expire_independently(api, session, settings, monkeypatch) -> None:
-    from netdef_ci.db import utcnow
+    from netdef_ci.helpers.db import utcnow
 
     monkeypatch.setattr(settings, "bamboo_callback_max_age_seconds", 300)
     assert api.status({"status": "success", "bamboo_ref": "X-1", "timestamp": int(time.time())}).status_code == 404

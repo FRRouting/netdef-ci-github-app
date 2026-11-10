@@ -5,6 +5,8 @@ Server that connects **GitHub Pull Requests** to **Bamboo CI**: it receives webh
 
 - Python **3.13** (3.13.18) · FastAPI + uvicorn · SQLAlchemy 2 + Alembic + PostgreSQL · httpx · PyJWT · prometheus-client
 - Own PostgreSQL job queue (`run_at`, named queues, retries with back-off), no Redis
+- Same directory structure as the Ruby application (`app/`, `github/`, `bamboo_ci/`, `slack/`, `models/`, `workers/`):
+  see the Ruby → Python map in [`doc/01-overview.md`](doc/01-overview.md#ruby--python-map)
 - Tests: **279 passing**, **94 %** coverage, `ruff` and `mypy` clean · Deploy: **Ansible** (dev and production)
 
 Full documentation in [`doc/`](doc/): overview and diagrams (`01`), feature and test matrix (`02`), technical decisions (`03`),
@@ -27,7 +29,7 @@ export PYTHONPATH=src
 python -m netdef_ci check-config           # validates configuration, keys and database
 python -m netdef_ci migrate                # creates/updates the schema (adopts existing databases)
 
-python -m uvicorn --factory netdef_ci.web.app:app_factory --host 0.0.0.0 --port 9292   # web
+python -m uvicorn --factory netdef_ci.app.github_app:app_factory --host 0.0.0.0 --port 9292   # web
 python -m netdef_ci worker                 # in another terminal: processes the queue (--queues 0,1,2,3 for one range)
 python -m netdef_ci watch-dog              # reconciliation (in production: systemd timer)
 ```

@@ -15,10 +15,12 @@ import pytest
 from sqlalchemy import select
 
 from netdef_ci.clients.github import GithubError, GithubNotFound
-from netdef_ci.db import utcnow
 from netdef_ci.enums import Status
+from netdef_ci.helpers.db import utcnow
 from netdef_ci.models import AuditRetry, CheckSuite, CiJob, GithubUser, Job, Stage
-from netdef_ci.services.executions import CreateExecutionByCommand, CreateExecutionByComment, CreateExecutionByPlan
+from netdef_ci.workers.create_execution_by_command import CreateExecutionByCommand
+from netdef_ci.workers.create_execution_by_comment import CreateExecutionByComment
+from netdef_ci.workers.create_execution_by_plan import CreateExecutionByPlan
 from tests import factories as f
 from tests import payloads
 
@@ -376,7 +378,7 @@ def test_rerun_comment_stops_execution_whose_jobs_are_all_queued(session, ready,
 
 
 def test_rerun_keeps_new_check_runs_when_the_stopped_execution_reports_late(session, ready, bamboo, github) -> None:
-    from netdef_ci.services.summary import Summary
+    from netdef_ci.github.build.summary import Summary
 
     w = f.World(session, statuses=(Status.IN_PROGRESS, Status.QUEUED))
     github.commits = [[{"sha": w.suite.commit_sha_ref}]]  # rerun of the same commit: same check run names
@@ -510,7 +512,7 @@ def test_rerun_does_not_create_stages_when_bamboo_rejects_the_plan(session, read
 
 
 def test_jobs_are_awaited_while_bamboo_expands_the_plan(clients, bamboo, settings, monkeypatch) -> None:
-    from netdef_ci.services.common import wait_for_running_jobs
+    from netdef_ci.bamboo_ci.running_plan import wait_for_running_jobs
 
     monkeypatch.setattr(settings, "running_plan_wait_seconds", 60)
     answers = iter([[], [], JOBS])
@@ -521,7 +523,7 @@ def test_jobs_are_awaited_while_bamboo_expands_the_plan(clients, bamboo, setting
 
 
 def test_waiting_for_jobs_is_bounded(clients, bamboo, settings) -> None:
-    from netdef_ci.services.common import wait_for_running_jobs
+    from netdef_ci.bamboo_ci.running_plan import wait_for_running_jobs
 
     bamboo.default_jobs = []
     assert wait_for_running_jobs("PROJ-PLAN-1", sleep=lambda _s: None) == []  # wait is 0 s in the tests

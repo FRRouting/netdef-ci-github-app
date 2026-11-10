@@ -20,9 +20,9 @@ import respx
 
 from netdef_ci import container
 from netdef_ci.clients.http import MAX_RETRY_AFTER_SECONDS, request_with_retries, retry_after_seconds
+from netdef_ci.helpers.logs import Log, SizeRotatingFileHandler, redact
 from netdef_ci.jobs import queue
 from netdef_ci.jobs.registry import HANDLERS, job_handler
-from netdef_ci.logs import Log, SizeRotatingFileHandler, redact
 
 
 # ---------------------------------------------------------------------------- redaction
@@ -42,7 +42,7 @@ def test_secrets_are_redacted(raw, secret) -> None:
 
 
 def test_log_lines_are_redacted_before_reaching_handlers(caplog) -> None:
-    from netdef_ci.logs import RedactingFilter
+    from netdef_ci.helpers.logs import RedactingFilter
 
     record = logging.LogRecord("netdef_ci.x", logging.INFO, __file__, 1, "token=%s", ("topsecret",), None)
     RedactingFilter().filter(record)
@@ -53,7 +53,7 @@ def test_log_lines_are_redacted_before_reaching_handlers(caplog) -> None:
 def pr_logs(tmp_path, monkeypatch, settings):
     """LOG_DIR in a temporary directory, with a fresh `pr<N>.log` handler."""
     monkeypatch.setattr(settings, "log_dir", str(tmp_path))
-    from netdef_ci.logs import PullRequestFilesHandler
+    from netdef_ci.helpers.logs import PullRequestFilesHandler
 
     logger = logging.getLogger("netdef_ci.pull_requests")
 
@@ -74,7 +74,7 @@ def test_pr_logs_go_to_per_pull_request_files(pr_logs) -> None:
 
 
 def test_pr_log_files_kept_open_are_bounded(pr_logs, monkeypatch, settings) -> None:
-    from netdef_ci import logs
+    from netdef_ci.helpers import logs
 
     monkeypatch.setattr(settings, "pr_log_open_files", 2)
     for pr_id in (9001, 9002, 9003, 9001):
@@ -96,7 +96,7 @@ def test_without_log_dir_pr_lines_are_not_printed_twice(settings, monkeypatch, c
 
 
 def test_redaction_runs_once_per_record() -> None:
-    from netdef_ci.logs import RedactingFilter
+    from netdef_ci.helpers.logs import RedactingFilter
 
     record = logging.LogRecord("netdef_ci.x", logging.INFO, __file__, 1, "token=%s", ("topsecret",), None)
     RedactingFilter().filter(record)
@@ -215,9 +215,9 @@ def test_container_overrides_and_reset(clients, github, bamboo, slack) -> None:
 
 
 def test_registered_handlers_cover_every_enqueued_job_name() -> None:
-    from netdef_ci.jobs import handlers
+    from netdef_ci.workers import loader_workers
 
-    assert set(handlers.REGISTERED) == {
+    assert set(loader_workers.REGISTERED) == {
         "create_execution_by_plan",
         "create_execution_by_comment",
         "setup_github_checks",
@@ -234,7 +234,7 @@ def test_registered_handlers_cover_every_enqueued_job_name() -> None:
 def test_production_refuses_to_start_without_webhook_secret(monkeypatch, settings) -> None:
     from fastapi.testclient import TestClient
 
-    from netdef_ci.web.app import create_app
+    from netdef_ci.app.github_app import create_app
 
     monkeypatch.setattr(settings, "env", "production")
     monkeypatch.setattr(settings, "webhook_secret", type(settings.webhook_secret)(""))
@@ -276,3 +276,4 @@ def test_size_is_not_checked_on_every_line(tmp_path, monkeypatch) -> None:
         _write(handler, f"line-{index}")
     handler.close()
     assert len(checks) == 1  # only the first record
+

@@ -39,6 +39,6 @@ versions. `pyproject.toml` contains only tool configuration. `httpx2` is dev-onl
 
 - **Reference = executed code.** Design notes and deliberate behaviours are in `07-design-notes.md`.
 - **External contracts preserved:** routes, headers, response codes and bodies, metric names, database schema, Slack messages, variables/URLs sent to Bamboo.
-- **No literal translation:** services receive a `Session` and use injectable clients (`container.py`), which enables network-free tests.
+- **No literal translation:** flows receive a `Session` and use injectable clients (`container.py`), which enables network-free tests.
 - **Explicit errors:** specific exceptions in the clients, `503` when Bamboo is unavailable (instead of finishing suites by mistake), auxiliary failures (reactions, user data, Slack) never bring down the CI flow.
 - **Bounded retries** only where idempotency is guaranteed (see `08-persistence-concurrency-failures.md`).

@@ -27,10 +27,10 @@ from typing import Any
 from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
-from netdef_ci.config import Settings, get_settings
-from netdef_ci.db import get_engine, session_factory, utcnow
+from netdef_ci.helpers.config import Settings, get_settings
+from netdef_ci.helpers.db import get_engine, session_factory, utcnow
+from netdef_ci.helpers.logs import Log
 from netdef_ci.jobs.registry import HANDLERS
-from netdef_ci.logs import Log
 from netdef_ci.models import Job
 
 NOTIFY_CHANNEL = "netdef_jobs"

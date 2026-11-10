@@ -20,8 +20,8 @@ import respx
 from netdef_ci import container
 from netdef_ci.cli.main import main
 from netdef_ci.clients.github import GithubAppApi
-from netdef_ci.config import GitHubAppConfig
-from netdef_ci.services.app_check import FAIL, OK, WARN, AppCheck
+from netdef_ci.github.app_check import FAIL, OK, WARN, AppCheck
+from netdef_ci.helpers.config import GitHubAppConfig
 
 API = "https://api.github.com"
 PERMISSIONS = {

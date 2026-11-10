@@ -4,7 +4,7 @@
 
 | Unit                                                                                                                                     | Role                                                                                                            |
 |------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `netdef-ci-web.service`                                                                                                                  | uvicorn (`--factory netdef_ci.web.app:app_factory`, N workers)                                                  |
+| `netdef-ci-web.service`                                                                                                                  | uvicorn (`--factory netdef_ci.app.github_app:app_factory`, N workers)                                           |
 | `netdef-ci-worker-q0-1`, `-q2-3`, `-q4-5`, `-q6-7`, `-q8-9`                                                                              | job workers by queue range                                                                                      |
 | `netdef-ci-worker-create-by-plan-{0,1}`, `-create-by-comment-{0,1}`, `-create-by-command-{0,1}`, `-retry-{0,1}`, `-timeout`, `-topotest` | one job worker per named queue (the plan-starting queues are partitioned by PR, `EXECUTION_QUEUE_PARTITIONS=2`) |
 | `netdef-ci-watchdog.timer` / `.service`                                                                                                  | `python -m netdef_ci watch-dog`                                                                                 |
@@ -60,12 +60,12 @@ Both timers use `Persistent=true` (a run missed while the host was down happens 
 
 These sleep inside the running job and count towards the 300 s limit:
 
-| Where                                      | Wait                                                                                               |
-|--------------------------------------------|----------------------------------------------------------------------------------------------------|
-| Running plan lookup (`services/common.py`) | polls every **3 s** (`RUNNING_PLAN_POLL_SECONDS`) for up to **60 s** (`RUNNING_PLAN_WAIT_SECONDS`) |
-| Bamboo build log (`clients/bamboo.py`)     | up to 4 downloads, **5 s** apart                                                                   |
-| GitHub check run completion                | up to 3 retries after 5 s, 10 s and 15 s when the check run is not visible or not updated yet      |
-| HTTP retries (`clients/http.py`)           | `min(2^attempt, 10)` s, or the server's `Retry-After` on rate limits                               |
+| Where                                             | Wait                                                                                               |
+|---------------------------------------------------|----------------------------------------------------------------------------------------------------|
+| Running plan lookup (`bamboo_ci/running_plan.py`) | polls every **3 s** (`RUNNING_PLAN_POLL_SECONDS`) for up to **60 s** (`RUNNING_PLAN_WAIT_SECONDS`) |
+| Bamboo build log (`clients/bamboo.py`)            | up to 4 downloads, **5 s** apart                                                                   |
+| GitHub check run completion                       | up to 3 retries after 5 s, 10 s and 15 s when the check run is not visible or not updated yet      |
+| HTTP retries (`clients/http.py`)                  | `min(2^attempt, 10)` s, or the server's `Retry-After` on rate limits                               |
 
 ## Logs
 

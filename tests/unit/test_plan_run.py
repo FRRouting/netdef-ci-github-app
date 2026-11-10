@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from netdef_ci.services.plan_run import PlanRun
+from netdef_ci.bamboo_ci.plan_run import PlanRun
 from tests import factories as f
 
 

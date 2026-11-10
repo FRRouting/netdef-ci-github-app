@@ -25,8 +25,8 @@ import respx
 from cryptography.hazmat.primitives import serialization
 
 from netdef_ci.cli.main import main
-from netdef_ci.services import app_setup
-from netdef_ci.services.app_setup import (
+from netdef_ci.github import app_setup
+from netdef_ci.github.app_setup import (
     AppSetupError,
     AppSetupRequest,
     CreateGithubApp,

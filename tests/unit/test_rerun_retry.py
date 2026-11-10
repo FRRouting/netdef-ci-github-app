@@ -12,9 +12,11 @@ import pytest
 from sqlalchemy import select
 
 from netdef_ci.enums import Status
+from netdef_ci.github.re_run.command import ReRunCommand
+from netdef_ci.github.re_run.comment import ReRunComment
+from netdef_ci.github.retry.command import RetryCommand
+from netdef_ci.github.retry.comment import RetryComment
 from netdef_ci.models import AuditRetry, Job, PullRequestSubscription
-from netdef_ci.services.rerun import ReRunCommand, ReRunComment
-from netdef_ci.services.retry import RetryCommand, RetryComment
 from tests import factories as f
 from tests import payloads
 
@@ -172,7 +174,7 @@ def test_reaction_failures_do_not_break_retry(session, clients, github, failing)
 
 # ---------------------------------------------------------------------------- retry scheduled from the webhook
 def test_retry_comment_schedules_the_job_and_the_job_reacts(session, clients, bamboo, github) -> None:
-    from netdef_ci.services import retry
+    from netdef_ci.workers import retry_execution as retry
 
     w = finished_world(session)
     payload = payloads.issue_comment("ci:retry", number=w.pr.github_pr_id)
@@ -195,7 +197,7 @@ def test_retry_comment_refused_by_the_webhook_reacts_at_once(session, clients, g
 
 
 def test_retry_job_for_a_stage_that_disappeared(session, clients) -> None:
-    from netdef_ci.services import retry
+    from netdef_ci.workers import retry_execution as retry
 
     assert retry.run(session, "command", payloads.check_run(31337)) == (404, "Stage not found")
 
@@ -207,7 +209,7 @@ RECENT = (409, "A ci:retry/ci:rerun started moments ago for this pull request")
 
 def test_burst_of_retry_requests_stops_and_restarts_bamboo_once(session, clients, bamboo, github) -> None:
     """FRR-PULLREQ3-24017: three retries of one suite within 2 s; the later ones stopped the build the first restarted."""
-    from netdef_ci.services import retry
+    from netdef_ci.workers import retry_execution as retry
 
     w = finished_world(session)
     first = payloads.check_run(int(w.tests_stage.check_ref))
@@ -269,7 +271,7 @@ def test_retry_job_decides_from_the_state_after_taking_the_lock(session, clients
     from sqlalchemy import update
 
     from netdef_ci.models import Stage
-    from netdef_ci.services import retry
+    from netdef_ci.workers import retry_execution as retry
 
     w = finished_world(session)
 

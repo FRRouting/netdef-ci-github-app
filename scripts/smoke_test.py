@@ -68,7 +68,7 @@ def main() -> int:
     subprocess.run([py, "-m", "netdef_ci", "migrate"], env=env, check=True)
     check(True, "alembic migrations applied to an empty database")
     web = subprocess.Popen(
-        [py, "-m", "uvicorn", "--factory", "netdef_ci.web.app:app_factory", "--port", str(PORT), "--workers", "2"],
+        [py, "-m", "uvicorn", "--factory", "netdef_ci.app.github_app:app_factory", "--port", str(PORT), "--workers", "2"],
         env=env,
     )
     worker = subprocess.Popen([py, "-m", "netdef_ci", "worker"], env=env)

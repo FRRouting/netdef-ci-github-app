@@ -15,14 +15,12 @@ from pathlib import Path
 
 from sqlalchemy import select
 
-from netdef_ci import db, metrics
-from netdef_ci.db import utcnow
 from netdef_ci.enums import Status
-from netdef_ci.jobs import (
-    handlers,  # noqa: F401
-    queue,
-)
+from netdef_ci.helpers import db, metrics
+from netdef_ci.helpers.db import utcnow
+from netdef_ci.jobs import queue
 from netdef_ci.models import CheckSuite, GithubUser, Job, TopotestFailure
+from netdef_ci.workers import loader_workers  # noqa: F401
 from tests import factories as f
 from tests import payloads
 

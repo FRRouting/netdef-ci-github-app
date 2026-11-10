@@ -16,8 +16,8 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from netdef_ci.security import compute_signature
-from netdef_ci.web.app import create_app
+from netdef_ci.app.github_app import create_app
+from netdef_ci.helpers.security import compute_signature
 
 
 class Api:
@@ -59,8 +59,8 @@ def api(session, clients) -> Api:
 @pytest.fixture
 def run_jobs() -> Callable[[], int]:
     """Runs every due background job in the test process (what the worker processes do in production)."""
-    from netdef_ci.jobs import handlers  # noqa: F401
     from netdef_ci.jobs.queue import Worker
+    from netdef_ci.workers import loader_workers  # noqa: F401
 
     def run(limit: int = 50) -> int:
         worker = Worker(use_timeout=False, name="test-worker")
