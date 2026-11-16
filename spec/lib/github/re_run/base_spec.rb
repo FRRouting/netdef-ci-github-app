@@ -41,4 +41,50 @@ describe Github::ReRun::Base do
       expect(finished_stage.reload.status).to eq('success')
     end
   end
+
+  describe '#comment_stopped_executions' do
+    let(:stopped_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-10') }
+    let(:other_stopped_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-11') }
+    let(:new_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-12') }
+
+    before do
+      allow(BambooCi::StopPlan).to receive(:build)
+      allow(BambooCi::StopPlan).to receive(:comment)
+      allow(rerun).to receive(:cancel_previous_jobs)
+    end
+
+    context 'when previous executions were stopped' do
+      before do
+        rerun.send(:stop_and_update_previous_execution, stopped_suite)
+        rerun.send(:stop_and_update_previous_execution, other_stopped_suite)
+        rerun.send(:comment_stopped_executions, new_suite)
+      end
+
+      it 'comments the new execution on each stopped Bamboo result' do
+        expect(BambooCi::StopPlan).to have_received(:comment).with(stopped_suite, new_suite)
+        expect(BambooCi::StopPlan).to have_received(:comment).with(other_stopped_suite, new_suite)
+      end
+    end
+
+    context 'when the new execution has no Bamboo reference' do
+      let(:new_suite) { create(:check_suite, bamboo_ci_ref: nil) }
+
+      before do
+        rerun.send(:stop_and_update_previous_execution, stopped_suite)
+        rerun.send(:comment_stopped_executions, new_suite)
+      end
+
+      it 'does not comment' do
+        expect(BambooCi::StopPlan).not_to have_received(:comment)
+      end
+    end
+
+    context 'when nothing was stopped' do
+      before { rerun.send(:comment_stopped_executions, new_suite) }
+
+      it 'does not comment' do
+        expect(BambooCi::StopPlan).not_to have_received(:comment)
+      end
+    end
+  end
 end

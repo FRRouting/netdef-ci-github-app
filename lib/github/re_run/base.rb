@@ -72,8 +72,21 @@ module Github
         cancel_previous_jobs(check_suite)
 
         @last_check_suite = check_suite
+        (@stopped_check_suites ||= []) << check_suite
 
         BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+      end
+
+      # Leaves on each stopped Bamboo result a link to the execution that replaced it. Runs after the new
+      # plan started, since its Bamboo reference only exists then.
+      def comment_stopped_executions(check_suite)
+        return if check_suite.bamboo_ci_ref.nil?
+
+        Array(@stopped_check_suites).each do |stopped|
+          next if stopped.bamboo_ci_ref.nil? or stopped.id == check_suite.id
+
+          BambooCi::StopPlan.comment(stopped, check_suite)
+        end
       end
 
       def cancel_previous_jobs(check_suite)
@@ -129,6 +142,7 @@ module Github
         SlackBot.instance.execution_started_notification(check_suite)
 
         check_suite.update(cancelled_previous_check_suite: @last_check_suite)
+        comment_stopped_executions(check_suite)
 
         create_ci_jobs(check_suite, plan.name)
 
