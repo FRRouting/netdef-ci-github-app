@@ -14,6 +14,7 @@ require_relative '../../bamboo_ci/running_plan'
 require_relative '../../helpers/github_logger'
 require_relative '../../bamboo_ci/result'
 require_relative 'summary/message_formatter'
+require_relative 'summary/pending_jobs'
 
 module Github
   module Build
@@ -72,6 +73,7 @@ module Github
           .where(configuration: { position: (0...current_position) })
           .where(status: %i[in_progress queued])
           .each do |stage|
+            PendingJobs.new(@github, @agent).sync(stage) if stage.running?
             next if stage.running?
 
             logger(Logger::INFO, "must_update_previous_stage: #{stage.inspect}")
