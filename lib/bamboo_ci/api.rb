@@ -15,6 +15,7 @@ require 'json'
 require 'multipart/post'
 
 require_relative '../helpers/request'
+require_relative 'service_account'
 
 module BambooCi
   module Api
@@ -65,6 +66,43 @@ module BambooCi
       PrometheusMetrics.track_bamboo('add_comment') do
         post_request(URI(url.delete(' ')), body: "<comment><content>#{comment}</content></comment>")
       end
+    end
+
+    # With a service account every Bamboo request goes with its Bearer token instead of the ~/.netrc credentials.
+    # A cached token Bamboo refuses with 401 (revoked, Bamboo restarted) is replaced and the request sent once more.
+    # When no token can be obtained the request goes without credentials, so callers see Bamboo's 401.
+    def send_request(uri, req, machine)
+      account = BambooCi::ServiceAccount.instance
+      return super unless account.configured?
+
+      token, fresh = account.token_for(uri)
+      resp = bearer_request(uri, req, token)
+      token, resp = retry_with_new_token(uri, req, account, token, resp) if resp.code.to_i == 401 && !fresh
+
+      log_token_refusal(req, resp, account) if [401, 403].include?(resp.code.to_i) && !token.nil?
+
+      resp
+    end
+
+    # Only called for a cached token, which is never nil.
+    def retry_with_new_token(uri, req, account, token, resp)
+      account.forget(token)
+      token, = account.token_for(uri)
+
+      token.nil? ? [token, resp] : [token, bearer_request(uri, req, token)]
+    end
+
+    def bearer_request(uri, req, token)
+      req['Authorization'] = "Bearer #{token}" unless token.nil?
+
+      create_http(uri).request(req)
+    end
+
+    def log_token_refusal(req, resp, account)
+      logger(Logger::ERROR,
+             "Bamboo answered HTTP #{resp.code} to #{req.method} #{req.path} with the service account token " \
+             "(requested scope: #{account.scope || '-'}; granted scope: #{account.granted_scope || '-'}): " \
+             "#{BambooCi::ServiceAccount.summary(resp)}")
     end
 
     def logger(severity, message)

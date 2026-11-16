@@ -1,0 +1,7 @@
+---
+profile: production
+exclude_paths:
+  - inventories/*/group_vars/all/vault.yml.example
+  - inventories/*/group_vars/all/vault.yml
+  - tests/converge/vault.yml
+skip_list: []

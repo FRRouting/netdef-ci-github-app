@@ -1,0 +1,26 @@
+{#- config.yml of the application (lib/helpers/configuration.rb). Contains the webhook secret: mode 0640. -#}
+{%- set ns = namespace(apps=[], config={}) -%}
+{%- for app in netdef_ci_github_apps -%}
+{%-   set entry = {'login': app.login | string, 'cert': netdef_ci_keys_dir ~ '/' ~ (app.login | string) ~ '.pem'} -%}
+{%-   if app.repo | default('') -%}{%- set entry = entry | combine({'repo': app.repo}) -%}{%- endif -%}
+{%-   set ns.apps = ns.apps + [entry] -%}
+{%- endfor -%}
+{%- set ns.config = {
+      'debug': netdef_ci_debug | bool,
+      'multi_plan?': netdef_ci_multi_plan | bool,
+      'port': netdef_ci_listen_port | int,
+      'bind': netdef_ci_listen_host,
+      'auth_signature': {'password': netdef_ci_webhook_secret},
+      'github_apps': ns.apps,
+    } -%}
+{%- if netdef_ci_ci_host -%}
+{%-   set ns.config = ns.config | combine({'ci': {'url': netdef_ci_ci_host}}) -%}
+{%- endif -%}
+{%- if netdef_ci_slack_bot_url -%}
+{%-   set ns.config = ns.config | combine({'slack_bot_url': netdef_ci_slack_bot_url}) -%}
+{%- endif -%}
+{%- if netdef_ci_metrics_username and netdef_ci_metrics_password -%}
+{%-   set ns.config = ns.config | combine({'metrics_auth': {'username': netdef_ci_metrics_username, 'password': netdef_ci_metrics_password}}) -%}
+{%- endif -%}
+# {{ ansible_managed }}
+{{ ns.config | combine(netdef_ci_extra_config) | to_nice_yaml(indent=2) }}

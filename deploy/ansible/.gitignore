@@ -1,0 +1,3 @@
+inventories/*/group_vars/all/vault.yml
+.vault_pass
+.ansible/

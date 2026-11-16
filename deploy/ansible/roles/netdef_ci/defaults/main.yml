@@ -1,0 +1,125 @@
+---
+# --- identity / layout -------------------------------------------------------------------------------------------
+# Every name on the host derives from netdef_ci_name, so this application can live on the same server as the Python one
+# (deployed with the same variable names but the `netdef-ci` prefix) during the transition.
+netdef_ci_env: development            # development | production (also selects RACK_ENV)
+netdef_ci_name: netdef-ci-ruby        # prefix of the service account, directories and systemd units
+netdef_ci_user: "{{ netdef_ci_name }}"  # unprivileged service account (no login shell, no sudo)
+netdef_ci_group: "{{ netdef_ci_name }}"
+netdef_ci_home: "/var/lib/{{ netdef_ci_name }}"   # holds ~/.netrc (Bamboo and Slack credentials)
+netdef_ci_state_dir: "{{ netdef_ci_home }}/state"  # tmp/, puma.pid, .session.key, telemetry.json, schema dump
+netdef_ci_base_dir: "/opt/{{ netdef_ci_name }}"
+netdef_ci_releases_dir: "{{ netdef_ci_base_dir }}/releases"
+netdef_ci_current_link: "{{ netdef_ci_base_dir }}/current"
+netdef_ci_history_file: "{{ netdef_ci_base_dir }}/.release_history"
+netdef_ci_config_dir: "/etc/{{ netdef_ci_name }}"
+netdef_ci_keys_dir: "{{ netdef_ci_config_dir }}/keys"
+netdef_ci_env_file: "{{ netdef_ci_config_dir }}/{{ netdef_ci_name }}.env"
+netdef_ci_config_file: "{{ netdef_ci_config_dir }}/config.yml"
+netdef_ci_database_file: "{{ netdef_ci_config_dir }}/database.yml"
+netdef_ci_log_root: "/var/log/{{ netdef_ci_name }}"
+netdef_ci_log_dir: "{{ netdef_ci_log_root }}/{{ 'prd' if netdef_ci_env == 'production' else 'dev' }}"
+netdef_ci_runtime_dir_name: "{{ netdef_ci_name }}"   # /run/<name> (holds the Prometheus multiprocess files)
+netdef_ci_keep_releases: 5
+
+# --- application source / version ----------------------------------------------------------------------------------
+# Select what to deploy with -e netdef_ci_version=<branch|tag|commit>.
+netdef_ci_source_strategy: git         # git | archive
+netdef_ci_repo_url: ""                 # git strategy: repository URL (placeholder in inventories)
+netdef_ci_version: ""                  # git strategy: branch, tag or commit
+netdef_ci_git_key_file: ""             # optional deploy key (path on the managed host)
+netdef_ci_source_archive: ""           # archive strategy: tar.gz built with `git archive` and copied to the host
+netdef_ci_release_id: ""               # archive strategy: identifier of the release directory
+
+# --- interpreter -----------------------------------------------------------------------------------------------------
+netdef_ci_ruby_version: "3.3.13"
+netdef_ci_ruby_bin_dir: "/opt/ruby/{{ netdef_ci_ruby_version }}/bin"
+# Native extensions of the gems (pg needs libpq) and git for the git strategy.
+netdef_ci_packages:
+  - build-essential
+  - git
+  - libpq-dev
+  - libyaml-dev
+  - pkg-config
+netdef_ci_bundle_jobs: "{{ ansible_facts['processor_vcpus'] | default(2) }}"
+
+# --- process model -----------------------------------------------------------------------------------------------------
+netdef_ci_listen_host: 0.0.0.0
+netdef_ci_listen_port: 4667
+netdef_ci_web_workers: 4               # Puma workers (WEB_CONCURRENCY)
+netdef_ci_web_threads: 5               # Puma threads per worker (RAILS_MAX_THREADS)
+# One systemd unit per entry (delayed_job worker restricted to the listed queues). Numeric queues are chosen by pull
+# request id (github_pr_id % 10) so every status update of a PR is processed by the same worker; never list a numeric
+# queue in two units, and every queue used by the code must be listed in some unit or its jobs never run.
+# Worker units that are no longer listed here are stopped and removed on the next deploy.
+netdef_ci_job_workers:
+  - {name: q0-1, queues: "0,1"}
+  - {name: q2-3, queues: "2,3"}
+  - {name: q4-5, queues: "4,5"}
+  - {name: q6-7, queues: "6,7"}
+  - {name: q8-9, queues: "8,9"}
+  - {name: create-by-plan, queues: "create_execution_by_plan"}
+  - {name: create-by-comment, queues: "create_execution_by_comment"}
+  - {name: create-by-command, queues: "create_execution_by_command"}
+  - {name: timeout, queues: "timeout_execution"}
+  - {name: topotest, queues: "fetch_topotest_failures"}
+# Periodic tasks (systemd timers), replacing the cron entries of bin/watch_dog_*.sh and bin/pr_bamboo_sync.sh.
+netdef_ci_timers:
+  watchdog: {enabled: true, on_calendar: "*:0/15"}
+  pr_sync: {enabled: false, on_calendar: "hourly"}
+netdef_ci_timer_scripts:
+  watchdog: workers/watch_dog.rb
+  pr_sync: workers/pr_bamboo_sync.rb
+
+# --- configuration (non secret, rendered into config.yml) ---------------------------------------------------------------
+netdef_ci_debug: false
+netdef_ci_multi_plan: false
+netdef_ci_ci_host: ""                  # Bamboo host used in https://<host>/browse/<KEY> links (config.yml ci.url)
+# Extra keys merged into config.yml (top level), for settings this role does not know about.
+netdef_ci_extra_config: {}
+# Extra/override environment variables of the services.
+netdef_ci_settings: {}
+netdef_ci_database_pool: 10
+
+# --- legacy installation ----------------------------------------------------------------------------------------------
+# Units of a manual installation (e.g. github_server.service from deployment/) to stop and disable before the new
+# services start, so both do not compete for the port and the jobs. Empty = nothing is touched.
+netdef_ci_legacy_units: []
+
+# --- migrations --------------------------------------------------------------------------------------------------------
+# false when the database schema is managed elsewhere (e.g. shared with another deployment).
+netdef_ci_run_migrations: true
+
+# --- secrets (come from the Ansible Vault file of the inventory) -----------------------------------------------------------
+# Same names as the Python deployment's vault; a "postgresql+<driver>://" URL is accepted and normalised.
+netdef_ci_database_url: "{{ vault_netdef_ci_database_url | default('') }}"
+netdef_ci_webhook_secret: "{{ vault_netdef_ci_webhook_secret | default('') }}"
+netdef_ci_metrics_username: "{{ vault_netdef_ci_metrics_username | default('') }}"
+netdef_ci_metrics_password: "{{ vault_netdef_ci_metrics_password | default('') }}"
+netdef_ci_bamboo_username: "{{ vault_netdef_ci_bamboo_username | default('') }}"
+netdef_ci_bamboo_password: "{{ vault_netdef_ci_bamboo_password | default('') }}"
+# Bamboo 12 service account (OAuth 2.0 client credentials). When both are set the application uses a Bearer token
+# instead of the ~/.netrc username/password (needed when Bamboo has Basic Authentication disabled).
+netdef_ci_bamboo_client_id: "{{ vault_netdef_ci_bamboo_client_id | default('') }}"
+netdef_ci_bamboo_client_secret: "{{ vault_netdef_ci_bamboo_client_secret | default('') }}"
+# Not a secret: `scope` of the service account token request. Bamboo 12 refuses a request without one.
+# READ: results and plans; TRIGGER: queue a plan; WRITE: comments and stops. The credential must have all three.
+netdef_ci_bamboo_oauth_scope: "READ TRIGGER WRITE"
+netdef_ci_slack_bot_url: "{{ vault_netdef_ci_slack_bot_url | default('') }}"
+netdef_ci_slack_bot_username: "{{ vault_netdef_ci_slack_bot_username | default('') }}"
+netdef_ci_slack_bot_password: "{{ vault_netdef_ci_slack_bot_password | default('') }}"
+netdef_ci_github_apps: "{{ vault_netdef_ci_github_apps | default([]) }}"
+# The code reads the credentials from ~/.netrc by machine name (lib/helpers/request.rb, lib/slack_bot/slack_bot.rb).
+netdef_ci_bamboo_netrc_machine: ci1.netdef.org
+netdef_ci_slack_netrc_machine: slack_bot.netdef.org
+
+# --- post-deploy verification --------------------------------------------------------------------------------------------
+netdef_ci_health_retries: 20
+netdef_ci_health_delay: 3
+netdef_ci_health_url: "http://127.0.0.1:{{ netdef_ci_listen_port }}"
+
+# Rollback: set to a release id (see {{ netdef_ci_history_file }}) to pick the target explicitly; default = previous release.
+netdef_ci_rollback_to: ""
+
+# Stop (playbooks/stop.yml): true also disables the target, services and timers, so they stay stopped after a reboot.
+netdef_ci_stop_disable: true

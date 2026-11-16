@@ -11,6 +11,7 @@
 require 'logger'
 
 require_relative 'api'
+require_relative 'running_plan'
 
 module BambooCi
   class StopPlan
@@ -25,8 +26,24 @@ module BambooCi
 
     def self.build(bamboo_ci_ref)
       PrometheusMetrics.track_bamboo('stop_plan') do
+        next stop_by_rest(bamboo_ci_ref) if BambooCi::ServiceAccount.instance.configured?
+
         get_request(URI("https://127.0.0.1/build/admin/stopPlan.action?planResultKey=#{bamboo_ci_ref}"))
       end
+    end
+
+    # A service account token only authenticates REST endpoints, so stopPlan.action is not an option.
+    # The queue DELETE of the execution only stops it while it waits in the queue, so it is also sent to each job.
+    def self.stop_by_rest(bamboo_ci_ref)
+      return nil if bamboo_ci_ref.nil?
+
+      response = delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{bamboo_ci_ref}"))
+
+      BambooCi::RunningPlan.fetch(bamboo_ci_ref).filter_map { |job| job[:job_ref] }.each do |job_ref|
+        delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{job_ref}"))
+      end
+
+      response
     end
 
     def self.comment(check_suite, new_check_suite)

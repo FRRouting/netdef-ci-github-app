@@ -1,0 +1,60 @@
+---
+- name: Check the deployment settings (no secret values are printed)
+  ansible.builtin.assert:
+    that: "{{ item.test }}"
+    fail_msg: "{{ item.msg }}"
+    quiet: true
+  loop:
+    - test: netdef_ci_env in ['development', 'production']
+      msg: "netdef_ci_env must be 'development' or 'production'."
+    - test: netdef_ci_source_strategy in ['git', 'archive']
+      msg: "netdef_ci_source_strategy must be 'git' or 'archive'."
+    - test: "'REPLACE' not in netdef_ci_repo_url and (netdef_ci_source_strategy == 'archive' or netdef_ci_repo_url | length > 0)"
+      msg: "netdef_ci_repo_url is empty or still a placeholder (inventories/<env>/group_vars/all/main.yml)."
+    - test: "'REPLACE' not in netdef_ci_version and (netdef_ci_source_strategy == 'archive' or netdef_ci_version | length > 0)"
+      msg: "netdef_ci_version is empty or still a placeholder (pass -e netdef_ci_version=<branch|tag|sha>)."
+    - test: "netdef_ci_source_strategy == 'git' or (netdef_ci_source_archive | length > 0 and netdef_ci_release_id | length > 0)"
+      msg: "The archive strategy needs netdef_ci_source_archive and netdef_ci_release_id."
+    - test: "'REPLACE' not in netdef_ci_ci_host"
+      msg: "netdef_ci_ci_host is still a placeholder (host of the Bamboo server used in links)."
+    - test: netdef_ci_database_url_normalised is match('postgresql://')
+      msg: "vault_netdef_ci_database_url is missing or not a postgresql:// URL: create the encrypted vault.yml (see vault.yml.example) and use --ask-vault-pass."
+    - test: netdef_ci_webhook_secret | length >= (16 if netdef_ci_env == 'production' else 1)
+      msg: "vault_netdef_ci_webhook_secret is missing (production also requires at least 16 characters)."
+    - test: netdef_ci_github_apps | length > 0
+      msg: "vault_netdef_ci_github_apps is missing or empty."
+    - test: >-
+        netdef_ci_github_apps | map(attribute='login') | map('string') | select('match', '^[0-9A-Za-z_-]+$') | list | length
+        == netdef_ci_github_apps | length
+      msg: "Every entry of vault_netdef_ci_github_apps needs a 'login' (the GitHub App ID)."
+    - test: netdef_ci_github_apps | selectattr('private_key', 'undefined') | list | length == 0
+      msg: "Every entry of vault_netdef_ci_github_apps needs a 'private_key'."
+  loop_control:
+    label: "{{ item.msg[:60] }}"
+
+- name: Fail when only half of the Bamboo service account is set
+  ansible.builtin.assert:
+    that: (netdef_ci_bamboo_client_id | length == 0) == (netdef_ci_bamboo_client_secret | length == 0)
+    fail_msg: "vault_netdef_ci_bamboo_client_id and vault_netdef_ci_bamboo_client_secret must be set together."
+    quiet: true
+
+- name: Fail when the Bamboo credentials are missing (the application sends them on every Bamboo request)
+  ansible.builtin.assert:
+    that: >-
+      (netdef_ci_bamboo_client_id | length > 0 and netdef_ci_bamboo_client_secret | length > 0)
+      or (netdef_ci_bamboo_username | length > 0 and netdef_ci_bamboo_password | length > 0)
+    fail_msg: >-
+      Set vault_netdef_ci_bamboo_client_id/client_secret (Bamboo 12 service account) or
+      vault_netdef_ci_bamboo_username/password (written to ~/.netrc).
+    quiet: true
+
+- name: Check the interpreter built by the ruby_runtime role
+  ansible.builtin.stat:
+    path: "{{ netdef_ci_ruby_bin_dir }}/ruby"
+  register: netdef_ci_ruby_stat
+
+- name: Fail when the interpreter is missing
+  ansible.builtin.assert:
+    that: netdef_ci_ruby_stat.stat.exists
+    fail_msg: "{{ netdef_ci_ruby_bin_dir }}/ruby not found; run the ruby_runtime role first (playbooks/deploy.yml does)."
+    quiet: true

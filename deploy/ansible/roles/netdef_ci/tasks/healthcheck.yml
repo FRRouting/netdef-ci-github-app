@@ -1,0 +1,31 @@
+---
+- name: Wait until the web service answers
+  ansible.builtin.uri:
+    url: "{{ netdef_ci_health_url }}/ping"
+    status_code: 200
+    return_content: true
+  register: netdef_ci_ping
+  retries: "{{ netdef_ci_health_retries }}"
+  delay: "{{ netdef_ci_health_delay }}"
+  until: netdef_ci_ping.status == 200
+  changed_when: false
+
+# /metrics reads the delayed_jobs table on every scrape, so it also proves the database is reachable.
+- name: Check /metrics (Basic Auth, database reachable)
+  ansible.builtin.uri:
+    url: "{{ netdef_ci_health_url }}/metrics"
+    url_username: "{{ netdef_ci_metrics_username }}"
+    url_password: "{{ netdef_ci_metrics_password }}"
+    force_basic_auth: true
+    status_code: 200
+  changed_when: false
+  no_log: true
+  when: netdef_ci_metrics_username | length > 0 and netdef_ci_metrics_password | length > 0
+
+- name: Query the state of the services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+  loop: "{{ netdef_ci_unit_files }}"
+  register: netdef_ci_active
+  changed_when: false
+  failed_when: netdef_ci_active.status.ActiveState != 'active'
