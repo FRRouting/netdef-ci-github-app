@@ -32,7 +32,8 @@ module Github
     #
     # @param [Hash] payload The payload containing information about the CI job.
     def initialize(payload)
-      @status = payload['status']
+      # Bamboo's hook reports a failed job as "failed"
+      @status = payload['status'] == 'failed' ? 'failure' : payload['status']
 
       @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])

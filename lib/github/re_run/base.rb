@@ -80,6 +80,10 @@ module Github
         check_suite.ci_jobs.not_skipped.each do |ci_job|
           ci_job.cancelled(@github_check)
         end
+
+        # An open stage would be finished later by the watchdog, which creates a new check run on the
+        # same commit and hides the checks of the new execution.
+        check_suite.stages.where(status: %w[queued in_progress]).each { |stage| stage.cancelled(@github_check) }
       end
 
       def create_ci_jobs(check_suite, plan_name)
