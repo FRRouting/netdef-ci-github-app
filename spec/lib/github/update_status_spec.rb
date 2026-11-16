@@ -107,6 +107,16 @@ describe Github::UpdateStatus do
       end
     end
 
+    context 'when Bamboo reports an in_progress job as failed' do
+      let(:ci_job) { create(:ci_job, name: 'Ubuntu 22.04 amd64 build', status: 'in_progress') }
+      let(:status) { 'failed' }
+
+      it 'marks the job as failure' do
+        expect(update_status.update).to eq([200, 'Success'])
+        expect(ci_job.reload.status).to eq('failure')
+      end
+    end
+
     context 'when Ci Job TopoTest Part 0 update from in_progress -> failure' do
       let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'in_progress') }
       let(:ci_jobs) { create_list(:ci_job, 5, check_suite: ci_job.check_suite) }
