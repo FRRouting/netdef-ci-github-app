@@ -155,5 +155,37 @@ describe Github::Retry::Comment do
         expect(github_retry.start).to eq([404, 'Stage not found'])
       end
     end
+
+    context 'when the PR number exists only in another repository' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
+          'repository' => { 'full_name' => 'another/repository' },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+
+      it 'must returns stage not found' do
+        expect(github_retry.start).to eq([404, 'Stage not found'])
+      end
+    end
+
+    context 'when the PR has no check suites' do
+      let(:pull_request) { create(:pull_request) }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
+          'repository' => { 'full_name' => pull_request.repository },
+          'issue' => { 'number' => pull_request.github_pr_id }
+        }
+      end
+
+      it 'must returns stage not found' do
+        expect(github_retry.start).to eq([404, 'Stage not found'])
+      end
+    end
   end
 end

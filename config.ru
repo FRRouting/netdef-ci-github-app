@@ -28,10 +28,12 @@ File.write('.session.key', SecureRandom.hex(32))
 # Refresh delayed_job + CI domain gauges on every Prometheus scrape
 use Prometheus::Middleware::Collector, metrics_prefix: 'http'
 
+# Embedded job workers (every queue). Deployments that run the workers as their own services
+# (deploy/ansible) set NETDEF_CI_EMBEDDED_WORKERS=false.
 pids = []
-pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=0,1,2,3")
-pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=4,5,6")
-pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work QUEUES=7,8,9")
+if ENV.fetch('NETDEF_CI_EMBEDDED_WORKERS', 'true') != 'false'
+  3.times { pids << spawn("RACK_ENV=#{ENV.fetch('RACK_ENV', 'development')} rake jobs:work") }
+end
 
 use Rack::Session::Cookie, secret: File.read('.session.key'), same_site: true, max_age: 86_400
 

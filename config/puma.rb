@@ -11,11 +11,12 @@
 require_relative '../config/setup'
 require 'puma'
 
-workers 10
+workers ENV.fetch('WEB_CONCURRENCY', 10).to_i
 
 threads 1, (ENV['RAILS_MAX_THREADS'] || 5).to_i
 
-port GitHubApp::Configuration.instance.config['port'] || 4667
+port GitHubApp::Configuration.instance.config['port'] || 4667,
+     GitHubApp::Configuration.instance.config['bind'] || '0.0.0.0'
 
 activate_control_app
 

@@ -13,6 +13,22 @@ require 'otr-activerecord'
 class TopotestFailure < ActiveRecord::Base
   belongs_to :ci_job
 
+  # Bamboo may report the same failures more than once (callback redelivery, refetch):
+  # the latest report replaces the previous one instead of piling up duplicates.
+  def self.replace_for(ci_job, failures)
+    transaction do
+      where(ci_job: ci_job).delete_all
+
+      failures.each do |failure|
+        create(ci_job: ci_job,
+               test_suite: failure['suite'],
+               test_case: failure['case'],
+               message: failure['message'],
+               execution_time: failure['execution_time'])
+      end
+    end
+  end
+
   def to_h
     {
       'suite' => test_suite,

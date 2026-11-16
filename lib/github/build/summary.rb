@@ -140,7 +140,7 @@ module Github
       end
 
       def finished_stage_update(stage, output)
-        if stage.jobs.failure.empty?
+        if stage.jobs.unsuccessful.empty?
           logger(Logger::WARN, "Stage: #{stage.name} finished - success")
           stage.success(@github, output: output, agent: @agent)
           stage.update_execution_time

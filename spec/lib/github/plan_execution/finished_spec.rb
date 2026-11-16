@@ -376,3 +376,60 @@ describe Github::PlanExecution::Finished do
     end
   end
 end
+
+describe Github::PlanExecution::Finished, 'lookup and Bamboo failures' do
+  let(:github_check) { instance_double(Github::Check) }
+
+  before do
+    allow(Github::Check).to receive(:new).and_return(github_check)
+  end
+
+  describe 'check suite lookup' do
+    let!(:target) { create(:check_suite) }
+
+    before { create(:check_suite, bamboo_ci_ref: nil) }
+
+    it 'finds the suite by id without matching suites that have no Bamboo reference' do
+      finished = described_class.new({ 'check_suite_id' => target.id, 'hanged' => true })
+
+      expect(finished.instance_variable_get(:@check_suite)).to eq(target)
+    end
+
+    it 'finds nothing when the payload has no reference' do
+      expect(described_class.new({}).finished).to eq([404, 'Check Suite not found'])
+    end
+  end
+
+  describe 'when Bamboo is unreachable' do
+    let(:check_suite) { create(:check_suite) }
+    let(:finished) { described_class.new(payload) }
+
+    before do
+      allow(finished).to receive(:get_request).and_return(nil)
+    end
+
+    context 'when the suite is not hanged' do
+      let(:payload) { { 'bamboo_ref' => check_suite.bamboo_ci_ref } }
+
+      it 'assumes the build is still running' do
+        expect(finished.finished).to eq([200, 'Still running'])
+      end
+    end
+
+    context 'when the suite is hanged' do
+      let(:payload) { { 'check_suite_id' => check_suite.id, 'hanged' => true } }
+
+      it 'finishes the suite without raising' do
+        expect(finished.finished).to eq([200, 'Finished'])
+      end
+    end
+  end
+
+  describe '#in_progress?' do
+    let(:finished) { described_class.new({ 'bamboo_ref' => create(:check_suite).bamboo_ci_ref }) }
+
+    it 'treats a status without currentStage as running' do
+      expect(finished.in_progress?({ 'finished' => false })).to be(true)
+    end
+  end
+end

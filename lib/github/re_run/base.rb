@@ -96,7 +96,7 @@ module Github
       end
 
       def start_new_execution(check_suite, plan)
-        cleanup(check_suite)
+        cleanup(check_suite, plan)
 
         PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'full' })
 
@@ -137,9 +137,11 @@ module Github
         end
       end
 
-      def cleanup(check_suite)
-        check_suite.pull_request.check_suites.each do |suite|
-          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}%")
+      # Removes pending timeout workers from previous executions of the same plan.
+      # Other plans run in parallel and keep their own timeout workers.
+      def cleanup(check_suite, plan)
+        check_suite.pull_request.check_suites.where(plan: plan).where.not(id: check_suite.id).each do |suite|
+          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}\n%").destroy_all
         end
       end
 

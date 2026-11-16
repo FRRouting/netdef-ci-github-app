@@ -29,7 +29,8 @@ class CiJob < ActiveRecord::Base
   scope :stages, -> { where(is_stage: true) }
   scope :skip_checkout_code, -> { where.not(name: 'Checkout Code') }
   scope :not_skipped, -> { where.not(status: 'skipped') }
-  scope :failure, -> { where(status: %i[failure cancelled skipped]) }
+  # Not named `failure`: that would silently replace the enum scope (status = failure only)
+  scope :unsuccessful, -> { where(status: %i[failure cancelled skipped]) }
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
@@ -42,10 +43,11 @@ class CiJob < ActiveRecord::Base
   end
 
   def update_execution_time
-    started = audit_statuses.find_by(status: :in_progress)
-    finished = audit_statuses.find_by(status: %i[success failure])
+    finished = last_audit_status(%i[success failure])
+    return if finished.nil?
 
-    return if started.nil? || finished.nil?
+    started = last_audit_status(:in_progress, until_time: finished.created_at)
+    return if started.nil?
 
     duration = finished.created_at - started.created_at
     update(execution_time: duration)
@@ -65,50 +67,35 @@ class CiJob < ActiveRecord::Base
   end
 
   def in_progress(github, output: {}, agent: 'Github')
-    unless check_ref.nil?
-      create_github_check(github)
-      github.in_progress(check_ref, output)
-    end
+    github.in_progress(check_ref, output) unless check_ref.nil?
 
     AuditStatus.create(auditable: self, status: :in_progress, agent: agent, created_at: Time.now)
     update(status: :in_progress)
   end
 
   def cancelled(github, output: {}, agent: 'Github')
-    unless check_ref.nil?
-      create_github_check(github)
-      github.cancelled(check_ref, output)
-    end
+    github.cancelled(check_ref, output) unless check_ref.nil?
 
     AuditStatus.create(auditable: self, status: :cancelled, agent: agent, created_at: Time.now)
     update(status: :cancelled)
   end
 
   def failure(github, output: {}, agent: 'Github')
-    unless check_ref.nil?
-      create_github_check(github)
-      github.failure(check_ref, output)
-    end
+    github.failure(check_ref, output) unless check_ref.nil?
 
     AuditStatus.create(auditable: self, status: :failure, agent: agent, created_at: Time.now)
     update(status: :failure)
   end
 
   def success(github, output: {}, agent: 'Github')
-    unless check_ref.nil?
-      create_github_check(github)
-      github.success(check_ref, output)
-    end
+    github.success(check_ref, output) unless check_ref.nil?
 
     AuditStatus.create(auditable: self, status: :success, agent: agent, created_at: Time.now)
     update(status: :success)
   end
 
   def skipped(github, output: {}, agent: 'Github')
-    unless check_ref.nil?
-      create_github_check(github)
-      github.skipped(check_ref, output)
-    end
+    github.skipped(check_ref, output) unless check_ref.nil?
 
     AuditStatus.create(auditable: self, status: :skipped, agent: agent, created_at: Time.now)
     update(status: :skipped)
@@ -116,10 +103,10 @@ class CiJob < ActiveRecord::Base
 
   private
 
-  def create_github_check(github)
-    return unless check_ref.nil?
-
-    check_run = github.create(github_stage_full_name(name))
-    update(check_ref: check_run.id)
+  # A retried job has several audit entries: pair the latest finish with the start that preceded it
+  def last_audit_status(status, until_time: nil)
+    scope = audit_statuses.where(status: status)
+    scope = scope.where(created_at: ..until_time) unless until_time.nil?
+    scope.order(:created_at, :id).last
   end
 end

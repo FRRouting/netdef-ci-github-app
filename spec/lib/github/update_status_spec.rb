@@ -741,3 +741,24 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
     end
   end
 end
+
+describe Github::UpdateStatus, 'delayed job lookup' do
+  let(:check_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-12') }
+  let(:ci_job) { create(:ci_job, check_suite: check_suite) }
+  let(:update_status) { described_class.new({ 'status' => 'success', 'bamboo_ref' => ci_job.job_ref }) }
+
+  def status_job(bamboo_ref)
+    Delayed::Job.create!(
+      queue: '1',
+      handler: "--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/class 'CiJobStatus'\n" \
+               "method_name: :update\nargs:\n- #{bamboo_ref}\n- 1\n"
+    )
+  end
+
+  it 'matches only the exact Bamboo reference' do
+    target = status_job('PLAN-12')
+    status_job('PLAN-123')
+
+    expect(update_status.send(:fetch_delayed_job, '1')).to contain_exactly(target)
+  end
+end

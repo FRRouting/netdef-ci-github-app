@@ -42,15 +42,21 @@ module Github
       private
 
       def fetch_stage
-        pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        pull_request = PullRequest.find_by(github_pr_id: pr_id, repository: repo)
         return unless pull_request
 
         @check_suite = pull_request.check_suites.last
+        return if @check_suite.nil?
+
         @stage = @check_suite.stages_failure.min_by(&:id)
       end
 
       def pr_id
         @payload.dig('issue', 'number')
+      end
+
+      def repo
+        @payload.dig('repository', 'full_name')
       end
 
       def comment_id

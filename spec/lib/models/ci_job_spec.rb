@@ -234,21 +234,59 @@ describe CiJob do
     end
   end
 
-  describe '#create_github_check (private)' do
+  describe 'GitHub check runs' do
     let(:stage) { nil }
-    let(:fake_check_run) { double(id: 7777) }
     let(:ci_job) { create(:ci_job, check_ref: nil) }
 
+    it 'does not create a GitHub check run for a job without check_ref' do
+      allow(github).to receive(:create)
+
+      ci_job.in_progress(github)
+
+      expect(github).not_to have_received(:create)
+      expect(ci_job.reload.check_ref).to be_nil
+    end
+  end
+
+  describe '.unsuccessful' do
+    let(:stage) { nil }
+
     before do
-      allow(github).to receive(:create).and_return(fake_check_run)
+      create(:ci_job, status: :failure)
+      create(:ci_job, status: :cancelled)
+      create(:ci_job, status: :skipped)
+      create(:ci_job, status: :success)
     end
 
-    it 'creates a GitHub check run and sets check_ref when check_ref is nil' do
-      without_partial_double_verification do
-        allow(ci_job).to receive(:github_stage_full_name).and_return('SomeCheckName')
-      end
-      ci_job.send(:create_github_check, github)
-      expect(ci_job.reload.check_ref).to eq('7777')
+    it 'returns failed, cancelled and skipped jobs' do
+      expect(described_class.unsuccessful.pluck(:status)).to contain_exactly('failure', 'cancelled', 'skipped')
+    end
+
+    it 'keeps the enum scope returning only failed jobs' do
+      expect(described_class.failure.pluck(:status)).to eq(['failure'])
+    end
+  end
+
+  describe '#update_execution_time after a retry' do
+    let(:stage) { nil }
+    let(:ci_job) { create(:ci_job, check_ref: nil) }
+    let(:base) { Time.now.utc.change(usec: 0) }
+
+    def audit(status, at)
+      AuditStatus.create(auditable: ci_job, status: status, agent: 'Github', created_at: at)
+    end
+
+    before do
+      audit(:in_progress, base)
+      audit(:failure, base + 100)
+      audit(:in_progress, base + 1000)
+      audit(:success, base + 1030)
+    end
+
+    it 'measures the latest execution' do
+      ci_job.update_execution_time
+
+      expect(ci_job.reload.execution_time).to eq(30)
     end
   end
 end

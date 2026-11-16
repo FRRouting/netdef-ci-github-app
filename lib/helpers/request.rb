@@ -43,6 +43,8 @@ module GitHubApp
       json ? JSON.parse(http.request(req).body) : http.request(req).body
     rescue StandardError => e
       logger(Logger::ERROR, "HTTP GET Request failed (#{e.message}) for #{uri.host}")
+
+      nil
     end
 
     def delete_request(uri, machine: 'ci1.netdef.org')

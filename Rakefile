@@ -24,11 +24,11 @@ namespace :jobs do
 
   desc 'Start a delayed_job worker.'
   task :work do
-    puts "Starting delayed_job worker - Queues: #{ENV.fetch('QUEUES', 'default')}"
-    Delayed::Worker.new(
-      queue: ENV.fetch('QUEUES', 'default'),
-      quiet: false
-    ).start
+    # QUEUES=0,1,timeout_execution restricts the worker to those queues; unset or empty = every queue
+    queues = ENV.fetch('QUEUES', '').split(',').map(&:strip).reject(&:empty?)
+
+    puts "Starting delayed_job worker - Queues: #{queues.empty? ? 'all' : queues.join(',')}"
+    Delayed::Worker.new(queues: queues, quiet: false).start
   end
 end
 

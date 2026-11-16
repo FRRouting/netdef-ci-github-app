@@ -617,7 +617,7 @@ describe Github::ReRun::Comment do
             'body' => 'CI:rerun 000000',
             'user' => { 'login' => 'John' }
           },
-          'repository' => { 'full_name' => 'unit_test' },
+          'repository' => { 'full_name' => pull_request.repository },
           'issue' => { 'number' => pull_request.github_pr_id }
         }
       end
@@ -653,6 +653,56 @@ describe Github::ReRun::Comment do
         expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suite_rerun).not_to be_nil
       end
+    end
+  end
+
+  describe 'pull request lookup' do
+    let(:pull_request) { create(:pull_request, github_pr_id: 42, repository: 'org/repo-a') }
+    let(:payload) do
+      {
+        'action' => 'created',
+        'comment' => { 'body' => 'ci:rerun', 'user' => { 'login' => 'John' } },
+        'repository' => { 'full_name' => 'org/repo-b' },
+        'issue' => { 'number' => 42 }
+      }
+    end
+
+    before { create(:check_suite, pull_request: pull_request) }
+
+    it 'does not use a pull request with the same number from another repository' do
+      expect(described_class.new(payload).start).to eq([404, 'Pull Request not found'])
+    end
+  end
+
+  describe '#cleanup' do
+    let(:plan) { create(:plan) }
+    let(:other_plan) { create(:plan) }
+    let(:pull_request) { create(:pull_request) }
+    let(:old_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
+    let(:other_plan_suite) { create(:check_suite, pull_request: pull_request, plan: other_plan) }
+    let(:new_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
+    let(:rerun) { described_class.new({}) }
+
+    def timeout_job(suite_id)
+      Delayed::Job.create!(
+        queue: 'timeout_execution',
+        handler: "--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/class 'TimeoutExecution'\n" \
+                 "method_name: :timeout\nargs:\n- #{suite_id}\n"
+      )
+    end
+
+    before do
+      timeout_job(old_suite.id)
+      timeout_job(other_plan_suite.id)
+      timeout_job(new_suite.id)
+      timeout_job("#{old_suite.id}0")
+    end
+
+    it 'removes only the timeout workers of previous suites of the same plan' do
+      rerun.send(:cleanup, new_suite, plan)
+
+      remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
+      expect(remaining).to contain_exactly(other_plan_suite.id.to_s, new_suite.id.to_s, "#{old_suite.id}0")
     end
   end
 end

@@ -79,16 +79,12 @@ class CreateExecutionByComment < Github::ReRun::Base
 
   # Fetches the GitHub check associated with the pull request.
   #
-  # This method finds the pull request by its GitHub PR ID and then retrieves
-  # the last check suite associated with that pull request. It then initializes
-  # a new `Github::Check` object with the last check suite.
+  # Initializes a new `Github::Check` object with the last check suite of
+  # the pull request being re-run.
   #
   # @return [Github::Check] the GitHub check associated with the pull request.
-  #
-  # @raise [ActiveRecord::RecordNotFound] if the pull request is not found.
   def fetch_github_check
-    pull_request = PullRequest.find_by(github_pr_id: pr_id)
-    Github::Check.new(pull_request.check_suites.last)
+    Github::Check.new(@pull_request.check_suites.last)
   end
 
   def create_check_suite_by_commit(commit, pull_request, pull_request_info)
