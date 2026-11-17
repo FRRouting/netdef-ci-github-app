@@ -1,0 +1,10 @@
+---
+# Only runs when netdef_ci_legacy_units is set: stops a manual installation (e.g. deployment/github_server.service)
+# so it does not keep the port and the jobs. Its cron entries (bin/watch_dog_*.sh, bin/pr_bamboo_sync.sh) are not
+# touched: remove them by hand, the timers of this role replace them.
+- name: Stop and disable the units of the manual installation
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  loop: "{{ netdef_ci_legacy_units }}"

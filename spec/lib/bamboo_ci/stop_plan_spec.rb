@@ -62,6 +62,40 @@ describe BambooCi::StopPlan do
     end
   end
 
+  context '#build with a service account' do
+    let(:account) { BambooCi::ServiceAccount.instance }
+    let(:bamboo_ci_ref) { 'PLAN-12' }
+    let(:result_url) { "https://127.0.0.1/rest/api/latest/result/#{bamboo_ci_ref}?expand=stages.stage.results" }
+    let(:running_plan) do
+      { 'stages' => { 'stage' => [{ 'results' => { 'result' => [{ 'key' => 'PLAN-JOB1-12', 'stage' => 'Build',
+                                                                  'plan' => { 'shortName' => 'Job 1' } }] } }] } }
+    end
+
+    before do
+      account.reset
+      allow(GitHubApp::Configuration.instance)
+        .to receive_messages(bamboo_service_account: %w[client-id client-secret], bamboo_oauth_scope: 'READ')
+
+      stub_request(:post, 'https://127.0.0.1/rest/oauth2/latest/token')
+        .to_return(status: 200, body: { access_token: 'tok-1' }.to_json)
+      stub_request(:get, result_url).to_return(status: 200, body: running_plan.to_json)
+      stub_request(:delete, %r{https://127.0.0.1/rest/api/latest/queue/}).to_return(status: 204)
+    end
+
+    after { account.reset }
+
+    it 'stops the execution and its jobs through the REST API' do
+      expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(204)
+      expect(a_request(:delete, "https://127.0.0.1/rest/api/latest/queue/#{bamboo_ci_ref}")).to have_been_made
+      expect(a_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12')).to have_been_made
+      expect(a_request(:get, /stopPlan.action/)).not_to have_been_made
+    end
+
+    it 'does nothing without an execution' do
+      expect(described_class.build(nil)).to be_nil
+    end
+  end
+
   context '#comment' do
     let(:check_suite) { create(:check_suite) }
     let(:new_check_suite) { create(:check_suite) }

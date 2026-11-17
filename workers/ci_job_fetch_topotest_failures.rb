@@ -17,15 +17,7 @@ class CiJobFetchTopotestFailures
 
     return if rescheduled?(count)
 
-    @failures = @retrieve_error.failures
-
-    @failures.each do |failure|
-      TopotestFailure.create(ci_job: @job,
-                             test_suite: failure['suite'],
-                             test_case: failure['case'],
-                             message: failure['message'],
-                             execution_time: failure['execution_time'])
-    end
+    TopotestFailure.replace_for(@job, @retrieve_error.failures)
   end
 
   def self.rescheduled?(count)

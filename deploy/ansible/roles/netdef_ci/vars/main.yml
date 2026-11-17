@@ -1,0 +1,50 @@
+---
+netdef_ci_rack_env: "{{ 'production' if netdef_ci_env == 'production' else 'development' }}"
+netdef_ci_target: "{{ netdef_ci_name }}.target"
+netdef_ci_web_service: "{{ netdef_ci_name }}-web"
+netdef_ci_service_names: >-
+  {{ [netdef_ci_web_service]
+     + (netdef_ci_job_workers | map(attribute='name') | map('regex_replace', '^', netdef_ci_name ~ '-worker-') | list) }}
+netdef_ci_unit_files: "{{ netdef_ci_service_names | map('regex_replace', '$', '.service') | list }}"
+netdef_ci_bundle: "{{ netdef_ci_ruby_bin_dir }}/bundle"
+
+# State that the code writes relative to its working directory (the release, read-only for the service): each path is a
+# symlink in the release pointing to a writable location.
+netdef_ci_release_links:
+  - {path: config.yml, src: "{{ netdef_ci_config_file }}"}
+  - {path: config/database.yml, src: "{{ netdef_ci_database_file }}"}
+  - {path: logs, src: "{{ netdef_ci_log_dir }}"}
+  - {path: tmp, src: "{{ netdef_ci_state_dir }}/tmp"}
+  - {path: puma.pid, src: "{{ netdef_ci_state_dir }}/puma.pid"}
+  - {path: .session.key, src: "{{ netdef_ci_state_dir }}/session.key"}
+  - {path: telemetry.json, src: "{{ netdef_ci_state_dir }}/telemetry.json"}
+  - {path: watch_dog.log, src: "{{ netdef_ci_log_dir }}/watch_dog.log"}
+
+netdef_ci_env_base:
+  RACK_ENV: "{{ netdef_ci_rack_env }}"
+  RAILS_ENV: "{{ netdef_ci_rack_env }}"
+  HOME: "{{ netdef_ci_home }}"
+  PATH: "{{ netdef_ci_ruby_bin_dir }}:/usr/local/bin:/usr/bin:/bin"
+  BUNDLE_GEMFILE: "{{ netdef_ci_current_link }}/Gemfile"
+  NETDEF_CI_EMBEDDED_WORKERS: "false"
+  PROMETHEUS_METRICS_DIR: "/run/{{ netdef_ci_runtime_dir_name }}/prometheus"
+  WEB_CONCURRENCY: "{{ netdef_ci_web_workers }}"
+  RAILS_MAX_THREADS: "{{ netdef_ci_web_threads }}"
+
+# Read by lib/helpers/configuration.rb (bamboo_service_account / bamboo_oauth_scope); empty values are left out.
+netdef_ci_env_bamboo_service_account: >-
+  {{ {
+    'BAMBOO_CLIENT_ID': netdef_ci_bamboo_client_id,
+    'BAMBOO_CLIENT_SECRET': netdef_ci_bamboo_client_secret,
+    'BAMBOO_OAUTH_SCOPE': netdef_ci_bamboo_oauth_scope if netdef_ci_bamboo_client_id | length > 0 else '',
+  } | dict2items | rejectattr('value', 'equalto', '') | items2dict }}
+
+netdef_ci_env_vars: "{{ netdef_ci_env_base | combine(netdef_ci_env_bamboo_service_account, netdef_ci_settings) }}"
+
+# Environment of the commands Ansible runs inside a release (migrations); BUNDLE_GEMFILE points at that release.
+netdef_ci_release_env: >-
+  {{ netdef_ci_env_vars | combine({'BUNDLE_GEMFILE': netdef_ci_release_dir ~ '/Gemfile',
+                                   'SCHEMA': netdef_ci_state_dir ~ '/schema.rb'}) }}
+
+netdef_ci_database_url_normalised: "{{ netdef_ci_database_url | regex_replace('^postgres(ql)?\\+[A-Za-z0-9_]+://', 'postgresql://') }}"
+

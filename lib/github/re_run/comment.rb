@@ -65,7 +65,7 @@ module Github
       end
 
       def fetch_pull_request
-        @pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        @pull_request = PullRequest.find_by(github_pr_id: pr_id, repository: repo)
       end
 
       def action?

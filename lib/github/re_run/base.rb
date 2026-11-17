@@ -72,14 +72,31 @@ module Github
         cancel_previous_jobs(check_suite)
 
         @last_check_suite = check_suite
+        (@stopped_check_suites ||= []) << check_suite
 
         BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+      end
+
+      # Leaves on each stopped Bamboo result a link to the execution that replaced it. Runs after the new
+      # plan started, since its Bamboo reference only exists then.
+      def comment_stopped_executions(check_suite)
+        return if check_suite.bamboo_ci_ref.nil?
+
+        Array(@stopped_check_suites).each do |stopped|
+          next if stopped.bamboo_ci_ref.nil? or stopped.id == check_suite.id
+
+          BambooCi::StopPlan.comment(stopped, check_suite)
+        end
       end
 
       def cancel_previous_jobs(check_suite)
         check_suite.ci_jobs.not_skipped.each do |ci_job|
           ci_job.cancelled(@github_check)
         end
+
+        # An open stage would be finished later by the watchdog, which creates a new check run on the
+        # same commit and hides the checks of the new execution.
+        check_suite.stages.where(status: %w[queued in_progress]).each { |stage| stage.cancelled(@github_check) }
       end
 
       def create_ci_jobs(check_suite, plan_name)
@@ -96,7 +113,7 @@ module Github
       end
 
       def start_new_execution(check_suite, plan)
-        cleanup(check_suite)
+        cleanup(check_suite, plan)
 
         PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'full' })
 
@@ -125,6 +142,7 @@ module Github
         SlackBot.instance.execution_started_notification(check_suite)
 
         check_suite.update(cancelled_previous_check_suite: @last_check_suite)
+        comment_stopped_executions(check_suite)
 
         create_ci_jobs(check_suite, plan.name)
 
@@ -137,9 +155,11 @@ module Github
         end
       end
 
-      def cleanup(check_suite)
-        check_suite.pull_request.check_suites.each do |suite|
-          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}%")
+      # Removes pending timeout workers from previous executions of the same plan.
+      # Other plans run in parallel and keep their own timeout workers.
+      def cleanup(check_suite, plan)
+        check_suite.pull_request.check_suites.where(plan: plan).where.not(id: check_suite.id).each do |suite|
+          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}\n%").destroy_all
         end
       end
 

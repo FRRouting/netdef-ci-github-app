@@ -1,0 +1,16 @@
+---
+- name: List the releases on the host
+  ansible.builtin.find:
+    paths: "{{ netdef_ci_releases_dir }}"
+    file_type: directory
+    recurse: false
+  register: netdef_ci_found
+
+- name: Remove releases beyond the retention (the current one is always kept)
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ (netdef_ci_found.files | sort(attribute='mtime', reverse=true))[netdef_ci_keep_releases:] }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
+  when: item.path | basename != netdef_ci_release

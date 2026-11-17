@@ -1,0 +1,11 @@
+---
+ruby_runtime_packages:
+  - build-essential
+  - ca-certificates
+  - curl
+  - libssl-dev
+  - libyaml-dev
+  - zlib1g-dev
+  - libffi-dev
+  - libreadline-dev
+  - libgmp-dev

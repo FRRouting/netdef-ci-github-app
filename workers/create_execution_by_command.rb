@@ -51,7 +51,7 @@ class CreateExecutionByCommand < Github::ReRun::Base
   end
 
   def start_new_execution(check_suite, plan)
-    cleanup(check_suite)
+    cleanup(check_suite, plan)
 
     bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
     bamboo_plan_run.ci_variables = ci_vars

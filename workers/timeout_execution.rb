@@ -40,10 +40,20 @@ class TimeoutExecution
       @logger.info("Timeout execution for check_suite_id: #{check_suite_id} -> finished? #{check_suite.finished?}")
 
       return false if check_suite.finished?
-      return watchdog(check_suite) if check_suite.last_job_updated_at_timer < 2.hour.ago.utc
+      return watchdog(check_suite) if last_update(check_suite) < 2.hour.ago.utc
 
       @logger.info("Rescheduling check_suite_id: #{check_suite_id}")
       rescheduling(check_suite_id)
+    end
+
+    ##
+    # Returns the last time the CheckSuite was updated, falling back to the
+    # CheckSuite itself when it has no CI jobs yet.
+    #
+    # @param [CheckSuite] check_suite The CheckSuite to inspect.
+    # @return [Time] The last update time.
+    def last_update(check_suite)
+      check_suite.last_job_updated_at_timer || check_suite.updated_at
     end
 
     ##

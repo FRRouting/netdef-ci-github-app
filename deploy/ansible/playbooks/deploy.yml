@@ -1,0 +1,16 @@
+---
+# Install or update the application.
+#   ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-pass
+#   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=v1.0.0
+# Add --check --diff for a dry run.
+- name: Deploy NetDEF CI GitHub App (Ruby)
+  hosts: netdef_ci_servers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  roles:
+    - role: ruby_runtime
+      ruby_runtime_version: "{{ netdef_ci_ruby_version | default('3.3.13') }}"
+      tags: [ruby]
+    - role: netdef_ci
+      tags: [app]

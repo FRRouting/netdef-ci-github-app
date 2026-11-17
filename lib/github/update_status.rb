@@ -32,7 +32,8 @@ module Github
     #
     # @param [Hash] payload The payload containing information about the CI job.
     def initialize(payload)
-      @status = payload['status']
+      # Bamboo's hook reports a failed job as "failed"
+      @status = payload['status'] == 'failed' ? 'failure' : payload['status']
 
       @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
@@ -75,13 +76,7 @@ module Github
     ##
     # Records the failure statistics for the CI job.
     def failures_stats
-      @failures.each do |failure|
-        TopotestFailure.create(ci_job: @job,
-                               test_suite: failure['suite'],
-                               test_case: failure['case'],
-                               message: failure['message'],
-                               execution_time: failure['execution_time'])
-      end
+      TopotestFailure.replace_for(@job, @failures)
     end
 
     ##
@@ -150,7 +145,16 @@ module Github
 
       Delayed::Job
         .where(queue: queue)
-        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{@check_suite.bamboo_ci_ref}%")
+        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{bamboo_ref_pattern}\n%")
+    end
+
+    ##
+    # Escapes the Bamboo reference for LIKE. The handler YAML has one argument per line,
+    # so the trailing newline stops "PLAN-12" from matching "PLAN-123".
+    #
+    # @return [String] The escaped Bamboo reference.
+    def bamboo_ref_pattern
+      ActiveRecord::Base.sanitize_sql_like(@check_suite.bamboo_ci_ref.to_s)
     end
 
     ##
