@@ -52,14 +52,7 @@ class CreateExecutionByComment < Github::ReRun::Base
 
     check_suite.update(plan: plan)
 
-    stop_previous_execution(plan)
-
-    start_new_execution(check_suite, plan)
-    return [@plan_status, 'Failed to create CI Plan'] if @plan_status != 200
-
-    setup_github_checks(check_suite, plan)
-
-    [201, 'Starting re-run (comment)']
+    execute_rerun(check_suite, plan, 'comment')
   end
 
   def sha256_or_comment?

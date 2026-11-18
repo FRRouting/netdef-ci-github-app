@@ -59,6 +59,19 @@ module Github
         raise
       end
 
+      # The rerun sequence every trigger shares. The GitHub checks are only created once Bamboo has
+      # accepted the new plan.
+      def execute_rerun(check_suite, plan, source)
+        stop_previous_execution(plan)
+
+        start_new_execution(check_suite, plan)
+        return [@plan_status, 'Failed to create CI Plan'] if @plan_status != 200
+
+        setup_github_checks(check_suite, plan)
+
+        [201, "Starting re-run (#{source})"]
+      end
+
       def failed_after_start(error)
         logger(Logger::ERROR, ">>> Rerun failed after the Bamboo plan started: #{error.class}: #{error.message}")
 

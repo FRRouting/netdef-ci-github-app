@@ -33,23 +33,10 @@ class CreateExecutionByCommand < Github::ReRun::Base
     @github_check = Github::Check.new(check_suite)
     @pull_request = check_suite.pull_request
 
-    @status = release_claim_on_failure { start_by_plan(plan, check_suite) }
+    @status = release_claim_on_failure { execute_rerun(create_check_suite(check_suite, plan), plan, 'command') }
   end
 
   private
-
-  def start_by_plan(plan, check_suite)
-    stop_previous_execution(plan)
-
-    new_check_suite = create_check_suite(check_suite, plan)
-
-    start_new_execution(new_check_suite, plan)
-    return [@plan_status, 'Failed to create CI Plan'] if @plan_status != 200
-
-    setup_github_checks(new_check_suite, plan)
-
-    [201, 'Starting re-run (command)']
-  end
 
   def create_check_suite(check_suite, plan)
     CheckSuite.create(
