@@ -39,12 +39,34 @@ describe Github::Build::Summary::PendingJobs do
       expect(described_class.sync_stage(0, 'Github')).to be_nil
     end
 
-    it 'does nothing for a stage with no open job' do
-      allow(BambooCi::Result).to receive(:fetch)
+    it 'does nothing for a stage that is already closed' do
+      closed = create(:stage, :success, :with_check_suite)
+      create(:ci_job, :success, stage: closed, check_suite: closed.check_suite)
+      allow(Github::Build::Summary).to receive(:new)
 
-      described_class.sync_stage(stage.id, 'Github')
+      described_class.sync_stage(closed.id, 'Github')
 
-      expect(BambooCi::Result).not_to have_received(:fetch)
+      expect(Github::Build::Summary).not_to have_received(:new)
+    end
+
+    context 'when the jobs were saved as finished but the stage summary failed before' do
+      let(:job) { create(:ci_job, :success, stage: stage, check_suite: stage.check_suite) }
+      let(:summary) { instance_double(Github::Build::Summary, build_summary: true) }
+
+      before do
+        allow(Github::Check).to receive(:new).and_return(instance_double(Github::Check))
+        allow(BambooCi::Result).to receive(:fetch)
+        allow(Github::Build::Summary).to receive(:new).and_return(summary)
+      end
+
+      it 'builds the stage summary again on the retry' do
+        job
+
+        described_class.sync_stage(stage.id, 'Github')
+
+        expect(Github::Build::Summary).to have_received(:new).with(job, agent: 'Github')
+        expect(BambooCi::Result).not_to have_received(:fetch)
+      end
     end
   end
 end

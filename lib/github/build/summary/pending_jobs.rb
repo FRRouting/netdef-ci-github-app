@@ -27,9 +27,11 @@ module Github
         end
 
         # Once Bamboo's results close the stage, its summary is built again like for any finished job.
+        # Guarded by the stage status, not its jobs: a retry after a GitHub error must still finish the
+        # summary of a stage whose jobs were already saved as finished.
         def self.sync_stage(stage_id, agent)
           stage = Stage.find_by(id: stage_id)
-          return if stage.nil? or !stage.running?
+          return if stage.nil? or !(stage.queued? or stage.in_progress?)
 
           new(Github::Check.new(stage.check_suite), agent).sync(stage)
           last_job = stage.reload.jobs.last
