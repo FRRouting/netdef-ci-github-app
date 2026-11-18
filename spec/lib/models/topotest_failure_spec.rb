@@ -37,6 +37,14 @@ describe TopotestFailure do
       expect(described_class.current_attempt_of(ci_job).map(&:to_h)).to eq([failures.first])
     end
 
+    it 'stores the failures under the attempt they came from, not the current one' do
+      ci_job.update(retry: 1)
+      described_class.replace_for(ci_job, failures, attempt: 0)
+
+      expect(ci_job.topotest_failures.pluck(:attempt)).to all(eq(0))
+      expect(described_class.current_attempt_of(ci_job)).to be_empty
+    end
+
     it 'keeps the failures of other jobs' do
       described_class.replace_for(ci_job, failures)
 

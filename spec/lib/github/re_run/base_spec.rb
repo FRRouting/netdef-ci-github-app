@@ -48,23 +48,65 @@ describe Github::ReRun::Base do
 
     before do
       allow(rerun).to receive(:record_full_retry)
+      allow(rerun).to receive(:comment_stopped_executions)
+      allow(rerun).to receive(:create_ci_jobs)
+      allow(rerun).to receive(:update_unavailable_jobs)
+      allow(SlackBot.instance).to receive(:execution_started_notification)
       allow(Github::ReRun::ChecksResume).to receive(:schedule).and_return([202, 'GitHub Checks setup rescheduled'])
     end
 
-    it 'reschedules only the GitHub side when it fails, instead of raising' do
-      allow(rerun).to receive(:ci_jobs).and_raise(Octokit::ServerError)
+    it 'reschedules only the GitHub checks when they fail, instead of raising' do
+      allow(rerun).to receive(:create_ci_jobs).and_raise(Octokit::ServerError)
 
       expect(rerun.send(:setup_github_checks, check_suite, plan)).to eq([202, 'GitHub Checks setup rescheduled'])
-      expect(Github::ReRun::ChecksResume)
-        .to have_received(:schedule).with('rerun_queue', {}, check_suite, plan, { last: nil, stopped: nil })
+      expect(Github::ReRun::ChecksResume).to have_received(:schedule).with('rerun_queue', {}, check_suite, plan)
     end
 
-    it 'does not reschedule when the checks are created' do
-      allow(rerun).to receive(:ci_jobs)
+    it 'announces the execution before anything that can be resumed fails' do
+      allow(rerun).to receive(:record_full_retry).and_raise(Octokit::ServerError)
 
       rerun.send(:setup_github_checks, check_suite, plan)
 
+      expect(SlackBot.instance).to have_received(:execution_started_notification).with(check_suite)
+      expect(rerun).to have_received(:comment_stopped_executions).with(check_suite)
+    end
+
+    it 'does not let a Slack failure hold back the checks' do
+      allow(SlackBot.instance).to receive(:execution_started_notification).and_raise(StandardError, 'slack down')
+
+      rerun.send(:setup_github_checks, check_suite, plan)
+
+      expect(rerun).to have_received(:create_ci_jobs)
       expect(Github::ReRun::ChecksResume).not_to have_received(:schedule)
+    end
+
+    it 'does not reschedule when the checks are created' do
+      rerun.send(:setup_github_checks, check_suite, plan)
+
+      expect(Github::ReRun::ChecksResume).not_to have_received(:schedule)
+    end
+  end
+
+  describe '#release_claim_on_failure' do
+    let(:pull_request) { create(:pull_request) }
+
+    before do
+      rerun.instance_variable_set(:@pull_request, pull_request)
+      allow(rerun).to receive(:fetch_plans).and_return([create(:plan)])
+      Github::DuplicateRequestGuard.claim_rerun?(pull_request)
+    end
+
+    it 'frees the claim and re-raises when the Bamboo plan did not start' do
+      expect { rerun.send(:release_claim_on_failure) { raise 'Bamboo down' } }.to raise_error('Bamboo down')
+      expect(pull_request.reload.rerun_requested_at).to be_nil
+    end
+
+    it 'keeps the claim and does not re-raise once the Bamboo plan started' do
+      rerun.instance_variable_set(:@plan_status, 200)
+
+      expect(rerun.send(:release_claim_on_failure) { raise 'DB down' })
+        .to eq([201, 'Starting re-run (GitHub setup failed)'])
+      expect(pull_request.reload.rerun_requested_at).not_to be_nil
     end
   end
 

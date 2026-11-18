@@ -17,13 +17,13 @@ class TopotestFailure < ActiveRecord::Base
 
   # Bamboo may report the same failures more than once (callback redelivery, refetch): the latest report
   # replaces the previous one of the same attempt. Earlier attempts (partial retries reuse the CiJob) are kept.
-  def self.replace_for(ci_job, failures)
+  def self.replace_for(ci_job, failures, attempt: ci_job.retry.to_i)
     transaction do
-      current_attempt_of(ci_job).delete_all
+      where(ci_job: ci_job, attempt: attempt).delete_all
 
       failures.each do |failure|
         create(ci_job: ci_job,
-               attempt: ci_job.retry.to_i,
+               attempt: attempt,
                test_suite: failure['suite'],
                test_case: failure['case'],
                message: failure['message'],

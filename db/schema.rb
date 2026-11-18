@@ -197,7 +197,6 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_18_120000) do
     t.bigint "ci_job_id"
     t.integer "attempt", default: 0, null: false
     t.index ["ci_job_id", "attempt"], name: "index_topotest_failures_on_ci_job_id_and_attempt"
-    t.index ["ci_job_id"], name: "index_topotest_failures_on_ci_job_id"
   end
 
   add_foreign_key "audit_retries", "check_suites"

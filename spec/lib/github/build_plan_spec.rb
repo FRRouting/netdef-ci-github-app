@@ -304,7 +304,7 @@ describe Github::BuildPlan do
 
       # Jobs run inline in tests, so the rescheduled GitHub setup raises here instead of being retried later.
       it 'leaves the GitHub setup to be retried' do
-        expect { build_plan.create }.to raise_error(Github::Build::ChecksSetup::RunningPlanUnavailable)
+        expect { build_plan.create }.to raise_error(BambooCi::RunningPlan::Unavailable)
       end
     end
   end

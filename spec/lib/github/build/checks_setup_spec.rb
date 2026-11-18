@@ -82,7 +82,7 @@ describe Github::Build::ChecksSetup do
       before { allow(BambooCi::RunningPlan).to receive(:fetch).and_return([]) }
 
       it 'raises, so the GitHub setup is tried again' do
-        expect { setup.run }.to raise_error(described_class::RunningPlanUnavailable)
+        expect { setup.run }.to raise_error(BambooCi::RunningPlan::Unavailable)
       end
     end
 

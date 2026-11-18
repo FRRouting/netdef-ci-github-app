@@ -18,10 +18,6 @@ module Github
     # It never creates a CheckSuite and never starts or stops a Bamboo build, so it is
     # safe to run again (resume: true) when an earlier attempt failed half way.
     class ChecksSetup
-      # Bamboo may not list the jobs of a build that has just started. Raising lets the GitHub setup be
-      # rescheduled (first attempt) or retried by Delayed Job (resume) instead of ending without checks.
-      class RunningPlanUnavailable < StandardError; end
-
       def initialize(check_suite, plan, previous_check_suite: nil, github_user_id: nil, resume: false)
         @check_suite = check_suite
         @plan = plan
@@ -37,7 +33,7 @@ module Github
         # Even when superseded: the newer execution only cancels this suite's checks, not the ones before it.
         cancel_previous_checks
 
-        return [200, 'Superseded by a newer execution'] if @resume and superseded?
+        return [200, 'Superseded by a newer execution'] if @resume and @check_suite.superseded?
 
         notify_execution_started unless @resume
         Github::UserInfo.new(@github_user_id, check_suite: @check_suite) unless @github_user_id.nil?
@@ -58,11 +54,9 @@ module Github
       end
 
       def create_summary
-        jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
-
-        if jobs.nil? or jobs.empty?
-          raise RunningPlanUnavailable, "Bamboo did not return the jobs of #{@check_suite.bamboo_ci_ref}"
-        end
+        # Raises while Bamboo lists no job yet: the GitHub setup is rescheduled (first attempt) or
+        # retried by Delayed Job (resume) instead of ending without checks.
+        jobs = BambooCi::RunningPlan.fetch!(@check_suite.bamboo_ci_ref)
 
         Github::Build::Action.new(@check_suite, @github, jobs, @plan.name).create_summary(resume: @resume)
 
@@ -75,14 +69,6 @@ module Github
         stage = @previous_check_suite.stages.where(status: :in_progress).last
 
         @previous_check_suite.update(stopped_in_stage: stage) unless stage.nil?
-      end
-
-      def superseded?
-        CheckSuite
-          .where(pull_request_id: @check_suite.pull_request_id, plan_id: @check_suite.plan_id)
-          .where.not(bamboo_ci_ref: nil)
-          .where('id > ?', @check_suite.id)
-          .exists?
       end
 
       # Notifications are best effort: a failure here must not reschedule the GitHub setup.

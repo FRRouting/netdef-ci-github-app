@@ -66,6 +66,18 @@ describe BambooCi::Api, 'with a Bamboo service account' do
       expect(client.download(URI(log_url))).to eq("line 1\nline 2")
       expect(a_request(:post, token_url)).not_to have_been_made
     end
+
+    context 'without ~/.netrc credentials' do
+      before do
+        allow(Netrc).to receive(:read).and_raise(Netrc::Error, 'missing')
+        stub_request(:get, log_url).to_return(status: 401, body: '<html>login</html>')
+      end
+
+      it 'sends the request without credentials, so the caller sees the refusal' do
+        expect(client.download(URI(log_url))).to eq('<html>login</html>')
+        expect(a_request(:get, log_url).with { |req| req.headers['Authorization'].nil? }).to have_been_made
+      end
+    end
   end
 
   context 'when Bamboo refuses a cached token' do

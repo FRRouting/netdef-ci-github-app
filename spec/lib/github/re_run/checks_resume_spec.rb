@@ -12,7 +12,6 @@ describe Github::ReRun::ChecksResume do
   let(:pull_request) { create(:pull_request) }
   let(:plan) { create(:plan) }
   let(:check_suite) { create(:check_suite, pull_request: pull_request) }
-  let(:stopped_suite) { create(:check_suite, pull_request: pull_request) }
   let(:payload) { { 'sender' => { 'login' => 'user', 'id' => 1, 'type' => 'User' } } }
   let(:fake_github_check) { instance_double(Github::Check) }
   let(:fake_action) { instance_double(Github::Build::Action, create_summary: true) }
@@ -22,13 +21,10 @@ describe Github::ReRun::ChecksResume do
 
     before { allow(described_class).to receive(:delay).and_return(delayed) }
 
-    it 'enqueues only the GitHub side, with the suites the rerun stopped' do
-      expect(described_class.schedule('q', payload, check_suite, plan,
-                                      { last: stopped_suite, stopped: [stopped_suite] }))
-        .to eq([202, 'GitHub Checks setup rescheduled'])
+    it 'enqueues only the GitHub side' do
+      expect(described_class.schedule('q', payload, check_suite, plan)).to eq([202, 'GitHub Checks setup rescheduled'])
       expect(described_class).to have_received(:delay).with(hash_including(queue: 'q'))
-      expect(delayed).to have_received(:run)
-        .with(payload, check_suite.id, plan.id, stopped_suite.id, [stopped_suite.id])
+      expect(delayed).to have_received(:run).with(payload, check_suite.id, plan.id)
     end
   end
 
@@ -44,23 +40,39 @@ describe Github::ReRun::ChecksResume do
     end
 
     it 'returns 404 when the check suite is gone' do
-      expect(described_class.run(payload, 0, plan.id, nil, [])).to eq([404, 'Check Suite or Plan not found'])
+      expect(described_class.run(payload, 0, plan.id)).to eq([404, 'Check Suite or Plan not found'])
     end
 
     it 'creates the checks again without repeating the notifications and the Bamboo comments' do
-      expect(described_class.run(payload, check_suite.id, plan.id, stopped_suite.id, [stopped_suite.id]))
-        .to eq([201, 'Re-run GitHub checks resumed'])
+      expect(described_class.run(payload, check_suite.id, plan.id)).to eq([201, 'Re-run GitHub checks resumed'])
 
       expect(fake_action).to have_received(:create_summary).with(rerun: true, resume: true)
       expect(SlackBot.instance).not_to have_received(:execution_started_notification)
       expect(BambooCi::StopPlan).not_to have_received(:comment)
-      expect(check_suite.reload.cancelled_previous_check_suite).to eq(stopped_suite)
     end
 
     it 'does not record the retry audit twice' do
       AuditRetry.create(check_suite: check_suite, retry_type: 'full')
 
-      expect { described_class.run(payload, check_suite.id, plan.id, nil, []) }.not_to change(AuditRetry, :count)
+      expect { described_class.run(payload, check_suite.id, plan.id) }.not_to change(AuditRetry, :count)
+    end
+
+    context 'when a newer rerun replaced this one meanwhile' do
+      let!(:check_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
+
+      before do
+        create(:check_suite, pull_request: pull_request, plan: plan)
+        allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(true)
+        allow(Github::Build::OpenChecks).to receive(:cancel)
+      end
+
+      it 'stops its build and cancels its checks instead of creating them' do
+        expect(described_class.run(payload, check_suite.id, plan.id)).to eq([200, 'Superseded by a newer execution'])
+
+        expect(BambooCi::StopPlan).to have_received(:stop_execution).with(check_suite.bamboo_ci_ref)
+        expect(Github::Build::OpenChecks).to have_received(:cancel).with(check_suite, fake_github_check)
+        expect(Github::Build::Action).not_to have_received(:new)
+      end
     end
   end
 end

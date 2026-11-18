@@ -24,7 +24,7 @@ describe CreateExecutionByCommand do
     allow(Logger).to receive(:new).and_return(Logger.new($stdout))
     allow(Github::Check).to receive(:new)
     allow_any_instance_of(CreateExecutionByCommand).to receive(:stop_previous_execution)
-    allow_any_instance_of(CreateExecutionByCommand).to receive(:ci_jobs)
+    allow_any_instance_of(CreateExecutionByCommand).to receive(:setup_github_checks)
     allow_any_instance_of(CreateExecutionByCommand).to receive(:cleanup)
     bamboo_plan_run_double = double('BambooCi::PlanRun')
     allow(bamboo_plan_run_double).to receive(:ci_variables=)
