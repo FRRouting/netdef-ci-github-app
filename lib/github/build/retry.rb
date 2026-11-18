@@ -13,6 +13,20 @@ require_relative 'action'
 module Github
   module Build
     class Retry
+      REVERT_QUEUE = 'revert_retry_check'
+      REVERT_DELAY = 1 # minute
+      REVERTABLE = %w[Stage CiJob].freeze
+
+      # GitHub side of a revert that failed. Skipped once something else (a new retry) moved the check on.
+      def self.sync_reverted_check(record_class, record_id, output)
+        return unless REVERTABLE.include?(record_class)
+
+        record = record_class.constantize.find_by(id: record_id)
+        return if record.nil? or !record.failure?
+
+        record.failure(Github::Check.new(record.check_suite), output: output)
+      end
+
       def initialize(check_suite, github, audit_retry, logger_level: Logger::INFO)
         @check_suite = check_suite
         @github = github
@@ -71,6 +85,17 @@ module Github
         record.failure(@github, output: output)
       rescue StandardError => e
         logger(Logger::ERROR, "Could not revert #{record.class} #{record.id}: #{e.class}: #{e.message}")
+        save_failure(record, output)
+      end
+
+      # Retry::Base#start rejects a retry while a check is queued, so the failure is saved without
+      # waiting for GitHub, whose update is tried again in a Delayed Job.
+      def save_failure(record, output)
+        record.update(status: :failure)
+
+        RevertRetryCheck
+          .delay(run_at: REVERT_DELAY.minutes.from_now.utc, queue: REVERT_QUEUE)
+          .sync(record.class.name, record.id, output)
       end
 
       def enqueued_stages_list

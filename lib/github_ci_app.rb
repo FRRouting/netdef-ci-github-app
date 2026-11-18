@@ -53,6 +53,7 @@ require_relative '../workers/create_execution_by_plan'
 require_relative '../workers/create_execution_by_comment'
 require_relative '../workers/create_execution_by_command'
 require_relative '../workers/resume_rerun_checks'
+require_relative '../workers/revert_retry_check'
 require_relative '../workers/sync_pending_jobs'
 
 # Slack libs
