@@ -115,12 +115,18 @@ describe Github::Build::ChecksSetup do
     end
   end
 
-  describe '#cancel_previous_checks' do
+  describe '.cancel_stopped' do
     it 'cancels the open stages of the stopped execution without creating the new checks' do
-      setup.cancel_previous_checks
+      described_class.cancel_stopped(check_suite, plan, previous)
 
       expect(previous.stages.reload.map(&:status)).to all(eq('cancelled'))
       expect(Github::Build::Action).not_to have_received(:new)
+    end
+
+    it 'does not raise when GitHub fails' do
+      allow(Github::Build::OpenChecks).to receive(:cancel).and_raise(Octokit::ServerError)
+
+      expect { described_class.cancel_stopped(check_suite, plan, previous) }.not_to raise_error
     end
   end
 

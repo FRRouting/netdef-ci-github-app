@@ -147,6 +147,13 @@ describe Github::ReRun::Base do
       expect(rerun).to have_received(:cancel_previous_jobs).with(running)
     end
 
+    it 'ignores a running suite without a plan when the repository has several plans' do
+      create(:plan, github_repo_name: 'Unit/Test')
+      create(:check_suite, :with_running_ci_jobs, pull_request: pull_request, plan: nil)
+
+      expect(rerun.send(:fetch_run_ci_by_pr, plan)).to eq([running])
+    end
+
     it 'also finds a running suite recorded without a plan' do
       legacy = create(:check_suite, :with_running_ci_jobs, pull_request: pull_request, plan: nil)
 

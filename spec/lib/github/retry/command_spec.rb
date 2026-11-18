@@ -130,11 +130,27 @@ describe Github::Retry::Command do
       end
 
       context 'when Bamboo does not confirm the restart' do
-        before { allow(BambooCi::Retry).to receive(:restart).and_return(nil) }
+        before do
+          allow(BambooCi::Retry).to receive(:restart).and_return(nil)
+          allow(fake_github_check).to receive(:failure)
+          allow(SlackBot.instance).to receive(:stage_finished_notification)
+        end
 
-        it 'raises and releases the claim' do
-          expect { github_retry.start }.to raise_error(BambooCi::Retry::RestartFailed)
+        it 'puts the retried checks back to failure and releases the claim' do
+          expect(github_retry.start).to eq([502, 'Bamboo did not restart the build'])
+
+          expect(ci_job_checkout_code.reload.status).to eq('failure')
+          expect(ci_job_build_stage.reload.status).to eq('failure')
           expect(check_suite.reload.retry_requested_at).to be_nil
+        end
+
+        context 'when GitHub fails while reverting a check' do
+          before { allow(fake_github_check).to receive(:failure).and_raise(Octokit::ServerError) }
+
+          it 'still releases the claim' do
+            expect(github_retry.start).to eq([502, 'Bamboo did not restart the build'])
+            expect(check_suite.reload.retry_requested_at).to be_nil
+          end
         end
       end
 

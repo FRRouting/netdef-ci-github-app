@@ -87,20 +87,13 @@ class CreateExecutionByPlan
     @status = setup_github_checks(plan)
   end
 
-  # The previous build is already stopped in Bamboo: its checks are closed now, since ChecksSetup will not run.
+  # The previous build is already stopped in Bamboo, and ChecksSetup will not run to close its checks.
   def failed_start(plan, status)
-    cancel_stopped_execution(plan) unless @previous_check_suite.nil?
+    unless @previous_check_suite.nil?
+      Github::Build::ChecksSetup.cancel_stopped(@check_suite, plan, @previous_check_suite)
+    end
 
     [status, 'Failed to create CI Plan']
-  end
-
-  # Best effort: on a GitHub error the TimeoutExecution watchdog still closes the stopped execution's checks.
-  def cancel_stopped_execution(plan)
-    Github::Build::ChecksSetup.new(@check_suite, plan, previous_check_suite: @previous_check_suite)
-                              .cancel_previous_checks
-  rescue StandardError => e
-    @app_logger.error 'CreateExecutionByPlan: could not cancel the checks of stopped CheckSuite ' \
-                      "#{@previous_check_suite.id}: #{e.class}: #{e.message}"
   end
 
   def setup_github_checks(plan)

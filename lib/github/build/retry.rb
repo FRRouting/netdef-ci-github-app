@@ -38,6 +38,7 @@ module Github
           next if stage.success?
 
           stage.enqueue(@github, output: Github::Build::Action.stage_output(stage))
+          enqueued_stages_list << stage
         end
       end
 
@@ -53,7 +54,23 @@ module Github
         end
       end
 
+      # Puts what this retry enqueued back to failure when Bamboo did not restart the build, so the
+      # stages can be retried again instead of staying queued until the timeout. Best effort per check.
+      def revert(reason)
+        output = { title: 'Retry failed', summary: reason }
+
+        (enqueued_stages_list + @audit_retry.ci_jobs.to_a).each do |record|
+          record.failure(@github, output: output)
+        rescue StandardError => e
+          logger(Logger::ERROR, "Could not revert #{record.class} #{record.id}: #{e.class}: #{e.message}")
+        end
+      end
+
       private
+
+      def enqueued_stages_list
+        @enqueued_stages_list ||= []
+      end
 
       def must_skip_retry?(ci_job)
         ci_job.stage.nil? || !ci_job.stage.configuration.can_retry?

@@ -21,12 +21,16 @@ module BambooCi
       PrometheusMetrics.track_bamboo('stop_job') { delete_from_queue(job_key) }
     end
 
+    # Never raises: an unexpected error (odd Bamboo answer) counts as a stop that was not confirmed, so
+    # callers that run after saving records are not retried as a whole by Delayed Job.
     def self.build(bamboo_ci_ref)
       PrometheusMetrics.track_bamboo('stop_plan') do
         next stop_by_rest(bamboo_ci_ref) if BambooCi::ServiceAccount.instance.configured?
 
         get_request(URI("https://127.0.0.1/build/admin/stopPlan.action?planResultKey=#{bamboo_ci_ref}"))
       end
+    rescue StandardError => e
+      log_failure("Stop of #{bamboo_ci_ref}", e)
     end
 
     # Whether Bamboo stopped the execution, for callers that record a cancellation in GitHub.
@@ -75,12 +79,16 @@ module BambooCi
       BambooCi::RunningPlan.mount_jobs(result).filter_map { |job| job[:job_ref] }
     end
 
-    # Every job is sent its DELETE. Returns the first refused answer (nil when that request failed),
-    # or the execution response when every job was stopped.
+    # Every job is sent its DELETE. Returns the first refused answer (nil when that request failed).
+    # When every job was stopped the build is stopped, even if the execution DELETE itself failed, so an
+    # accepted answer is returned.
     def self.stop_jobs(job_refs, response)
-      refused = job_refs.map { |job_ref| delete_from_queue(job_ref) }.reject { |answer| stop_accepted?(answer) }
+      answers = job_refs.map { |job_ref| delete_from_queue(job_ref) }
+      refused = answers.reject { |answer| stop_accepted?(answer) }
 
-      refused.empty? ? response : refused.first
+      return refused.first unless refused.empty?
+
+      stop_accepted?(response) ? response : answers.last
     end
 
     def self.unconfirmed_stop(bamboo_ci_ref)
@@ -100,8 +108,12 @@ module BambooCi
 
       response
     rescue StandardError => e
-      logger(Logger::ERROR, "Bamboo stop request for #{key} failed: #{e.class}: #{e.message}\n" \
-                            "#{Array(e.backtrace).first(10).join("\n")}")
+      log_failure("Bamboo stop request for #{key}", e)
+    end
+
+    def self.log_failure(what, error)
+      logger(Logger::ERROR, "#{what} failed: #{error.class}: #{error.message}\n" \
+                            "#{Array(error.backtrace).first(10).join("\n")}")
 
       nil
     end

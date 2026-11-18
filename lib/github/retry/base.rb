@@ -79,10 +79,9 @@ module Github
 
         PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'partial' })
 
-        create_ci_jobs(@check_suite)
+        build_retry = create_ci_jobs(@check_suite)
+        return restart_failed(build_retry) unless restart_bamboo
 
-        # Raises when Bamboo did not restart the build, so the retry claim is released.
-        BambooCi::Retry.restart!(@check_suite.bamboo_ci_ref)
         @restarted = true
         Github::Build::UnavailableJobs.new(@check_suite).update
 
@@ -111,6 +110,28 @@ module Github
         build_retry.enqueued_failure_tests
 
         BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+
+        build_retry
+      end
+
+      def restart_bamboo
+        BambooCi::Retry.restart!(@check_suite.bamboo_ci_ref)
+
+        true
+      rescue BambooCi::Retry::RestartFailed => e
+        logger(Logger::ERROR, ">>> #{e.message}")
+
+        false
+      end
+
+      # Nothing was restarted: the retried checks go back to failure and the claim is freed,
+      # so the user can ask for the retry again.
+      def restart_failed(build_retry)
+        build_retry.revert('Bamboo did not restart the build. Please retry again.')
+        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        github_reaction_feedback_down(@comment_id)
+
+        [502, 'Bamboo did not restart the build']
       end
 
       def enqueued

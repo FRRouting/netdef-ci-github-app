@@ -18,6 +18,16 @@ module Github
     # It never creates a CheckSuite and never starts or stops a Bamboo build, so it is
     # safe to run again (resume: true) when an earlier attempt failed half way.
     class ChecksSetup
+      # Closes the checks of an execution stopped in Bamboo when the new plan failed to start, so
+      # ChecksSetup#run never happens. Best effort: the TimeoutExecution watchdog remains the fallback.
+      def self.cancel_stopped(check_suite, plan, previous_check_suite)
+        new(check_suite, plan, previous_check_suite: previous_check_suite).send(:cancel_previous_checks)
+      rescue StandardError => e
+        GithubLogger.instance.create('github_app.log', Logger::INFO)
+                    .error("[#{name}] Could not cancel the checks of stopped CheckSuite " \
+                           "#{previous_check_suite.id}: #{e.class}: #{e.message}")
+      end
+
       def initialize(check_suite, plan, previous_check_suite: nil, github_user_id: nil, resume: false)
         @check_suite = check_suite
         @plan = plan
@@ -41,9 +51,10 @@ module Github
         create_summary
       end
 
+      private
+
       # Marks the queued / running stages and jobs of the stopped execution as cancelled.
-      # Only touches what is still open, so calling it again is harmless. Also called on its own when
-      # the new plan failed to start after the previous build was stopped.
+      # Only touches what is still open, so calling it again is harmless.
       def cancel_previous_checks
         return if @previous_check_suite.nil?
 
@@ -51,8 +62,6 @@ module Github
 
         Github::Build::OpenChecks.cancel(@previous_check_suite, github)
       end
-
-      private
 
       def github
         @github ||= Github::Check.new(@check_suite)

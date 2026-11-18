@@ -66,25 +66,32 @@ module Github
       end
 
       # Plans move to whichever pull request of the repository was built last, so the running suites are
-      # found through the suite's own plan (nil for suites created before plans were recorded on them).
+      # found through the suite's own plan.
       def fetch_run_ci_by_pr(plan)
         CheckSuite
           .joins(:pull_request, :ci_jobs)
           .where(pull_requests: { github_pr_id: pr_id, repository: repo },
-                 plan_id: [plan.id, nil],
+                 plan_id: plan_ids_for(plan),
                  ci_jobs: { status: :in_progress })
           .distinct
           .to_a
       end
 
+      # Suites created before plans were recorded on them have no plan. They can only be told apart when the
+      # repository has a single plan; otherwise a rerun of one plan could stop another plan's build.
+      def plan_ids_for(plan)
+        Plan.where(github_repo_name: repo).count > 1 ? [plan.id] : [plan.id, nil]
+      end
+
       def stop_previous_execution(plan)
-        return if fetch_run_ci_by_pr(plan).empty?
+        running = fetch_run_ci_by_pr(plan)
+        return if running.empty?
 
         logger(Logger::INFO, 'Stopping previous execution')
 
         @last_check_suite = nil
 
-        fetch_run_ci_by_pr(plan).each do |check_suite|
+        running.each do |check_suite|
           stop_and_update_previous_execution(check_suite)
         end
       end
