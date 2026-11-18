@@ -52,6 +52,7 @@ require_relative '../workers/slack_username2_id'
 require_relative '../workers/create_execution_by_plan'
 require_relative '../workers/create_execution_by_comment'
 require_relative '../workers/create_execution_by_command'
+require_relative '../workers/resume_rerun_checks'
 
 # Slack libs
 require_relative 'slack/slack'

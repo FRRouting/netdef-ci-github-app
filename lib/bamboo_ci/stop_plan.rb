@@ -45,18 +45,28 @@ module BambooCi
     # A service account token only authenticates REST endpoints, so stopPlan.action is not an option.
     # The queue DELETE of the execution only stops it while it waits in the queue, so it is also sent to each job.
     # Returns the first refused job DELETE (or the execution response when every job was stopped).
+    # A 404 on the execution only means it is no longer queued. Without the job list (Bamboo error, refused
+    # token) its jobs cannot be stopped either, so the stop is not confirmed and nil is returned.
     def self.stop_by_rest(bamboo_ci_ref)
       return nil if bamboo_ci_ref.nil?
 
       response = delete_from_queue(bamboo_ci_ref)
+      job_refs = BambooCi::RunningPlan.fetch(bamboo_ci_ref).filter_map { |job| job[:job_ref] }
 
-      refused =
-        BambooCi::RunningPlan.fetch(bamboo_ci_ref).filter_map { |job| job[:job_ref] }.filter_map do |job_ref|
-          job_response = delete_from_queue(job_ref)
-          job_response unless stop_accepted?(job_response)
-        end
+      return unconfirmed_stop(bamboo_ci_ref) if job_refs.empty? and !response.is_a?(Net::HTTPSuccess)
+
+      refused = job_refs.filter_map do |job_ref|
+        job_response = delete_from_queue(job_ref)
+        job_response unless stop_accepted?(job_response)
+      end
 
       refused.first || response
+    end
+
+    def self.unconfirmed_stop(bamboo_ci_ref)
+      logger(Logger::ERROR, "Could not confirm the stop of #{bamboo_ci_ref}: Bamboo did not list its jobs")
+
+      nil
     end
 
     # 404: the build or job is no longer in the queue (already finished), so there is nothing left to stop.

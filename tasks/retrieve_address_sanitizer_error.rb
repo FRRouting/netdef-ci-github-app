@@ -17,30 +17,31 @@
 
 require_relative '../config/setup'
 
+# Only the job's current attempt counts: a partial retry reuses the CiJob, so failures saved for an earlier
+# attempt must not stop this one from being filled in (the summary only shows the current attempt).
+NO_FAILURES_FOR_CURRENT_ATTEMPT = <<~SQL.squish
+  NOT EXISTS (
+    SELECT 1 FROM topotest_failures
+    WHERE topotest_failures.ci_job_id = ci_jobs.id
+      AND topotest_failures.attempt = COALESCE(ci_jobs.retry, 0)
+  )
+SQL
+
 CiJob
-  .left_outer_joins(:topotest_failures)
   .joins(:stage)
-  .where(topotest_failures: { id: nil })
+  .where(NO_FAILURES_FOR_CURRENT_ATTEMPT)
   .where("ci_jobs.name LIKE '%AddressSanitizer%'")
   .where(status: :failure)
   .where(stage: { status: :failure })
   .where('ci_jobs.created_at > ?', 6.month.ago)
   .each do |job|
-  next if job.topotest_failures.any?
+  next if TopotestFailure.current_attempt_of(job).exists?
 
-  CiJob.transaction do
-    failures = Github::TopotestFailures::RetrieveError.new(job).retrieve
+  failures = Github::TopotestFailures::RetrieveError.new(job).retrieve
 
-    puts "Found #{failures.size} failures for job #{job.job_ref}"
+  puts "Found #{failures.size} failures for job #{job.job_ref}"
 
-    next if failures.empty?
+  next if failures.empty?
 
-    failures.each do |failure|
-      TopotestFailure.create(ci_job: job,
-                             test_suite: failure['suite'],
-                             test_case: failure['case'],
-                             message: failure['message'],
-                             execution_time: failure['execution_time'])
-    end
-  end
+  TopotestFailure.replace_for(job, failures)
 end

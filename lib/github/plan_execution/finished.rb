@@ -29,6 +29,8 @@ module Github
     class Finished
       include BambooCi::Api
 
+      AUTH_REFUSED = [401, 403].freeze
+
       ##
       # Initializes the Finished class with the given payload.
       #
@@ -69,7 +71,7 @@ module Github
       #
       # @return [Hash] The build status.
       def fetch_build_status
-        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
+        get_request_with_status(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
 
       ##
@@ -140,8 +142,12 @@ module Github
       # @return [Boolean] Returns true if the build has stopped, false otherwise.
       # A 401/403 is Bamboo refusing the credentials (missing scope, revoked token), not a deleted build.
       def ci_stopped?(build_status)
-        build_status.key?('message') and !build_status.key?('finished') and
-          ![401, 403].include?(build_status['status-code'].to_i)
+        build_status.key?('message') and !build_status.key?('finished') and !auth_refused?(build_status)
+      end
+
+      # The HTTP status is authoritative; the body's own 'status-code' is only present on some Bamboo errors.
+      def auth_refused?(build_status)
+        build_status.values_at('http-status', 'status-code').any? { |code| AUTH_REFUSED.include?(code.to_i) }
       end
 
       ##

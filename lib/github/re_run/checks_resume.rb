@@ -18,18 +18,11 @@ module Github
       RETRY_DELAY = 10 # seconds
 
       def self.schedule(queue, payload, check_suite, plan)
-        delay(run_at: RETRY_DELAY.seconds.from_now.utc, queue: queue).run(payload, check_suite.id, plan.id)
+        ResumeRerunChecks
+          .delay(run_at: RETRY_DELAY.seconds.from_now.utc, queue: queue)
+          .run(payload, check_suite.id, plan.id)
 
         [202, 'GitHub Checks setup rescheduled']
-      end
-
-      def self.run(payload, check_suite_id, plan_id)
-        check_suite = CheckSuite.find_by(id: check_suite_id)
-        plan = Plan.find_by(id: plan_id)
-
-        return [404, 'Check Suite or Plan not found'] if check_suite.nil? or plan.nil?
-
-        new(payload).resume(check_suite, plan)
       end
 
       def resume(check_suite, plan)
@@ -46,10 +39,18 @@ module Github
       private
 
       # A newer rerun replaced this one while its checks were pending. That rerun only stops suites with a
-      # job in progress, so this build and whatever checks it already has are stopped here instead.
+      # job in progress, so this build is stopped here instead. Its open jobs and stages are closed in the
+      # database only: a new 'cancelled' check run would carry the same name as the newer rerun's checks on
+      # the same commit and hide them.
       def give_way(check_suite)
-        BambooCi::StopPlan.stop_execution(check_suite.bamboo_ci_ref)
-        Github::Build::OpenChecks.cancel(check_suite, @github_check)
+        unless BambooCi::StopPlan.stop_execution(check_suite.bamboo_ci_ref)
+          logger(Logger::ERROR, ">>> Bamboo refused to stop superseded #{check_suite.bamboo_ci_ref}")
+          return [200, 'Superseded by a newer execution']
+        end
+
+        cancelled = CiJob.statuses[:cancelled]
+        check_suite.ci_jobs.where(status: Github::Build::OpenChecks::STATUSES).update_all(status: cancelled)
+        check_suite.stages.where(status: Github::Build::OpenChecks::STATUSES).update_all(status: cancelled)
 
         [200, 'Superseded by a newer execution']
       end
