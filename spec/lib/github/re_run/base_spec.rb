@@ -248,4 +248,15 @@ describe Github::ReRun::Base do
       expect(DelayedJobLookup).not_to have_received(:pending).with(method: :timeout, first_arg: new_suite.id)
     end
   end
+
+  describe '#record_full_retry' do
+    let(:check_suite) { create(:check_suite) }
+
+    before { allow(Github::UserInfo).to receive(:new).and_raise(NoMethodError, 'rate limited') }
+
+    it 'records the retry even when the user lookup fails' do
+      expect { rerun.send(:record_full_retry, check_suite) }.not_to raise_error
+      expect(AuditRetry.where(check_suite: check_suite, retry_type: 'full').count).to eq(1)
+    end
+  end
 end

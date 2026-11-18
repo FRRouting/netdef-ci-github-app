@@ -16,7 +16,7 @@ module Github
       def initialize(check_suite)
         @check_suite = check_suite
         @github = Github::Check.new(@check_suite)
-        @stages = StageConfiguration.all.map { |config| "[CI] #{config.github_check_run_name}" }
+        @stages = current_check_run_names
         @logger = GithubLogger.instance.create('github_skip_old_tests.log', Logger::INFO)
       end
 
@@ -30,6 +30,16 @@ module Github
       end
 
       private
+
+      # Stage check runs may carry a plan suffix (Action#stage_name), so every configured name is kept both
+      # bare and with each plan of the repository: the current checks of every plan are never skipped.
+      def current_check_run_names
+        plan_names = Plan.where(github_repo_name: @check_suite.pull_request.repository).pluck(:name)
+
+        StageConfiguration.pluck(:github_check_run_name).flat_map do |name|
+          ["[CI] #{name}"] + plan_names.map { |plan_name| "[CI] #{name} - #{plan_name}" }
+        end
+      end
 
       def skipping_old_test(check_run)
         return if check_run[:app][:name] != 'NetDEF CI Hook' or @stages.include?(check_run[:name])

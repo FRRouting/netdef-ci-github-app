@@ -11,7 +11,7 @@
 require 'logger'
 
 require_relative 'api'
-require_relative 'running_plan'
+require_relative 'result'
 
 module BambooCi
   class StopPlan
@@ -58,10 +58,10 @@ module BambooCi
 
       return response if unknown_to_bamboo?(response, result)
 
-      job_refs = job_refs(result)
-      return unconfirmed_stop(bamboo_ci_ref) if job_refs.empty? and !response.is_a?(Net::HTTPSuccess)
+      jobs = listed_jobs(result)
+      return unconfirmed_stop(bamboo_ci_ref) if jobs.empty? and !response.is_a?(Net::HTTPSuccess)
 
-      stop_jobs(job_refs, response)
+      stop_jobs(jobs, response)
     end
 
     def self.fetch_result(bamboo_ci_ref)
@@ -73,22 +73,40 @@ module BambooCi
       response&.code.to_i == 404 and result.is_a?(Hash) and result['http-status'] == 404
     end
 
-    def self.job_refs(result)
+    # The jobs of the build with whether Bamboo listed them as active (unknown state counts as active).
+    def self.listed_jobs(result)
       return [] unless result.is_a?(Hash) and result.dig('stages', 'stage').is_a?(Array)
 
-      BambooCi::RunningPlan.mount_jobs(result).filter_map { |job| job[:job_ref] }
+      result.dig('stages', 'stage').flat_map { |stage| Array(stage.dig('results', 'result')) }.filter_map do |job|
+        next if job['key'].nil?
+
+        state = job['lifeCycleState']
+        { ref: job['key'], active: state.nil? || BambooCi::Result::ACTIVE_STATES.include?(state) }
+      end
     end
 
     # Every job is sent its DELETE. Returns the first refused answer (nil when that request failed).
     # When every job was stopped the build is stopped, even if the execution DELETE itself failed, so an
     # accepted answer is returned.
-    def self.stop_jobs(job_refs, response)
-      answers = job_refs.map { |job_ref| delete_from_queue(job_ref) }
+    def self.stop_jobs(jobs, response)
+      answers = jobs.map { |job| stop_job(job) }
       refused = answers.reject { |answer| stop_accepted?(answer) }
 
       return refused.first unless refused.empty?
 
       stop_accepted?(response) ? response : answers.last
+    end
+
+    # A 404 only means the job is no longer queued. A job Bamboo listed as active may still be running, so
+    # its stop is confirmed only once Bamboo no longer reports it as active.
+    def self.stop_job(job)
+      answer = delete_from_queue(job[:ref])
+      return answer unless job[:active] and answer&.code.to_i == 404
+      return answer unless BambooCi::Result.active?(job[:ref])
+
+      logger(Logger::ERROR, "Bamboo still runs #{job[:ref]} after its stop")
+
+      nil
     end
 
     def self.unconfirmed_stop(bamboo_ci_ref)

@@ -37,7 +37,8 @@ module Github
 
       create_user_info if @user.nil?
 
-      update_user_info
+      # GitHub did not answer (rate limit, deleted user): keep what is stored instead of failing.
+      update_user_info if info?
 
       add_pull_request unless @pull_request.nil?
       add_check_suite unless @check_suite.nil?
@@ -59,6 +60,10 @@ module Github
       @user.save
     end
 
+    def info?
+      !@info.nil? and @info != false
+    end
+
     def update_user_info
       @user.update(
         github_login: @info[:login],
@@ -71,15 +76,17 @@ module Github
     end
 
     def create_user_info
+      info = info? ? @info : {}
+
       @user =
         GithubUser.create(
           github_id: @github_id,
-          github_login: @info[:login],
-          github_username: @info[:name],
-          github_email: @info[:email],
-          github_type: @info[:type],
-          organization_url: @info[:organizations_url],
-          github_organization: @info[:company]
+          github_login: info[:login],
+          github_username: info[:name],
+          github_email: info[:email],
+          github_type: info[:type],
+          organization_url: info[:organizations_url],
+          github_organization: info[:company]
         )
     end
   end

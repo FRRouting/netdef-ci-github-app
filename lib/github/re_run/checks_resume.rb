@@ -38,19 +38,10 @@ module Github
 
       private
 
-      # A newer rerun replaced this one while its checks were pending. That rerun only stops suites with a
-      # job in progress, so this build is stopped here instead. Its open jobs and stages are closed in the
-      # database only: a new 'cancelled' check run would carry the same name as the newer rerun's checks on
-      # the same commit and hide them.
       def give_way(check_suite)
-        unless BambooCi::StopPlan.stop_execution(check_suite.bamboo_ci_ref)
+        unless Github::Build::OpenChecks.close_superseded(check_suite)
           logger(Logger::ERROR, ">>> Bamboo refused to stop superseded #{check_suite.bamboo_ci_ref}")
-          return [200, 'Superseded by a newer execution']
         end
-
-        cancelled = CiJob.statuses[:cancelled]
-        check_suite.ci_jobs.where(status: Github::Build::OpenChecks::STATUSES).update_all(status: cancelled)
-        check_suite.stages.where(status: Github::Build::OpenChecks::STATUSES).update_all(status: cancelled)
 
         [200, 'Superseded by a newer execution']
       end

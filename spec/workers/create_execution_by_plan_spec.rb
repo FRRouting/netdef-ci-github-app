@@ -102,6 +102,17 @@ describe CreateExecutionByPlan do
         expect(new_suite).not_to eq(legacy_check_suite)
         expect(new_suite.plan).to eq(plan)
       end
+
+      context 'when the repository has several plans' do
+        before { create(:plan, github_repo_name: plan.github_repo_name) }
+
+        it 'does not take the legacy check suite for one of this plan' do
+          described_class.create(legacy_pr.id, payload, plan.id)
+
+          expect(BambooCi::StopPlan).not_to have_received(:build)
+          expect(legacy_check_suite.ci_jobs.reload.map(&:status)).to all(eq('in_progress'))
+        end
+      end
     end
 
     context 'when GitHub fails after the Bamboo plan has started' do

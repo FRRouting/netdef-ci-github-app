@@ -109,7 +109,8 @@ module Github
         build_retry.enqueued_stages
         build_retry.enqueued_failure_tests
 
-        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+        # Runs inside the webhook: the stop (one request per job) is only sent to a build Bamboo still runs.
+        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref) if BambooCi::Result.active?(check_suite.bamboo_ci_ref)
 
         build_retry
       end
@@ -127,6 +128,7 @@ module Github
       # Nothing was restarted: the retried checks go back to failure and the claim is freed,
       # so the user can ask for the retry again.
       def restart_failed(build_retry)
+        @check_suite.update(retry: [@check_suite.retry - 1, 0].max)
         build_retry.revert('Bamboo did not restart the build. Please retry again.')
         Github::DuplicateRequestGuard.release_retry(@check_suite)
         github_reaction_feedback_down(@comment_id)

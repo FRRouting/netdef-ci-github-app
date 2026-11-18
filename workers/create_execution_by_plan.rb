@@ -155,7 +155,7 @@ class CreateExecutionByPlan
     @last_check_suite =
       CheckSuite
       .where(pull_request: @pull_request)
-      .where(plan: [plan, nil])
+      .where(plan_id: plan.suite_plan_ids)
       .where.not(bamboo_ci_ref: nil)
       .last
   end

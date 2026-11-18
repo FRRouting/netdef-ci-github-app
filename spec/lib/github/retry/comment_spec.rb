@@ -49,6 +49,7 @@ describe Github::Retry::Comment do
       allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
       allow(BambooCi::StopPlan).to receive(:build)
+      allow(BambooCi::Result).to receive(:active?).and_return(true)
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
 

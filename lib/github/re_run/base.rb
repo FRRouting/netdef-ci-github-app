@@ -71,16 +71,10 @@ module Github
         CheckSuite
           .joins(:pull_request, :ci_jobs)
           .where(pull_requests: { github_pr_id: pr_id, repository: repo },
-                 plan_id: plan_ids_for(plan),
+                 plan_id: plan.suite_plan_ids,
                  ci_jobs: { status: :in_progress })
           .distinct
           .to_a
-      end
-
-      # Suites created before plans were recorded on them have no plan. They can only be told apart when the
-      # repository has a single plan; otherwise a rerun of one plan could stop another plan's build.
-      def plan_ids_for(plan)
-        Plan.where(github_repo_name: repo).count > 1 ? [plan.id] : [plan.id, nil]
       end
 
       def stop_previous_execution(plan)
@@ -202,6 +196,10 @@ module Github
                             retry_type: 'full')
 
         Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
+      rescue StandardError => e
+        # User metadata is best effort: it must never keep a started build from getting its checks.
+        logger(Logger::ERROR, ">>> Could not record the rerun user for CheckSuite #{check_suite.id}: " \
+                              "#{e.class}: #{e.message}")
       end
 
       def ci_vars

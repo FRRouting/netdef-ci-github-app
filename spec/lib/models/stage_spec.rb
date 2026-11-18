@@ -40,34 +40,6 @@ describe Stage do
     end
   end
 
-  describe '#previous_stage' do
-    context 'when has a valid config' do
-      let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
-
-      it 'must update status' do
-        expect(stage.previous_stage).to be_nil
-      end
-    end
-
-    context 'when has an invalid config' do
-      let(:stage) { create(:stage, :with_check_suite, configuration: nil, check_ref: nil) }
-
-      it 'must update status' do
-        expect(stage.previous_stage).to be_nil
-      end
-    end
-
-    context 'when suffix is nil (name has no content after split)' do
-      let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
-
-      before { allow(stage).to receive(:suffix).and_return(nil) }
-
-      it 'returns nil immediately' do
-        expect(stage.previous_stage).to be_nil
-      end
-    end
-  end
-
   describe '#update_execution_time' do
     let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
 

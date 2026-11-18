@@ -44,9 +44,9 @@ module Github
         # Even when superseded: the newer execution only cancels this suite's checks, not the ones before it.
         cancel_previous_checks
 
-        return [200, 'Superseded by a newer execution'] if @resume and @check_suite.superseded?
+        return give_way if @resume and @check_suite.superseded?
 
-        Github::UserInfo.new(@github_user_id, check_suite: @check_suite) unless @github_user_id.nil?
+        record_user
 
         create_summary
       end
@@ -65,6 +65,24 @@ module Github
 
       def github
         @github ||= Github::Check.new(@check_suite)
+      end
+
+      def give_way
+        unless Github::Build::OpenChecks.close_superseded(@check_suite)
+          @logger.error("[#{self.class}] Bamboo refused to stop superseded #{@check_suite.bamboo_ci_ref}")
+        end
+
+        [200, 'Superseded by a newer execution']
+      end
+
+      # User metadata is best effort: it must never keep a started build from getting its checks.
+      def record_user
+        return if @github_user_id.nil?
+
+        Github::UserInfo.new(@github_user_id, check_suite: @check_suite)
+      rescue StandardError => e
+        @logger.error("[#{self.class}] Could not record user #{@github_user_id} for CheckSuite " \
+                      "#{@check_suite.id}: #{e.class}: #{e.message}")
       end
 
       def create_summary
