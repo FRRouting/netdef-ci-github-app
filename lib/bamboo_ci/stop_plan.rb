@@ -18,7 +18,6 @@ module BambooCi
     extend BambooCi::Api
 
     def self.stop(job_key)
-      @logger = Logger.new($stdout)
       PrometheusMetrics.track_bamboo('stop_job') do
         delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{job_key}"))
       end
@@ -34,16 +33,39 @@ module BambooCi
 
     # A service account token only authenticates REST endpoints, so stopPlan.action is not an option.
     # The queue DELETE of the execution only stops it while it waits in the queue, so it is also sent to each job.
+    # Returns the first refused job DELETE, so a build Bamboo keeps running is not reported as stopped.
     def self.stop_by_rest(bamboo_ci_ref)
       return nil if bamboo_ci_ref.nil?
 
-      response = delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{bamboo_ci_ref}"))
+      response = delete_from_queue(bamboo_ci_ref)
 
-      BambooCi::RunningPlan.fetch(bamboo_ci_ref).filter_map { |job| job[:job_ref] }.each do |job_ref|
-        delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{job_ref}"))
-      end
+      refused =
+        BambooCi::RunningPlan.fetch(bamboo_ci_ref).filter_map { |job| job[:job_ref] }.filter_map do |job_ref|
+          job_response = delete_from_queue(job_ref)
+          job_response unless stop_accepted?(job_response)
+        end
+
+      refused.first || response
+    end
+
+    # 404: the build or job is no longer in the queue (already finished), so there is nothing left to stop.
+    def self.delete_from_queue(key)
+      response = delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{key}"))
+      return response if stop_accepted?(response)
+
+      logger(Logger::ERROR, "Bamboo refused to stop #{key}: HTTP #{response&.code} " \
+                            "#{response.nil? ? '' : BambooCi::ServiceAccount.summary(response)}")
 
       response
+    end
+
+    def self.stop_accepted?(response)
+      !response.nil? and (response.is_a?(Net::HTTPSuccess) or response.code.to_i == 404)
+    end
+
+    def self.logger(severity, message)
+      @app_logger ||= GithubLogger.instance.create('github_app.log', Logger::INFO)
+      @app_logger.add(severity, message)
     end
 
     def self.comment(check_suite, new_check_suite)

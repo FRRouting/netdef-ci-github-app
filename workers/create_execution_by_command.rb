@@ -32,15 +32,16 @@ class CreateExecutionByCommand < Github::ReRun::Base
 
     stop_previous_execution(plan)
 
-    check_suite = create_check_suite(check_suite)
+    check_suite = create_check_suite(check_suite, plan)
 
     start_new_execution(check_suite, plan)
     ci_jobs(check_suite, plan)
   end
 
-  def create_check_suite(check_suite)
+  def create_check_suite(check_suite, plan)
     CheckSuite.create(
       pull_request: check_suite.pull_request,
+      plan: plan,
       author: check_suite.author,
       commit_sha_ref: check_suite.commit_sha_ref,
       work_branch: check_suite.work_branch,

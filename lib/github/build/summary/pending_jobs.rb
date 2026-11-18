@@ -34,8 +34,20 @@ module Github
 
           case result['state']
           when 'Successful' then job.success(@github, agent: @agent)
-          when 'Failed' then job.failure(@github, agent: @agent)
+          when 'Failed' then failed(job)
+          else return
           end
+
+          job.update_execution_time
+        end
+
+        # Same follow-up as a failure reported by Bamboo (Github::UpdateStatus), so the job gets its failure details.
+        def failed(job)
+          job.failure(@github, agent: @agent)
+
+          CiJobFetchTopotestFailures
+            .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
+            .update(job.id, 1)
         end
       end
     end

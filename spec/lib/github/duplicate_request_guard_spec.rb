@@ -58,4 +58,16 @@ describe Github::DuplicateRequestGuard do
       expect(described_class.claim_rerun?(pull_request)).to be(true)
     end
   end
+
+  describe '.release_rerun' do
+    let(:pull_request) { create(:pull_request) }
+
+    it 'allows a new request right after a released claim' do
+      described_class.claim_rerun?(pull_request)
+      described_class.release_rerun(pull_request)
+
+      expect(pull_request.reload.rerun_requested_at).to be_nil
+      expect(described_class.claim_rerun?(pull_request)).to be(true)
+    end
+  end
 end

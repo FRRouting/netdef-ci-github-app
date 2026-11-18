@@ -400,6 +400,12 @@ describe Github::Check do
         expect(fake_client).to have_received(:update_check_run)
           .exactly(Github::Check::UPDATE_NOT_FOUND_RETRIES + 1).times
       end
+
+      it 'waits at most a couple of seconds in total' do
+        expect { check.in_progress(id) }.to raise_error(Octokit::NotFound)
+        expect(check).to have_received(:sleep).with(0.5).ordered
+        expect(check).to have_received(:sleep).with(1.0).ordered
+      end
     end
   end
 
@@ -408,6 +414,8 @@ describe Github::Check do
     let(:status) { 'completed' }
     let(:conclusion) { 'success' }
 
+    before { allow(check).to receive(:sleep) }
+
     context 'when send_update returns error' do
       before do
         allow(fake_client).to receive(:update_check_run).and_raise(Octokit::NotFound)
@@ -415,6 +423,14 @@ describe Github::Check do
 
       it 'must returns raise' do
         expect(check.skipped(id)).to eq({})
+      end
+
+      it 'gives up after a few seconds instead of half a minute' do
+        check.skipped(id)
+
+        expect(fake_client).to have_received(:update_check_run).exactly(Github::Check::COMPLETED_RETRIES + 1).times
+        expect(check).not_to have_received(:sleep).with(4)
+        [1, 2, 3].each { |delay| expect(check).to have_received(:sleep).with(delay) }
       end
     end
 

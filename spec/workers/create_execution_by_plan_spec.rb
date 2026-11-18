@@ -155,15 +155,39 @@ describe CreateExecutionByPlan do
       let(:plan) { pull_request.plans.last }
       let!(:previous) { create(:check_suite, pull_request: pull_request, plan: plan, bamboo_ci_ref: 'PR-24204') }
 
+      let(:bamboo_result) { { 'lifeCycleState' => 'InProgress' } }
+
       before do
         allow(BambooCi::StopPlan).to receive(:build)
         allow(BambooCi::StopPlan).to receive(:comment)
+        allow(BambooCi::Result).to receive(:fetch).with(previous.bamboo_ci_ref, expand: '').and_return(bamboo_result)
       end
 
       it 'stops the previous Bamboo build' do
         described_class.create(pull_request.id, payload, plan.id)
 
         expect(BambooCi::StopPlan).to have_received(:build).with(previous.bamboo_ci_ref)
+      end
+
+      context 'when Bamboo already finished that build' do
+        let(:bamboo_result) { { 'lifeCycleState' => 'Finished', 'state' => 'Failed' } }
+
+        it 'neither stops it nor comments that it was cancelled' do
+          described_class.create(pull_request.id, payload, plan.id)
+
+          expect(BambooCi::StopPlan).not_to have_received(:build)
+          expect(BambooCi::StopPlan).not_to have_received(:comment)
+        end
+      end
+
+      context 'when Bamboo does not answer' do
+        let(:bamboo_result) { nil }
+
+        it 'stops the previous Bamboo build to be safe' do
+          described_class.create(pull_request.id, payload, plan.id)
+
+          expect(BambooCi::StopPlan).to have_received(:build).with(previous.bamboo_ci_ref)
+        end
       end
     end
 

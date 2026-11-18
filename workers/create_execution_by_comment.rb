@@ -34,12 +34,23 @@ class CreateExecutionByComment < Github::ReRun::Base
     @pull_request = PullRequest.find(pull_request_id)
     @status = []
 
-    run_by_plan(plan)
+    @status = run_by_plan(plan)
   end
 
   private
 
+  # A failed attempt frees the ci:rerun claim, so the user can ask again right away.
   def run_by_plan(plan)
+    status = start_by_plan(plan)
+    Github::DuplicateRequestGuard.release_rerun(@pull_request) unless status.first == 201
+
+    status
+  rescue StandardError
+    Github::DuplicateRequestGuard.release_rerun(@pull_request)
+    raise
+  end
+
+  def start_by_plan(plan)
     check_suite = sha256_or_comment?
     logger(Logger::DEBUG, ">>> Check suite: #{check_suite.inspect}")
 
@@ -50,6 +61,7 @@ class CreateExecutionByComment < Github::ReRun::Base
     stop_previous_execution(plan)
 
     start_new_execution(check_suite, plan)
+    return [@plan_status, 'Failed to create CI Plan'] if @plan_status != 200
 
     ci_jobs(check_suite, plan)
 

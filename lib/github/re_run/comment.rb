@@ -39,9 +39,9 @@ module Github
         return [404, 'Pull Request not found'] if @pull_request.nil?
         return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
 
-        github_reaction_feedback(comment_id)
-
         return duplicated_request unless Github::DuplicateRequestGuard.claim_rerun?(@pull_request)
+
+        github_reaction_feedback(comment_id)
 
         fetch_plans.each do |plan|
           CreateExecutionByComment

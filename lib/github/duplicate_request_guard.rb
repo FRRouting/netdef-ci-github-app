@@ -33,6 +33,10 @@ module Github
       claim?(PullRequest, pull_request.id, :rerun_requested_at)
     end
 
+    def self.release_rerun(pull_request)
+      PullRequest.unscoped.where(id: pull_request.id).update_all(rerun_requested_at: nil)
+    end
+
     def self.claim?(model, id, column)
       now = Time.now.utc
 

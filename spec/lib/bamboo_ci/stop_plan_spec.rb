@@ -94,6 +94,55 @@ describe BambooCi::StopPlan do
     it 'does nothing without an execution' do
       expect(described_class.build(nil)).to be_nil
     end
+
+    context 'when Bamboo refuses to stop a running job' do
+      let(:app_logger) { instance_double(Logger, add: true) }
+
+      before do
+        described_class.instance_variable_set(:@app_logger, app_logger)
+        stub_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12')
+          .to_return(status: 403, body: { message: 'Missing WRITE scope' }.to_json)
+      end
+
+      after { described_class.instance_variable_set(:@app_logger, nil) }
+
+      it 'returns the refused job response instead of the execution one' do
+        expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(403)
+      end
+
+      it 'logs the refusal' do
+        described_class.build(bamboo_ci_ref)
+
+        expect(app_logger)
+          .to have_received(:add).with(Logger::ERROR, /refused to stop PLAN-JOB1-12: HTTP 403 Missing WRITE scope/)
+      end
+    end
+
+    context 'when the job already finished' do
+      before do
+        stub_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12').to_return(status: 404)
+      end
+
+      it 'reports the execution as stopped' do
+        expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(204)
+      end
+    end
+
+    context 'when the execution DELETE gets no response' do
+      let(:app_logger) { instance_double(Logger, add: true) }
+
+      before do
+        described_class.instance_variable_set(:@app_logger, app_logger)
+        allow(described_class).to receive(:delete_request).and_return(nil)
+      end
+
+      after { described_class.instance_variable_set(:@app_logger, nil) }
+
+      it 'logs the failure and returns nil' do
+        expect(described_class.build(bamboo_ci_ref)).to be_nil
+        expect(app_logger).to have_received(:add).with(Logger::ERROR, /refused to stop PLAN-12: HTTP /)
+      end
+    end
   end
 
   context '#comment' do

@@ -430,6 +430,40 @@ describe Github::Build::Summary do
         expect(checkout_job.reload.status).to eq('failure')
         expect(stage1.reload.status).to eq('failure')
       end
+
+      it 'schedules the fetch of the failure details' do
+        delayed = double('delayed CiJobFetchTopotestFailures', update: true)
+        allow(CiJobFetchTopotestFailures).to receive(:delay).and_return(delayed)
+
+        summary.build_summary
+
+        expect(delayed).to have_received(:update).with(checkout_job.id, 1)
+      end
+    end
+
+    context 'when Bamboo reports the job as successful after it ran' do
+      let(:bamboo_result) { { 'state' => 'Successful' } }
+
+      before do
+        AuditStatus.create(auditable: checkout_job, status: :in_progress, agent: 'Github', created_at: 2.minutes.ago)
+      end
+
+      it 'records the execution time' do
+        summary.build_summary
+
+        expect(checkout_job.reload.execution_time).to be >= 100
+      end
+    end
+
+    context 'when Bamboo has no final state for the job yet' do
+      let(:bamboo_result) { { 'state' => 'Unknown' } }
+
+      it 'keeps the job in progress' do
+        summary.build_summary
+
+        expect(checkout_job.reload.status).to eq('in_progress')
+        expect(checkout_job.execution_time).to be_nil
+      end
     end
 
     context 'when Bamboo is unreachable' do

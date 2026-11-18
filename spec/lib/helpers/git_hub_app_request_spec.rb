@@ -37,4 +37,31 @@ describe GitHubApp::Request do
       end
     end
   end
+
+  describe 'when sending the request raises' do
+    let(:uri) { URI('http://localhost/test') }
+    # Like the includers (e.g. BambooCi::PlanRun), logger returns the Array of loggers.
+    let(:dummy_class) do
+      Class.new do
+        include GitHubApp::Request
+
+        def logger(_severity, _message)
+          []
+        end
+      end
+    end
+
+    before do
+      allow(instance).to receive(:fetch_user_pass).and_return(%w[user passwd])
+      allow(instance).to receive(:create_http).and_raise(Errno::ECONNREFUSED)
+    end
+
+    it 'post_request returns nil instead of the logger result' do
+      expect(instance.post_request(uri)).to be_nil
+    end
+
+    it 'put_request returns nil instead of the logger result' do
+      expect(instance.put_request(uri)).to be_nil
+    end
+  end
 end

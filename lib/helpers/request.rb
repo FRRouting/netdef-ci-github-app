@@ -52,7 +52,9 @@ module GitHubApp
 
       resp
     rescue StandardError => e
-      logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
+      logger(Logger::ERROR, "HTTP PUT Request failed (#{e.message}) for #{uri.host}")
+
+      nil
     end
 
     def post_request(uri, body: nil, machine: 'ci1.netdef.org')
@@ -71,10 +73,16 @@ module GitHubApp
       resp
     rescue StandardError => e
       logger(Logger::ERROR, "HTTP POST Request failed (#{e.message}) for #{uri.host}")
+
+      nil
     end
 
     # Single place where a request is authenticated and sent; BambooCi::Api overrides it for the service account.
     def send_request(uri, req, machine)
+      netrc_request(uri, req, machine)
+    end
+
+    def netrc_request(uri, req, machine)
       user, passwd = fetch_user_pass(machine)
       req.basic_auth user, passwd
 

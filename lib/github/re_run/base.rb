@@ -119,7 +119,7 @@ module Github
 
         bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
         bamboo_plan_run.ci_variables = ci_vars
-        bamboo_plan_run.start_plan
+        @plan_status = bamboo_plan_run.start_plan
 
         audit_retry =
           AuditRetry.create(check_suite: check_suite,
@@ -157,8 +157,9 @@ module Github
 
       # Removes pending timeout workers from previous executions of the same plan.
       # Other plans run in parallel and keep their own timeout workers.
+      # Suites without a plan (created by older re-runs) cannot be told apart, so they are cleaned too.
       def cleanup(check_suite, plan)
-        check_suite.pull_request.check_suites.where(plan: plan).where.not(id: check_suite.id).each do |suite|
+        check_suite.pull_request.check_suites.where(plan: [plan, nil]).where.not(id: check_suite.id).each do |suite|
           Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}\n%").destroy_all
         end
       end
