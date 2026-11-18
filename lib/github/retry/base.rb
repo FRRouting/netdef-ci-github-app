@@ -81,7 +81,8 @@ module Github
 
         create_ci_jobs(@check_suite)
 
-        BambooCi::Retry.restart(@check_suite.bamboo_ci_ref)
+        # Raises when Bamboo did not restart the build, so the retry claim is released.
+        BambooCi::Retry.restart!(@check_suite.bamboo_ci_ref)
         @restarted = true
         Github::Build::UnavailableJobs.new(@check_suite).update
 

@@ -214,11 +214,18 @@ module Github
         output
       end
 
+      # Counts the repository's plans, not the pull request's: plans move to whichever pull request was
+      # built last, and the name of a stage must not change between executions of the same pull request.
       def stage_name(stage_config)
-        return stage_config.github_check_run_name if @check_suite.pull_request.plans.count == 1 or @name.blank?
+        return stage_config.github_check_run_name if @name.blank?
         return stage_config.github_check_run_name unless GitHubApp::Configuration.instance.multi_plan?
+        return stage_config.github_check_run_name if repository_plans_count == 1
 
         "#{stage_config.github_check_run_name} - #{@name}"
+      end
+
+      def repository_plans_count
+        @repository_plans_count ||= Plan.where(github_repo_name: @check_suite.pull_request.repository).count
       end
 
       ##

@@ -17,7 +17,7 @@ describe Github::Retry::Base do
   describe '#retry_once' do
     before do
       allow(retry_flow).to receive(:create_ci_jobs)
-      allow(BambooCi::Retry).to receive(:restart)
+      allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
     end
 
     context 'when a step after the Bamboo restart fails' do

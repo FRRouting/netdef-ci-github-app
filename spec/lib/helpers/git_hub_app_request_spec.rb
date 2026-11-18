@@ -12,6 +12,28 @@ describe GitHubApp::Request do
   let(:dummy_class) { Class.new { include GitHubApp::Request } }
   let(:instance) { dummy_class.new }
 
+  describe '#get_request_with_status' do
+    before { allow(instance).to receive(:fetch_user_pass).and_return(%w[user passwd]) }
+
+    def answer(body, code)
+      allow(instance).to receive(:create_http)
+        .and_return(double('http', request: double('response', body: body, code: code)))
+    end
+
+    it 'adds the HTTP status to a JSON object' do
+      answer('{"name": "NetDEF"}', '404')
+
+      expect(instance.get_request_with_status(URI('http://localhost/test')))
+        .to eq({ 'name' => 'NetDEF', 'http-status' => 404 })
+    end
+
+    it 'returns any other JSON value as is' do
+      answer('[1, 2]', '200')
+
+      expect(instance.get_request_with_status(URI('http://localhost/test'))).to eq([1, 2])
+    end
+  end
+
   describe '#get_request' do
     context 'when request json object' do
       it 'must return a hash' do

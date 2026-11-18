@@ -31,7 +31,8 @@ module Github
         @stages_config.each do |bamboo_stage|
           next unless bamboo_stage.can_retry?
 
-          stage = Stage.find_by(check_suite: @check_suite, name: bamboo_stage.github_check_run_name)
+          # By configuration, not name: the name may carry the plan suffix (see Action#stage_name).
+          stage = Stage.find_by(check_suite: @check_suite, configuration: bamboo_stage)
 
           next if stage.nil?
           next if stage.success?

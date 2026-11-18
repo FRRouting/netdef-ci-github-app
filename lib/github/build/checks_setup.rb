@@ -28,29 +28,34 @@ module Github
       end
 
       def run
-        @github = Github::Check.new(@check_suite)
+        # First, and best effort: nothing before it can fail, so a resume never has to send it again.
+        notify_execution_started unless @resume
 
         # Even when superseded: the newer execution only cancels this suite's checks, not the ones before it.
         cancel_previous_checks
 
         return [200, 'Superseded by a newer execution'] if @resume and @check_suite.superseded?
 
-        notify_execution_started unless @resume
         Github::UserInfo.new(@github_user_id, check_suite: @check_suite) unless @github_user_id.nil?
 
         create_summary
       end
 
-      private
-
       # Marks the queued / running stages and jobs of the stopped execution as cancelled.
-      # Only touches what is still open, so calling it again is harmless.
+      # Only touches what is still open, so calling it again is harmless. Also called on its own when
+      # the new plan failed to start after the previous build was stopped.
       def cancel_previous_checks
         return if @previous_check_suite.nil?
 
         save_stopped_in_stage
 
-        Github::Build::OpenChecks.cancel(@previous_check_suite, @github)
+        Github::Build::OpenChecks.cancel(@previous_check_suite, github)
+      end
+
+      private
+
+      def github
+        @github ||= Github::Check.new(@check_suite)
       end
 
       def create_summary
@@ -58,7 +63,7 @@ module Github
         # retried by Delayed Job (resume) instead of ending without checks.
         jobs = BambooCi::RunningPlan.fetch!(@check_suite.bamboo_ci_ref)
 
-        Github::Build::Action.new(@check_suite, @github, jobs, @plan.name).create_summary(resume: @resume)
+        Github::Build::Action.new(@check_suite, github, jobs, @plan.name).create_summary(resume: @resume)
 
         stop_execution_message unless @previous_check_suite.nil?
 

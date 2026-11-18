@@ -65,14 +65,16 @@ module Github
         [201, 'Starting re-run (GitHub setup failed)']
       end
 
+      # Plans move to whichever pull request of the repository was built last, so the running suites are
+      # found through the suite's own plan (nil for suites created before plans were recorded on them).
       def fetch_run_ci_by_pr(plan)
         CheckSuite
-          .joins(pull_request: :plans)
-          .joins(:ci_jobs)
-          .where(pull_request: { plans: { id:  plan.id },
-                                 github_pr_id: pr_id, repository: repo },
-                 ci_jobs: { status: 1 })
-          .uniq
+          .joins(:pull_request, :ci_jobs)
+          .where(pull_requests: { github_pr_id: pr_id, repository: repo },
+                 plan_id: [plan.id, nil],
+                 ci_jobs: { status: :in_progress })
+          .distinct
+          .to_a
       end
 
       def stop_previous_execution(plan)

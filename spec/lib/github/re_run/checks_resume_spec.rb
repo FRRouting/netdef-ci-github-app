@@ -64,12 +64,26 @@ describe Github::ReRun::ChecksResume do
         allow(Github::Build::OpenChecks).to receive(:cancel)
       end
 
-      it 'stops its build and cancels its checks instead of creating them' do
+      it 'stops its build and closes its open jobs in the database only' do
+        ci_job = create(:ci_job, check_suite: check_suite, status: :in_progress)
+
         expect(resume).to eq([200, 'Superseded by a newer execution'])
 
         expect(BambooCi::StopPlan).to have_received(:stop_execution).with(check_suite.bamboo_ci_ref)
-        expect(Github::Build::OpenChecks).to have_received(:cancel).with(check_suite, fake_github_check)
+        expect(ci_job.reload.status).to eq('cancelled')
+        expect(Github::Build::OpenChecks).not_to have_received(:cancel)
         expect(Github::Build::Action).not_to have_received(:new)
+      end
+
+      context 'when Bamboo refuses to stop it' do
+        before { allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(false) }
+
+        it 'leaves its jobs open, since the build keeps running' do
+          ci_job = create(:ci_job, check_suite: check_suite, status: :in_progress)
+
+          expect(resume).to eq([200, 'Superseded by a newer execution'])
+          expect(ci_job.reload.status).to eq('in_progress')
+        end
       end
     end
   end

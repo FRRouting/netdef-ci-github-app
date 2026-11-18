@@ -233,6 +233,24 @@ describe CreateExecutionByPlan do
         expect(running.stages.reload.map(&:status)).to all(eq('cancelled'))
       end
 
+      context 'when the new plan does not start' do
+        before { allow(fake_plan_run).to receive(:start_plan).and_return(429) }
+
+        it 'still cancels the stages of the stopped execution' do
+          expect(described_class.create(pull_request.id, payload, plan.id)).to eq([429, 'Failed to create CI Plan'])
+
+          expect(running.stages.reload.map(&:status)).to all(eq('cancelled'))
+        end
+
+        context 'when GitHub fails while cancelling them' do
+          before { allow(Github::Build::OpenChecks).to receive(:cancel).and_raise(Octokit::ServerError) }
+
+          it 'still reports the failed start' do
+            expect(described_class.create(pull_request.id, payload, plan.id)).to eq([429, 'Failed to create CI Plan'])
+          end
+        end
+      end
+
       context 'when Bamboo refuses to stop it' do
         before { allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(false) }
 

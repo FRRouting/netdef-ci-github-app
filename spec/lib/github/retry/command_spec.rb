@@ -95,7 +95,7 @@ describe Github::Retry::Command do
         allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::Retry).to receive(:restart)
+        allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
         allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
 
@@ -125,6 +125,15 @@ describe Github::Retry::Command do
 
         it 'releases the claim so the next retry is not dropped as a duplicate' do
           expect { github_retry.start }.to raise_error(StandardError, 'Bamboo unavailable')
+          expect(check_suite.reload.retry_requested_at).to be_nil
+        end
+      end
+
+      context 'when Bamboo does not confirm the restart' do
+        before { allow(BambooCi::Retry).to receive(:restart).and_return(nil) }
+
+        it 'raises and releases the claim' do
+          expect { github_retry.start }.to raise_error(BambooCi::Retry::RestartFailed)
           expect(check_suite.reload.retry_requested_at).to be_nil
         end
       end
@@ -182,7 +191,7 @@ describe Github::Retry::Command do
         allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::Retry).to receive(:restart)
+        allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
         allow(SlackBot.instance).to receive(:invalid_rerun_group)
 
@@ -268,7 +277,7 @@ describe Github::Retry::Command do
         allow(fake_github_check).to receive(:get_check_run).with(stage2.check_ref).and_return(output2)
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::Retry).to receive(:restart)
+        allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
         create(:pull_request_subscription, pull_request: check_suite.pull_request, target: pr_number)
 

@@ -110,6 +110,50 @@ describe Github::ReRun::Base do
     end
   end
 
+  describe '#fetch_run_ci_by_pr' do
+    let(:pull_request) { create(:pull_request, github_pr_id: 10, repository: 'Unit/Test') }
+    let(:other_pull_request) { create(:pull_request, github_pr_id: 11, repository: 'Unit/Test') }
+    let(:plan) { create(:plan, github_repo_name: 'Unit/Test', pull_request: other_pull_request) }
+    let(:rerun) do
+      described_class.new({ 'issue' => { 'number' => 10 }, 'repository' => { 'full_name' => 'Unit/Test' } })
+    end
+    let!(:running) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request, plan: plan) }
+
+    before do
+      create(:check_suite, :with_running_ci_jobs, pull_request: other_pull_request, plan: plan)
+      create(:check_suite, :with_running_ci_jobs, pull_request: pull_request, plan: create(:plan))
+      create(:check_suite, pull_request: pull_request, plan: plan)
+    end
+
+    it 'finds the running suite of the pull request even after its plan moved to another one' do
+      expect(rerun.send(:fetch_run_ci_by_pr, plan)).to eq([running])
+    end
+
+    it 'stops nothing when the pull request has no running suite for the plan' do
+      allow(BambooCi::StopPlan).to receive(:stop_execution)
+
+      rerun.send(:stop_previous_execution, create(:plan, github_repo_name: 'Unit/Test'))
+
+      expect(BambooCi::StopPlan).not_to have_received(:stop_execution)
+    end
+
+    it 'stops the running suite of the pull request' do
+      allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(true)
+      allow(rerun).to receive(:cancel_previous_jobs)
+
+      rerun.send(:stop_previous_execution, plan)
+
+      expect(BambooCi::StopPlan).to have_received(:stop_execution).with(running.bamboo_ci_ref).once
+      expect(rerun).to have_received(:cancel_previous_jobs).with(running)
+    end
+
+    it 'also finds a running suite recorded without a plan' do
+      legacy = create(:check_suite, :with_running_ci_jobs, pull_request: pull_request, plan: nil)
+
+      expect(rerun.send(:fetch_run_ci_by_pr, plan)).to contain_exactly(running, legacy)
+    end
+  end
+
   describe '#comment_stopped_executions' do
     let(:stopped_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-10') }
     let(:other_stopped_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-11') }
@@ -160,12 +204,41 @@ describe Github::ReRun::Base do
       end
     end
 
+    context 'when the new execution is one of the stopped ones' do
+      before do
+        rerun.send(:stop_and_update_previous_execution, new_suite)
+        rerun.send(:comment_stopped_executions, new_suite)
+      end
+
+      it 'does not comment on itself' do
+        expect(BambooCi::StopPlan).not_to have_received(:comment)
+      end
+    end
+
     context 'when nothing was stopped' do
       before { rerun.send(:comment_stopped_executions, new_suite) }
 
       it 'does not comment' do
         expect(BambooCi::StopPlan).not_to have_received(:comment)
       end
+    end
+  end
+
+  describe '#cleanup' do
+    let(:stopped_suite) { create(:check_suite) }
+    let(:new_suite) { create(:check_suite) }
+    let(:pending_jobs) { double('pending', destroy_all: true) }
+
+    before do
+      allow(DelayedJobLookup).to receive(:pending).and_return(pending_jobs)
+      rerun.instance_variable_set(:@stopped_check_suites, [stopped_suite, new_suite])
+    end
+
+    it 'removes the timeout workers of the stopped executions only' do
+      rerun.send(:cleanup, new_suite)
+
+      expect(DelayedJobLookup).to have_received(:pending).with(method: :timeout, first_arg: stopped_suite.id)
+      expect(DelayedJobLookup).not_to have_received(:pending).with(method: :timeout, first_arg: new_suite.id)
     end
   end
 end

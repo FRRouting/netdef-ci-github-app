@@ -61,13 +61,13 @@ describe PrometheusMetrics do
     end
 
     context 'when the block raises a StandardError' do
-      it 'increments BAMBOO_REQUESTS with error status and returns nil' do
+      it 'increments BAMBOO_REQUESTS with error status and raises the error again' do
         expect(PrometheusMetrics::BAMBOO_REQUESTS).to receive(:increment)
           .with(labels: { operation: 'plan_run', status: 'error' })
         allow(PrometheusMetrics::BAMBOO_DURATION).to receive(:observe)
 
-        returned = PrometheusMetrics.track_bamboo('plan_run') { raise StandardError, 'network error' }
-        expect(returned).to be_nil
+        expect { PrometheusMetrics.track_bamboo('plan_run') { raise StandardError, 'network error' } }
+          .to raise_error(StandardError, 'network error')
       end
     end
   end

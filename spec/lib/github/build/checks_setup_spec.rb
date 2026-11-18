@@ -78,6 +78,16 @@ describe Github::Build::ChecksSetup do
       end
     end
 
+    context 'when cancelling the previous checks fails' do
+      before { allow(Github::Build::OpenChecks).to receive(:cancel).and_raise(Octokit::ServerError) }
+
+      it 'has already sent the execution started notification' do
+        expect { setup.run }.to raise_error(Octokit::ServerError)
+
+        expect(SlackBot.instance).to have_received(:execution_started_notification).with(check_suite)
+      end
+    end
+
     context 'when Bamboo does not return the running plan' do
       before { allow(BambooCi::RunningPlan).to receive(:fetch).and_return([]) }
 
@@ -102,6 +112,15 @@ describe Github::Build::ChecksSetup do
 
         expect(BambooCi::StopPlan).not_to have_received(:comment)
       end
+    end
+  end
+
+  describe '#cancel_previous_checks' do
+    it 'cancels the open stages of the stopped execution without creating the new checks' do
+      setup.cancel_previous_checks
+
+      expect(previous.stages.reload.map(&:status)).to all(eq('cancelled'))
+      expect(Github::Build::Action).not_to have_received(:new)
     end
   end
 
