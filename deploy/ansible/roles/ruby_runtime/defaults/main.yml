@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Ruby built from the official cache.ruby-lang.org source tarball and installed in its own prefix, so the system Ruby (if
 # any) is never touched. Version/checksum chosen on 2026-11-16: latest 3.3 release (3.3.13), a maintained line that
 # runs the locked gems (activerecord 7.2, puma 6, pg 1.5).

@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  migrate.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Prometheus files and the schema dump go to the state directory: /run/<name> exists only while a service runs, and the
 # release is read-only for the service user.
 - name: Apply database migrations with the new release

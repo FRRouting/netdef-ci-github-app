@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Non-secret settings of prod_frr_public, the PRODUCTION instance for the main FRR repository on GitHub (FRRouting/frr).
 # Its pull requests start the Bamboo plan FRR-PULLREQ3 on ci1.netdef.org; the repository-to-plan link is a row of the
 # `plans` table, not an Ansible variable. Secrets live in vault.yml (see vault.yml.example).

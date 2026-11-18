@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  converge.sh
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Runs a playbook (default: deploy) inside the systemd test container (local connection).
 #   converge.sh [playbook] [extra ansible-playbook args]
 set -euo pipefail

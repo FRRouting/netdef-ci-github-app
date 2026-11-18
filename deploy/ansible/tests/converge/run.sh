@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  run.sh
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Local convergence test of the Ansible automation: Debian trixie + systemd in a privileged podman container,
 # PostgreSQL in another container, ansible running with a local connection INSIDE the container. No real server is touched.
 #   deploy/ansible/tests/converge/run.sh

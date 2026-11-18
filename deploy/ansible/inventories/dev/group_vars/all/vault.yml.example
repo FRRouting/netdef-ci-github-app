@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  vault.yml.example
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Copy to vault.yml, fill in and encrypt:   ansible-vault encrypt inventories/dev/group_vars/all/vault.yml
 # Every value below is a FICTITIOUS placeholder. Same variable names as the Python deployment's vault.
 vault_netdef_ci_database_url: "postgresql://netdef_ci:CHANGE_ME@localhost:5432/githubruns-dev"

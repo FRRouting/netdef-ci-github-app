@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 netdef_ci_rack_env: "{{ 'production' if netdef_ci_env == 'production' else 'development' }}"
 netdef_ci_target: "{{ netdef_ci_name }}.target"
 netdef_ci_web_service: "{{ netdef_ci_name }}-web"

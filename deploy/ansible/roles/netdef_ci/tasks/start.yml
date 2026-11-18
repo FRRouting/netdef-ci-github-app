@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  start.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Reverse of stop.yml. deploy.yml alone does not start services stopped by stop.yml when nothing changed (its restart
 # handler only fires on changes), so this is the way back.
 - name: Enable and start the target and the services

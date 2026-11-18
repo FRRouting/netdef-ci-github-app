@@ -1,3 +1,12 @@
+{#
+  SPDX-License-Identifier: BSD-2-Clause
+
+  netrc.j2
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-#}
 # {{ ansible_managed }}
 {% if netdef_ci_bamboo_username and netdef_ci_bamboo_password %}
 machine {{ netdef_ci_bamboo_netrc_machine }}
