@@ -162,11 +162,31 @@ describe Github::Retry::Command do
         end
 
         context 'when GitHub fails while reverting a check' do
-          before { allow(fake_github_check).to receive(:failure).and_raise(Octokit::ServerError) }
+          let(:delayed) { double('delayed', sync: true) }
+
+          before do
+            allow(fake_github_check).to receive(:failure).and_raise(Octokit::ServerError)
+            allow(RevertRetryCheck).to receive(:delay).and_return(delayed)
+          end
 
           it 'still releases the claim' do
             expect(github_retry.start).to eq([502, 'Bamboo did not restart the build'])
             expect(check_suite.reload.retry_requested_at).to be_nil
+          end
+
+          it 'saves the checks as failure so the next retry is accepted' do
+            github_retry.start
+
+            expect(ci_job_build_stage.reload.status).to eq('failure')
+            expect(ci_job_checkout_code.reload.status).to eq('failure')
+          end
+
+          it 'updates GitHub later' do
+            github_retry.start
+
+            expect(RevertRetryCheck)
+              .to have_received(:delay).with(hash_including(queue: 'revert_retry_check')).at_least(:once)
+            expect(delayed).to have_received(:sync).with('Stage', ci_job_build_stage.id, anything)
           end
         end
       end

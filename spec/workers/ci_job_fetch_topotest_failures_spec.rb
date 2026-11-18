@@ -16,10 +16,33 @@ describe CiJobFetchTopotestFailures do
   before { allow(Github::TopotestFailures::RetrieveError).to receive(:new).and_return(retrieve_error) }
 
   describe '.update' do
-    it 'stores the failures under the attempt that failed, even after a ci:retry started the next one' do
-      described_class.update(ci_job.id, 1, 0)
+    it 'stores the failures under the attempt that failed' do
+      described_class.update(ci_job.id, 1, 1)
 
-      expect(ci_job.topotest_failures.pluck(:attempt)).to eq([0])
+      expect(ci_job.topotest_failures.pluck(:attempt)).to eq([1])
+    end
+
+    context 'when a ci:retry already started the next attempt' do
+      it 'does not read Bamboo, which only has the newer attempt' do
+        create(:topotest_failure, ci_job: ci_job, attempt: 0)
+
+        described_class.update(ci_job.id, 1, 0)
+
+        expect(Github::TopotestFailures::RetrieveError).not_to have_received(:new)
+        expect(ci_job.topotest_failures.count).to eq(1)
+      end
+    end
+
+    context 'when a ci:retry starts the next attempt while Bamboo is read' do
+      before do
+        allow(retrieve_error).to receive(:retrieve) { ci_job.update(retry: 2) }
+      end
+
+      it 'discards what was read' do
+        described_class.update(ci_job.id, 1, 1)
+
+        expect(ci_job.topotest_failures).to be_empty
+      end
     end
 
     it 'falls back to the current attempt for fetches scheduled without one' do
@@ -35,9 +58,9 @@ describe CiJobFetchTopotestFailures do
       before { allow(described_class).to receive(:delay).and_return(delayed) }
 
       it 'keeps the attempt when it tries again later' do
-        described_class.update(ci_job.id, 1, 0)
+        described_class.update(ci_job.id, 1, 1)
 
-        expect(delayed).to have_received(:update).with(ci_job.id, 2, 0)
+        expect(delayed).to have_received(:update).with(ci_job.id, 2, 1)
       end
     end
   end

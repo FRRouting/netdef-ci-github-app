@@ -9,18 +9,26 @@
 #  frozen_string_literal: true
 
 class CiJobFetchTopotestFailures
-  # attempt is the CiJob retry that failed, taken when the fetch was scheduled: a ci:retry may start
-  # the next attempt before this runs. Jobs enqueued before it was passed fall back to the current one.
+  # attempt is the CiJob retry that failed, taken when the fetch was scheduled. Jobs enqueued before it
+  # was passed fall back to the current one.
   def self.update(ci_job_id, count, attempt = nil)
     @job = CiJob.find(ci_job_id)
     @attempt = attempt.nil? ? @job.retry.to_i : attempt
 
+    return if stale?
+
     @retrieve_error = Github::TopotestFailures::RetrieveError.new(@job)
     @retrieve_error.retrieve
 
-    return if rescheduled?(count)
+    return if stale? or rescheduled?(count)
 
     TopotestFailure.replace_for(@job, @retrieve_error.failures, attempt: @attempt)
+  end
+
+  # Bamboo only keeps the latest result of a job_ref: once a ci:retry started another attempt (checked
+  # again after the read, as the retry may start meanwhile) it would return that attempt's failures.
+  def self.stale?
+    @job.reload.retry.to_i != @attempt
   end
 
   def self.rescheduled?(count)
