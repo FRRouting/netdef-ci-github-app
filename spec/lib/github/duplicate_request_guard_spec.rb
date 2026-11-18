@@ -70,4 +70,22 @@ describe Github::DuplicateRequestGuard do
       expect(described_class.claim_rerun?(pull_request)).to be(true)
     end
   end
+
+  describe '.release_failed_rerun' do
+    let(:pull_request) { create(:pull_request) }
+
+    before { described_class.claim_rerun?(pull_request) }
+
+    it 'releases the claim when the rerun has a single plan' do
+      described_class.release_failed_rerun(pull_request, [create(:plan)])
+
+      expect(pull_request.reload.rerun_requested_at).to be_nil
+    end
+
+    it 'keeps the claim when the rerun has several plans' do
+      described_class.release_failed_rerun(pull_request, create_list(:plan, 2))
+
+      expect(pull_request.reload.rerun_requested_at).not_to be_nil
+    end
+  end
 end

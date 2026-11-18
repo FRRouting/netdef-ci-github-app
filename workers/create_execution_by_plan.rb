@@ -17,7 +17,6 @@
 class CreateExecutionByPlan
   # Short on purpose: until the resume creates the CI jobs, Bamboo status callbacks find no job and are dropped.
   GITHUB_SETUP_RETRY_DELAY = 10 # seconds
-  BAMBOO_ACTIVE_STATES = %w[Queued Pending InProgress].freeze
 
   def self.create(pull_request_id, payload, plan_id)
     logger = GithubLogger.instance.create('github_app.log', Logger::INFO)
@@ -124,7 +123,10 @@ class CreateExecutionByPlan
     @logger.info 'Stopping previous execution'
     @logger.info @last_check_suite.inspect
 
-    BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
+    # A build Bamboo refused to stop keeps running, so its checks are not reported as cancelled.
+    unless BambooCi::StopPlan.stop_execution(@last_check_suite.bamboo_ci_ref)
+      return @app_logger.error("CreateExecutionByPlan: Bamboo refused to stop #{@last_check_suite.bamboo_ci_ref}")
+    end
 
     @previous_check_suite = @last_check_suite
   end
@@ -136,16 +138,7 @@ class CreateExecutionByPlan
     return true if @last_check_suite.running?
     return false unless @last_check_suite.stages.empty? and @last_check_suite.ci_jobs.empty?
 
-    bamboo_build_active?(@last_check_suite.bamboo_ci_ref)
-  end
-
-  # Without a clear answer from Bamboo the build is taken as running: stopping a finished build
-  # costs a misleading comment, leaving a running one costs a whole CI run.
-  def bamboo_build_active?(bamboo_ci_ref)
-    result = BambooCi::Result.fetch(bamboo_ci_ref, expand: '')
-    state = result['lifeCycleState'] if result.is_a?(Hash)
-
-    state.nil? or BAMBOO_ACTIVE_STATES.include?(state)
+    BambooCi::Result.active?(@last_check_suite.bamboo_ci_ref)
   end
 
   # Check suites without a Bamboo reference never started a build, so they cannot be the previous execution.

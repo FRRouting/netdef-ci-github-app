@@ -65,7 +65,16 @@ module Github
         end
       end
 
+      # A build Bamboo refused to stop keeps running, so its checks are left as they are.
       def stop_and_update_previous_execution(check_suite)
+        unless BambooCi::StopPlan.stop_execution(check_suite.bamboo_ci_ref)
+          return logger(Logger::ERROR, ">>> Bamboo refused to stop #{check_suite.bamboo_ci_ref}")
+        end
+
+        record_stopped_execution(check_suite)
+      end
+
+      def record_stopped_execution(check_suite)
         if @last_check_suite.nil?
           check_suite.update(stopped_in_stage: check_suite.stages.where(status: :in_progress).last)
         else
@@ -77,8 +86,6 @@ module Github
 
         @last_check_suite = check_suite
         (@stopped_check_suites ||= []) << check_suite
-
-        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
       end
 
       # Leaves on each stopped Bamboo result a link to the execution that replaced it. Runs after the new

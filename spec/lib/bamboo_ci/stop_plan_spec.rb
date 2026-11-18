@@ -145,6 +145,44 @@ describe BambooCi::StopPlan do
     end
   end
 
+  describe '.stop_execution' do
+    let(:account) { BambooCi::ServiceAccount.instance }
+
+    before { allow(described_class).to receive(:build).and_return(response) }
+
+    context 'without a service account' do
+      let(:response) { nil }
+
+      before { allow(account).to receive(:configured?).and_return(false) }
+
+      it 'takes the execution as stopped' do
+        expect(described_class.stop_execution('PLAN-12')).to be(true)
+      end
+    end
+
+    context 'with a service account' do
+      before { allow(account).to receive(:configured?).and_return(true) }
+
+      context 'when Bamboo accepts the stop' do
+        let(:response) { Net::HTTPNoContent.new('1.1', '204', 'No Content') }
+
+        it { expect(described_class.stop_execution('PLAN-12')).to be(true) }
+      end
+
+      context 'when Bamboo refuses the stop' do
+        let(:response) { Net::HTTPForbidden.new('1.1', '403', 'Forbidden') }
+
+        it { expect(described_class.stop_execution('PLAN-12')).to be(false) }
+      end
+
+      context 'when there is no execution' do
+        let(:response) { nil }
+
+        it { expect(described_class.stop_execution(nil)).to be(true) }
+      end
+    end
+  end
+
   context '#comment' do
     let(:check_suite) { create(:check_suite) }
     let(:new_check_suite) { create(:check_suite) }

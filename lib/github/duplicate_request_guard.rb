@@ -37,6 +37,15 @@ module Github
       PullRequest.unscoped.where(id: pull_request.id).update_all(rerun_requested_at: nil)
     end
 
+    # The rerun claim covers the whole pull request, but each plan runs in its own worker. With several
+    # plans, a failed one must not unlock the protection of a plan that has just started, so the claim
+    # is left to expire on its own.
+    def self.release_failed_rerun(pull_request, plans)
+      return if plans.size > 1
+
+      release_rerun(pull_request)
+    end
+
     def self.claim?(model, id, column)
       now = Time.now.utc
 

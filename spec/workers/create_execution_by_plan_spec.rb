@@ -215,6 +215,17 @@ describe CreateExecutionByPlan do
 
         expect(running.stages.reload.map(&:status)).to all(eq('cancelled'))
       end
+
+      context 'when Bamboo refuses to stop it' do
+        before { allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(false) }
+
+        it 'neither cancels its stages nor comments that it was cancelled' do
+          described_class.create(pull_request.id, payload, plan.id)
+
+          expect(running.stages.reload.map(&:status)).not_to include('cancelled')
+          expect(BambooCi::StopPlan).not_to have_received(:comment)
+        end
+      end
     end
 
     context 'when the previous execution has finished' do
