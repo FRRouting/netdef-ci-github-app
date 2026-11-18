@@ -133,6 +133,23 @@ describe CreateExecutionByPlan do
       end
     end
 
+    context 'when Bamboo does not list the jobs of the new build yet' do
+      let(:plan) { pull_request.plans.last }
+      let(:delayed) { double('delayed') }
+
+      before do
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
+        allow(described_class).to receive(:delay).and_return(delayed)
+        allow(delayed).to receive(:setup_github_checks)
+      end
+
+      it 'reschedules the GitHub setup instead of ending without checks' do
+        expect(described_class.create(pull_request.id, payload, plan.id))
+          .to eq([202, 'GitHub Checks setup rescheduled'])
+        expect(delayed).to have_received(:setup_github_checks)
+      end
+    end
+
     context 'when GitHub authentication fails before anything is saved' do
       let(:plan) { pull_request.plans.last }
 

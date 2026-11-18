@@ -399,7 +399,9 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
+        # The rerun now needs Bamboo to list the jobs of the new build before it creates the checks.
+        allow(BambooCi::RunningPlan).to receive(:fetch)
+          .and_return([{ name: 'Checkout', job_ref: 'CHK-01', stage: create(:stage_configuration).bamboo_stage_name }])
       end
 
       it 'must return success using plans from repository' do
@@ -689,13 +691,11 @@ describe Github::ReRun::Comment do
   end
 
   describe '#cleanup' do
-    let(:plan) { create(:plan) }
-    let(:other_plan) { create(:plan) }
     let(:pull_request) { create(:pull_request) }
-    let(:old_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
-    let(:other_plan_suite) { create(:check_suite, pull_request: pull_request, plan: other_plan) }
-    let(:planless_suite) { create(:check_suite, pull_request: pull_request, plan: nil) }
-    let(:new_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
+    let(:stopped_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:queued_only_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:refused_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:new_suite) { create(:check_suite, pull_request: pull_request) }
     let(:rerun) { described_class.new({}) }
 
     def timeout_job(suite_id)
@@ -706,34 +706,26 @@ describe Github::ReRun::Comment do
       )
     end
 
+    def remaining_suite_ids
+      Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
+    end
+
     before do
-      timeout_job(old_suite.id)
-      timeout_job(other_plan_suite.id)
-      timeout_job(planless_suite.id)
-      timeout_job(new_suite.id)
-      timeout_job("#{old_suite.id}0")
+      [stopped_suite, queued_only_suite, refused_suite, new_suite].each { |suite| timeout_job(suite.id) }
+      timeout_job("#{stopped_suite.id}0")
+
+      allow(rerun).to receive(:cancel_previous_jobs)
+      allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(true)
+      allow(BambooCi::StopPlan).to receive(:stop_execution).with(refused_suite.bamboo_ci_ref).and_return(false)
+
+      rerun.send(:stop_and_update_previous_execution, stopped_suite)
+      rerun.send(:stop_and_update_previous_execution, refused_suite)
+      rerun.send(:cleanup, new_suite)
     end
 
-    it 'removes only the timeout workers of previous suites of the same plan or without a plan' do
-      rerun.send(:cleanup, new_suite, plan)
-
-      remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
-      expect(remaining).to contain_exactly(other_plan_suite.id.to_s, new_suite.id.to_s, "#{old_suite.id}0")
-    end
-
-    context 'when Bamboo refused to stop the previous suite' do
-      before do
-        allow(BambooCi::StopPlan).to receive(:stop_execution).with(old_suite.bamboo_ci_ref).and_return(false)
-        rerun.send(:stop_and_update_previous_execution, old_suite)
-      end
-
-      it 'keeps the timeout worker of the build that is still running' do
-        rerun.send(:cleanup, new_suite, plan)
-
-        remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
-        expect(remaining).to include(old_suite.id.to_s)
-        expect(remaining).not_to include(planless_suite.id.to_s)
-      end
+    it 'removes only the timeout workers of the executions it stopped' do
+      expect(remaining_suite_ids).to contain_exactly(queued_only_suite.id.to_s, refused_suite.id.to_s,
+                                                     new_suite.id.to_s, "#{stopped_suite.id}0")
     end
   end
 end

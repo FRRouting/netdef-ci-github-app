@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_11_09_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_18_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -195,6 +195,8 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_09_120000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.bigint "ci_job_id"
+    t.integer "attempt", default: 0, null: false
+    t.index ["ci_job_id", "attempt"], name: "index_topotest_failures_on_ci_job_id_and_attempt"
     t.index ["ci_job_id"], name: "index_topotest_failures_on_ci_job_id"
   end
 

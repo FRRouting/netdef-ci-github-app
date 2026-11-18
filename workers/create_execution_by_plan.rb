@@ -12,8 +12,8 @@
 # never repeats a Bamboo side effect:
 #   1. GitHub authentication, before anything is written (an error here leaves nothing behind);
 #   2. Bamboo: stop the previous build, start the new one;
-#   3. GitHub checks (Github::Build::ChecksSetup). Errors here do not reach Delayed Job:
-#      only this part is rescheduled, through .setup_github_checks.
+#   3. GitHub checks (Github::Build::ChecksSetup). Errors here, including Bamboo not listing the new
+#      build's jobs yet, do not reach Delayed Job: only this part is rescheduled, through .setup_github_checks.
 class CreateExecutionByPlan
   # Short on purpose: until the resume creates the CI jobs, Bamboo status callbacks find no job and are dropped.
   GITHUB_SETUP_RETRY_DELAY = 10 # seconds

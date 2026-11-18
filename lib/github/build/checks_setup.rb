@@ -9,6 +9,7 @@
 #  frozen_string_literal: true
 
 require_relative 'action'
+require_relative 'open_checks'
 
 module Github
   module Build
@@ -17,6 +18,10 @@ module Github
     # It never creates a CheckSuite and never starts or stops a Bamboo build, so it is
     # safe to run again (resume: true) when an earlier attempt failed half way.
     class ChecksSetup
+      # Bamboo may not list the jobs of a build that has just started. Raising lets the GitHub setup be
+      # rescheduled (first attempt) or retried by Delayed Job (resume) instead of ending without checks.
+      class RunningPlanUnavailable < StandardError; end
+
       def initialize(check_suite, plan, previous_check_suite: nil, github_user_id: nil, resume: false)
         @check_suite = check_suite
         @plan = plan
@@ -47,17 +52,17 @@ module Github
       def cancel_previous_checks
         return if @previous_check_suite.nil?
 
-        @previous_check_suite.ci_jobs.where(status: %w[queued in_progress]).each { |job| job.cancelled(@github) }
-
         save_stopped_in_stage
 
-        @previous_check_suite.stages.where(status: %w[queued in_progress]).each { |stage| stage.cancelled(@github) }
+        Github::Build::OpenChecks.cancel(@previous_check_suite, @github)
       end
 
       def create_summary
         jobs = BambooCi::RunningPlan.fetch(@check_suite.bamboo_ci_ref)
 
-        return [422, 'Failed to fetch RunningPlan'] if jobs.nil? or jobs.empty?
+        if jobs.nil? or jobs.empty?
+          raise RunningPlanUnavailable, "Bamboo did not return the jobs of #{@check_suite.bamboo_ci_ref}"
+        end
 
         Github::Build::Action.new(@check_suite, @github, jobs, @plan.name).create_summary(resume: @resume)
 

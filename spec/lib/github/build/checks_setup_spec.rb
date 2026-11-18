@@ -81,8 +81,8 @@ describe Github::Build::ChecksSetup do
     context 'when Bamboo does not return the running plan' do
       before { allow(BambooCi::RunningPlan).to receive(:fetch).and_return([]) }
 
-      it 'returns 422' do
-        expect(setup.run).to eq([422, 'Failed to fetch RunningPlan'])
+      it 'raises, so the GitHub setup is tried again' do
+        expect { setup.run }.to raise_error(described_class::RunningPlanUnavailable)
       end
     end
 

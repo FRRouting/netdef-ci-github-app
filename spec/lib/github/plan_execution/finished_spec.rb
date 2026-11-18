@@ -432,4 +432,17 @@ describe Github::PlanExecution::Finished, 'lookup and Bamboo failures' do
       expect(finished.in_progress?({ 'finished' => false })).to be(true)
     end
   end
+
+  describe '#in_progress? when Bamboo refuses the credentials' do
+    let(:finished) { described_class.new({ 'check_suite_id' => create(:check_suite).id }) }
+
+    it 'does not take a 401 or 403 answer as a stopped build' do
+      expect(finished.in_progress?({ 'message' => 'Unauthorized', 'status-code' => 401 })).to be(true)
+      expect(finished.in_progress?({ 'message' => 'Forbidden', 'status-code' => 403 })).to be(true)
+    end
+
+    it 'still takes a deleted build as stopped' do
+      expect(finished.in_progress?({ 'message' => 'Not found', 'status-code' => 404 })).to be(false)
+    end
+  end
 end

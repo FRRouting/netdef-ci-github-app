@@ -42,6 +42,32 @@ describe Github::ReRun::Base do
     end
   end
 
+  describe '#setup_github_checks' do
+    let(:rerun) { Class.new(described_class) { const_set(:QUEUE, 'rerun_queue') }.new({}) }
+    let(:plan) { create(:plan) }
+
+    before do
+      allow(rerun).to receive(:record_full_retry)
+      allow(Github::ReRun::ChecksResume).to receive(:schedule).and_return([202, 'GitHub Checks setup rescheduled'])
+    end
+
+    it 'reschedules only the GitHub side when it fails, instead of raising' do
+      allow(rerun).to receive(:ci_jobs).and_raise(Octokit::ServerError)
+
+      expect(rerun.send(:setup_github_checks, check_suite, plan)).to eq([202, 'GitHub Checks setup rescheduled'])
+      expect(Github::ReRun::ChecksResume)
+        .to have_received(:schedule).with('rerun_queue', {}, check_suite, plan, { last: nil, stopped: nil })
+    end
+
+    it 'does not reschedule when the checks are created' do
+      allow(rerun).to receive(:ci_jobs)
+
+      rerun.send(:setup_github_checks, check_suite, plan)
+
+      expect(Github::ReRun::ChecksResume).not_to have_received(:schedule)
+    end
+  end
+
   describe '#comment_stopped_executions' do
     let(:stopped_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-10') }
     let(:other_stopped_suite) { create(:check_suite, bamboo_ci_ref: 'PLAN-11') }

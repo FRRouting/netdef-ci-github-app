@@ -28,6 +28,15 @@ describe TopotestFailure do
       expect(ci_job.topotest_failures.map(&:to_h)).to match_array(failures)
     end
 
+    it 'keeps the failures of earlier attempts of the same job' do
+      described_class.replace_for(ci_job, failures)
+      ci_job.update(retry: ci_job.retry + 1)
+      described_class.replace_for(ci_job, [failures.first])
+
+      expect(ci_job.topotest_failures.count).to eq(3)
+      expect(described_class.current_attempt_of(ci_job).map(&:to_h)).to eq([failures.first])
+    end
+
     it 'keeps the failures of other jobs' do
       described_class.replace_for(ci_job, failures)
 

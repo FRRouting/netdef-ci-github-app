@@ -22,6 +22,13 @@
 module Github
   module Build
     class Action
+      # Output of a stage that has not started yet. Also used by Build::Retry when it enqueues stages again.
+      def self.stage_output(stage)
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
+
+        { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+      end
+
       ##
       # Initializes the Action class with the given parameters.
       #
@@ -107,10 +114,7 @@ module Github
       end
 
       def timeout_worker_pending?
-        Delayed::Job
-          .where(queue: 'timeout_execution')
-          .where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{@check_suite.id}\n%")
-          .exists?
+        DelayedJobLookup.pending(queue: 'timeout_execution', method: :timeout, first_arg: @check_suite.id).exists?
       end
 
       ##
@@ -192,9 +196,7 @@ module Github
       end
 
       def stage_output(stage)
-        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
-
-        { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+        self.class.stage_output(stage)
       end
 
       ##

@@ -18,6 +18,8 @@ require_relative '../duplicate_request_guard'
 require_relative '../build/action'
 require_relative '../build/unavailable_jobs'
 require_relative '../user_info'
+require_relative '../build/checks_setup'
+require_relative '../build/open_checks'
 
 module Github
   module ReRun
@@ -41,6 +43,17 @@ module Github
 
       def fetch_plans
         @pull_request.plans.presence || Plan.where(github_repo_name: repo)
+      end
+
+      # A failed attempt frees the rerun claim, so the user can ask again right away.
+      def release_claim_on_failure
+        status = yield
+        Github::DuplicateRequestGuard.release_failed_rerun(@pull_request, fetch_plans) unless status.first == 201
+
+        status
+      rescue StandardError
+        Github::DuplicateRequestGuard.release_failed_rerun(@pull_request, fetch_plans)
+        raise
       end
 
       def fetch_run_ci_by_pr(plan)
@@ -68,7 +81,6 @@ module Github
       # A build Bamboo refused to stop keeps running, so its checks and its timeout worker are kept.
       def stop_and_update_previous_execution(check_suite)
         unless BambooCi::StopPlan.stop_execution(check_suite.bamboo_ci_ref)
-          (@still_running_ids ||= []) << check_suite.id
           return logger(Logger::ERROR, ">>> Bamboo refused to stop #{check_suite.bamboo_ci_ref}")
         end
 
@@ -102,20 +114,20 @@ module Github
       end
 
       def cancel_previous_jobs(check_suite)
-        check_suite.ci_jobs.not_skipped.each do |ci_job|
-          ci_job.cancelled(@github_check)
-        end
-
-        # An open stage would be finished later by the watchdog, which creates a new check run on the
-        # same commit and hides the checks of the new execution.
-        check_suite.stages.where(status: %w[queued in_progress]).each { |stage| stage.cancelled(@github_check) }
+        Github::Build::OpenChecks.cancel(check_suite, @github_check)
       end
 
+      # Bamboo may not list the jobs of a build that has just started: raising reschedules the GitHub side.
       def create_ci_jobs(check_suite, plan_name)
         jobs = BambooCi::RunningPlan.fetch(check_suite.bamboo_ci_ref)
 
+        if jobs.nil? or jobs.empty?
+          raise Github::Build::ChecksSetup::RunningPlanUnavailable,
+                "Bamboo did not return the jobs of #{check_suite.bamboo_ci_ref}"
+        end
+
         action = Github::Build::Action.new(check_suite, @github_check, jobs, plan_name)
-        action.create_summary(rerun: true)
+        action.create_summary(rerun: true, resume: @resume)
       end
 
       def logger(severity, message)
@@ -125,14 +137,29 @@ module Github
       end
 
       def start_new_execution(check_suite, plan)
-        cleanup(check_suite, plan)
+        cleanup(check_suite)
 
         PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'full' })
 
         bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
         bamboo_plan_run.ci_variables = ci_vars
         @plan_status = bamboo_plan_run.start_plan
+      end
 
+      # Runs once the Bamboo plan has started. A GitHub error must not reach Delayed Job: retrying the whole
+      # job would stop the build that has just started. Only this GitHub side is rescheduled.
+      def setup_github_checks(check_suite, plan)
+        record_full_retry(check_suite)
+        ci_jobs(check_suite, plan)
+      rescue StandardError => e
+        logger(Logger::ERROR, ">>> GitHub checks setup failed for CheckSuite #{check_suite.id}: " \
+                              "#{e.class}: #{e.message} - rescheduling")
+
+        Github::ReRun::ChecksResume.schedule(self.class::QUEUE, @payload, check_suite, plan,
+                                             { last: @last_check_suite, stopped: @stopped_check_suites })
+      end
+
+      def record_full_retry(check_suite)
         audit_retry =
           AuditRetry.create(check_suite: check_suite,
                             github_username: @payload.dig('sender', 'login'),
@@ -150,11 +177,12 @@ module Github
         ci_vars
       end
 
+      # On resume, the Slack notification and the Bamboo comments already ran: the failure came after them.
       def ci_jobs(check_suite, plan)
-        SlackBot.instance.execution_started_notification(check_suite)
+        SlackBot.instance.execution_started_notification(check_suite) unless @resume
 
         check_suite.update(cancelled_previous_check_suite: @last_check_suite)
-        comment_stopped_executions(check_suite)
+        comment_stopped_executions(check_suite) unless @resume
 
         create_ci_jobs(check_suite, plan.name)
 
@@ -167,16 +195,14 @@ module Github
         end
       end
 
-      # Removes pending timeout workers from previous executions of the same plan.
-      # Other plans run in parallel and keep their own timeout workers.
-      # Suites without a plan (created by older re-runs) cannot be told apart, so they are cleaned too.
-      # A build Bamboo refused to stop keeps its timeout worker, so its checks are still closed if it hangs.
-      def cleanup(check_suite, plan)
-        check_suite.pull_request.check_suites
-                   .where(plan: [plan, nil])
-                   .where.not(id: [check_suite.id, *@still_running_ids])
-                   .each do |suite|
-          Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}\n%").destroy_all
+      # Removes the timeout workers of the executions this rerun stopped. Any other suite keeps its own:
+      # a build that was not stopped (only queued jobs, or refused by Bamboo) may still be running, and
+      # TimeoutExecution does nothing for a suite that has already finished.
+      def cleanup(check_suite)
+        Array(@stopped_check_suites).each do |suite|
+          next if suite.id == check_suite.id
+
+          DelayedJobLookup.pending(method: :timeout, first_arg: suite.id).destroy_all
         end
       end
 

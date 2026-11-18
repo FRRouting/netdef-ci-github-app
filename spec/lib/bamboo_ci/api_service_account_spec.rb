@@ -53,6 +53,21 @@ describe BambooCi::Api, 'with a Bamboo service account' do
     end
   end
 
+  context 'when the request is not a REST endpoint' do
+    let(:log_url) { 'https://127.0.0.1/download/PLAN-JOB1/build_logs/PLAN-JOB1-12.log' }
+
+    before do
+      stub_request(:get, log_url)
+        .with(headers: { 'Authorization' => 'Basic dXNlcjpwYXNzd29yZA==' })
+        .to_return(status: 200, body: "line 1\nline 2")
+    end
+
+    it 'uses the ~/.netrc credentials instead of the token' do
+      expect(client.download(URI(log_url))).to eq("line 1\nline 2")
+      expect(a_request(:post, token_url)).not_to have_been_made
+    end
+  end
+
   context 'when Bamboo refuses a cached token' do
     before do
       stub_request(:post, token_url)

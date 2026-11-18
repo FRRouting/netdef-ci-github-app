@@ -169,21 +169,21 @@ describe CreateExecutionByComment do
     before do
       allow(instance).to receive(:sha256_or_comment?).and_return(check_suite)
       allow(instance).to receive(:stop_previous_execution)
-      allow(instance).to receive(:ci_jobs)
+      allow(instance).to receive(:setup_github_checks)
     end
 
     it 'does not create the CI jobs when Bamboo refuses the plan' do
       allow(instance).to receive(:start_new_execution) { instance.instance_variable_set(:@plan_status, 418) }
 
       expect(instance.send(:start_by_plan, plan)).to eq([418, 'Failed to create CI Plan'])
-      expect(instance).not_to have_received(:ci_jobs)
+      expect(instance).not_to have_received(:setup_github_checks)
     end
 
     it 'creates the CI jobs when the plan starts' do
       allow(instance).to receive(:start_new_execution) { instance.instance_variable_set(:@plan_status, 200) }
 
       expect(instance.send(:start_by_plan, plan)).to eq([201, 'Starting re-run (comment)'])
-      expect(instance).to have_received(:ci_jobs)
+      expect(instance).to have_received(:setup_github_checks)
     end
 
     it 'returns 404 when no check suite can be created' do

@@ -9,6 +9,7 @@
 #   frozen_string_literal: true
 
 class CreateExecutionByComment < Github::ReRun::Base
+  QUEUE = 'create_execution_by_comment'
   def self.create(pull_request_id, payload, plan_id)
     logger = GithubLogger.instance.create('github_app.log', Logger::INFO)
     plan = Plan.find_by(id: plan_id)
@@ -39,15 +40,8 @@ class CreateExecutionByComment < Github::ReRun::Base
 
   private
 
-  # A failed attempt frees the ci:rerun claim, so the user can ask again right away.
   def run_by_plan(plan)
-    status = start_by_plan(plan)
-    Github::DuplicateRequestGuard.release_failed_rerun(@pull_request, fetch_plans) unless status.first == 201
-
-    status
-  rescue StandardError
-    Github::DuplicateRequestGuard.release_failed_rerun(@pull_request, fetch_plans)
-    raise
+    release_claim_on_failure { start_by_plan(plan) }
   end
 
   def start_by_plan(plan)
@@ -63,7 +57,7 @@ class CreateExecutionByComment < Github::ReRun::Base
     start_new_execution(check_suite, plan)
     return [@plan_status, 'Failed to create CI Plan'] if @plan_status != 200
 
-    ci_jobs(check_suite, plan)
+    setup_github_checks(check_suite, plan)
 
     [201, 'Starting re-run (comment)']
   end

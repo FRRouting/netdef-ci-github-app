@@ -138,8 +138,10 @@ module Github
       #
       # @param [Hash] build_status The build status.
       # @return [Boolean] Returns true if the build has stopped, false otherwise.
+      # A 401/403 is Bamboo refusing the credentials (missing scope, revoked token), not a deleted build.
       def ci_stopped?(build_status)
-        build_status.key?('message') and !build_status.key?('finished')
+        build_status.key?('message') and !build_status.key?('finished') and
+          ![401, 403].include?(build_status['status-code'].to_i)
       end
 
       ##

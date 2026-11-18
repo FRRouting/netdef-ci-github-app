@@ -49,7 +49,8 @@ module Github
 
         normal_flow
       rescue StandardError
-        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        # Once Bamboo restarted the build, a duplicate must still be refused even if a later step failed.
+        Github::DuplicateRequestGuard.release_retry(@check_suite) unless @restarted
         raise
       end
 
@@ -81,6 +82,7 @@ module Github
         create_ci_jobs(@check_suite)
 
         BambooCi::Retry.restart(@check_suite.bamboo_ci_ref)
+        @restarted = true
         Github::Build::UnavailableJobs.new(@check_suite).update
 
         SlackBot.instance.execution_started_notification(@check_suite)

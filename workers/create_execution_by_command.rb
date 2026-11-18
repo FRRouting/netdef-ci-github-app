@@ -20,6 +20,8 @@ class CreateExecutionByCommand < Github::ReRun::Base
     instance.status
   end
 
+  QUEUE = 'create_execution_by_command'
+
   attr_reader :status
 
   def initialize(plan, check_suite, payload)
@@ -29,13 +31,24 @@ class CreateExecutionByCommand < Github::ReRun::Base
     @logger_manager << Logger.new($stdout)
 
     @github_check = Github::Check.new(check_suite)
+    @pull_request = check_suite.pull_request
 
+    @status = release_claim_on_failure { start_by_plan(plan, check_suite) }
+  end
+
+  private
+
+  def start_by_plan(plan, check_suite)
     stop_previous_execution(plan)
 
-    check_suite = create_check_suite(check_suite, plan)
+    new_check_suite = create_check_suite(check_suite, plan)
 
-    start_new_execution(check_suite, plan)
-    ci_jobs(check_suite, plan)
+    start_new_execution(new_check_suite, plan)
+    return [@plan_status, 'Failed to create CI Plan'] if @plan_status != 200
+
+    setup_github_checks(new_check_suite, plan)
+
+    [201, 'Starting re-run (command)']
   end
 
   def create_check_suite(check_suite, plan)
@@ -49,22 +62,5 @@ class CreateExecutionByCommand < Github::ReRun::Base
       merge_branch: check_suite.merge_branch,
       re_run: true
     )
-  end
-
-  def start_new_execution(check_suite, plan)
-    cleanup(check_suite, plan)
-
-    bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
-    bamboo_plan_run.ci_variables = ci_vars
-    bamboo_plan_run.start_plan
-
-    audit_retry =
-      AuditRetry.create(check_suite: check_suite,
-                        github_username: @payload.dig('sender', 'login'),
-                        github_id: @payload.dig('sender', 'id'),
-                        github_type: @payload.dig('sender', 'type'),
-                        retry_type: 'full')
-
-    Github::UserInfo.new(@payload.dig('sender', 'id'), check_suite: check_suite, audit_retry: audit_retry)
   end
 end

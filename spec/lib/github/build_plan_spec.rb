@@ -302,8 +302,9 @@ describe Github::BuildPlan do
         allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
       end
 
-      it 'must returns an error' do
-        expect(build_plan.create).to eq([200, 'Scheduled Plan Runs'])
+      # Jobs run inline in tests, so the rescheduled GitHub setup raises here instead of being retried later.
+      it 'leaves the GitHub setup to be retried' do
+        expect { build_plan.create }.to raise_error(Github::Build::ChecksSetup::RunningPlanUnavailable)
       end
     end
   end
