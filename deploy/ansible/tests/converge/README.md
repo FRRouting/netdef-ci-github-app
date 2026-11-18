@@ -1,3 +1,13 @@
+<!--
+  SPDX-License-Identifier: BSD-2-Clause
+
+  README.md
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-->
+
 # Convergence test (local, no real servers)
 
 `run.sh` builds a Debian trixie image with systemd and ansible-core, starts it privileged (rootless podman), starts a

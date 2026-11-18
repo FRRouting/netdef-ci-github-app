@@ -1,3 +1,13 @@
+<!--
+  SPDX-License-Identifier: BSD-2-Clause
+
+  README.md
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-->
+
 # netdef_ci role (Ruby)
 
 Installs the NetDEF CI GitHub App (Ruby/Sinatra) as a set of systemd services (Puma web, one delayed_job worker per

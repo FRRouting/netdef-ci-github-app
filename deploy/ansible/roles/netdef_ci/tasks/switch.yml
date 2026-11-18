@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  switch.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 - name: Point the current release link to the new release
   ansible.builtin.file:
     src: "{{ netdef_ci_release_dir }}"

@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  stop.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Order: timers first (no new watch-dog/pr-sync run), then the web service (no new webhooks are accepted), then the
 # job workers. A worker finishes the job it is running on SIGTERM (TimeoutStopSec=330 in its unit); jobs still pending
 # stay in delayed_jobs and run when the application is started again.

@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # --- identity / layout -------------------------------------------------------------------------------------------
 # Every name on the host derives from netdef_ci_name, so this application can live on the same server as the Python one
 # (deployed with the same variable names but the `netdef-ci` prefix) during the transition.

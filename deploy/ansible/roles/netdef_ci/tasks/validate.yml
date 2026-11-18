@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  validate.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 - name: Check the deployment settings (no secret values are printed)
   ansible.builtin.assert:
     that: "{{ item.test }}"

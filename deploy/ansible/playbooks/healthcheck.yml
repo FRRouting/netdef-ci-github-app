@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  healthcheck.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Post-deploy / operations check: /ping and systemd state of every unit.
 #   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/healthcheck.yml --ask-vault-pass
 - name: Check NetDEF CI GitHub App (Ruby)

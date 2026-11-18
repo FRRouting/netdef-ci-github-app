@@ -1,3 +1,11 @@
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  .gitignore
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 inventories/*/group_vars/all/vault.yml
 .vault_pass
 .ansible/

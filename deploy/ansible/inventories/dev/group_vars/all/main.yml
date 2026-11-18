@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Non-secret settings of the DEVELOPMENT environment. Secrets live in vault.yml (see vault.yml.example).
 netdef_ci_env: development
 netdef_ci_version: master                    # branch, tag or commit; override with -e netdef_ci_version=<ref>

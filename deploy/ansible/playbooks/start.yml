@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  start.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Start the application again after stop.yml: enables and starts the web and job worker services and the timers that
 # are enabled in netdef_ci_timers, then runs the health check.
 #   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/start.yml --ask-vault-pass

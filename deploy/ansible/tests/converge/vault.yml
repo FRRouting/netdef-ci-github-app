@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  vault.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # FICTITIOUS values used only by the local convergence test (never use in a real environment).
 vault_netdef_ci_database_url: "postgresql+psycopg://postgres:postgres@127.0.0.1:55432/converge"
 vault_netdef_ci_webhook_secret: "converge-webhook-secret"

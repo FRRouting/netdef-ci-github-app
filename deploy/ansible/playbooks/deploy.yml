@@ -1,4 +1,12 @@
 ---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  deploy.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
 # Install or update the application.
 #   ansible-playbook -i inventories/dev/hosts.yml playbooks/deploy.yml --ask-vault-pass
 #   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/deploy.yml --ask-vault-pass -e netdef_ci_version=v1.0.0
