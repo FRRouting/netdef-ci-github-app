@@ -42,12 +42,21 @@ class CreateExecutionByComment < Github::ReRun::Base
   # A failed attempt frees the ci:rerun claim, so the user can ask again right away.
   def run_by_plan(plan)
     status = start_by_plan(plan)
-    Github::DuplicateRequestGuard.release_rerun(@pull_request) unless status.first == 201
+    release_rerun_claim unless status.first == 201
 
     status
   rescue StandardError
-    Github::DuplicateRequestGuard.release_rerun(@pull_request)
+    release_rerun_claim
     raise
+  end
+
+  # The claim covers the whole pull request, but each plan runs in its own worker. With several plans,
+  # a failed one must not unlock the duplicate protection of a plan that has just started, so the claim
+  # is left to expire on its own.
+  def release_rerun_claim
+    return if fetch_plans.size > 1
+
+    Github::DuplicateRequestGuard.release_rerun(@pull_request)
   end
 
   def start_by_plan(plan)

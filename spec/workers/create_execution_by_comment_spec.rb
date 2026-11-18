@@ -102,12 +102,14 @@ describe CreateExecutionByComment do
     let(:instance) do
       described_class.allocate.tap do |obj|
         obj.instance_variable_set(:@pull_request, pull_request)
+        obj.instance_variable_set(:@payload, { 'repository' => { 'full_name' => pull_request.repository } })
         obj.instance_variable_set(:@logger_manager, [])
       end
     end
 
     before do
       allow_any_instance_of(described_class).to receive(:run_by_plan).and_call_original
+      allow(pull_request).to receive(:plans).and_return(Plan.where(id: plan.id))
       Github::DuplicateRequestGuard.claim_rerun?(pull_request)
     end
 
@@ -131,6 +133,27 @@ describe CreateExecutionByComment do
 
       expect { instance.send(:run_by_plan, plan) }.to raise_error(RuntimeError, 'Bamboo down')
       expect(pull_request.reload.rerun_requested_at).to be_nil
+    end
+
+    context 'when the rerun covers several plans' do
+      let(:other_plan) { create(:plan) }
+
+      before { allow(pull_request).to receive(:plans).and_return(Plan.where(id: [plan.id, other_plan.id])) }
+
+      it 'keeps the rerun claim when one execution does not start' do
+        allow(instance).to receive(:start_by_plan).and_return([400, 'Failed to create CI Plan'])
+
+        instance.send(:run_by_plan, plan)
+
+        expect(pull_request.reload.rerun_requested_at).not_to be_nil
+      end
+
+      it 'keeps the rerun claim and re-raises on an exception' do
+        allow(instance).to receive(:start_by_plan).and_raise(RuntimeError, 'Bamboo down')
+
+        expect { instance.send(:run_by_plan, plan) }.to raise_error(RuntimeError, 'Bamboo down')
+        expect(pull_request.reload.rerun_requested_at).not_to be_nil
+      end
     end
   end
 

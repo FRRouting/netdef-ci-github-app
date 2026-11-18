@@ -33,7 +33,8 @@ module BambooCi
 
     # A service account token only authenticates REST endpoints, so stopPlan.action is not an option.
     # The queue DELETE of the execution only stops it while it waits in the queue, so it is also sent to each job.
-    # Returns the first refused job DELETE, so a build Bamboo keeps running is not reported as stopped.
+    # Returns the first refused job DELETE (or the execution response when every job was stopped), so callers
+    # can tell that Bamboo kept the build running. The callers do not act on it yet.
     def self.stop_by_rest(bamboo_ci_ref)
       return nil if bamboo_ci_ref.nil?
 

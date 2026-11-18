@@ -150,6 +150,13 @@ describe Github::ReRun::Comment do
 
         expect(fake_github_check).to have_received(:comment_reaction_thumb_up).once
       end
+
+      it 'schedules the plan runs even when GitHub refuses the reaction' do
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up).and_raise(Octokit::Forbidden)
+
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
+        expect(check_suites.size).to eq(2)
+      end
     end
 
     context 'when receives a valid command but can save' do

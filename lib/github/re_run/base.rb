@@ -39,6 +39,10 @@ module Github
         [202, 'Rerun already scheduled']
       end
 
+      def fetch_plans
+        @pull_request.plans.presence || Plan.where(github_repo_name: repo)
+      end
+
       def fetch_run_ci_by_pr(plan)
         CheckSuite
           .joins(pull_request: :plans)
