@@ -248,4 +248,35 @@ describe Github::Build::Action do
       expect(Stage.find_by(check_suite: check_suite, configuration: config)).not_to be_nil
     end
   end
+
+  context 'when the summary is created again for the same check suite' do
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+    let(:delayed) { double('delayed TimeoutExecution', timeout: true) }
+
+    def timeout_job(suite_id)
+      Delayed::Job.create!(
+        queue: 'timeout_execution',
+        handler: "--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/class 'TimeoutExecution'\n" \
+                 "method_name: :timeout\nargs:\n- #{suite_id}\n"
+      )
+    end
+
+    before { allow(TimeoutExecution).to receive(:delay).and_return(delayed) }
+
+    it 'does not queue a second timeout worker' do
+      timeout_job(check_suite.id)
+
+      action.create_summary(resume: true)
+
+      expect(delayed).not_to have_received(:timeout)
+    end
+
+    it 'queues one when only another check suite has a timeout worker' do
+      timeout_job("#{check_suite.id}0")
+
+      action.create_summary(resume: true)
+
+      expect(delayed).to have_received(:timeout).with(check_suite.id)
+    end
+  end
 end

@@ -143,6 +143,20 @@ describe Github::ReRun::Comment do
         expect(described_class.new(payload).start).to eq([202, 'Rerun already scheduled'])
         expect(check_suites.size).to eq(2)
       end
+
+      it 'reacts only to the request that was scheduled' do
+        rerun.start
+        described_class.new(payload).start
+
+        expect(fake_github_check).to have_received(:comment_reaction_thumb_up).once
+      end
+
+      it 'schedules the plan runs even when GitHub refuses the reaction' do
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up).and_raise(Octokit::Forbidden)
+
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
+        expect(check_suites.size).to eq(2)
+      end
     end
 
     context 'when receives a valid command but can save' do
@@ -680,6 +694,7 @@ describe Github::ReRun::Comment do
     let(:pull_request) { create(:pull_request) }
     let(:old_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
     let(:other_plan_suite) { create(:check_suite, pull_request: pull_request, plan: other_plan) }
+    let(:planless_suite) { create(:check_suite, pull_request: pull_request, plan: nil) }
     let(:new_suite) { create(:check_suite, pull_request: pull_request, plan: plan) }
     let(:rerun) { described_class.new({}) }
 
@@ -694,15 +709,31 @@ describe Github::ReRun::Comment do
     before do
       timeout_job(old_suite.id)
       timeout_job(other_plan_suite.id)
+      timeout_job(planless_suite.id)
       timeout_job(new_suite.id)
       timeout_job("#{old_suite.id}0")
     end
 
-    it 'removes only the timeout workers of previous suites of the same plan' do
+    it 'removes only the timeout workers of previous suites of the same plan or without a plan' do
       rerun.send(:cleanup, new_suite, plan)
 
       remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
       expect(remaining).to contain_exactly(other_plan_suite.id.to_s, new_suite.id.to_s, "#{old_suite.id}0")
+    end
+
+    context 'when Bamboo refused to stop the previous suite' do
+      before do
+        allow(BambooCi::StopPlan).to receive(:stop_execution).with(old_suite.bamboo_ci_ref).and_return(false)
+        rerun.send(:stop_and_update_previous_execution, old_suite)
+      end
+
+      it 'keeps the timeout worker of the build that is still running' do
+        rerun.send(:cleanup, new_suite, plan)
+
+        remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
+        expect(remaining).to include(old_suite.id.to_s)
+        expect(remaining).not_to include(planless_suite.id.to_s)
+      end
     end
   end
 end

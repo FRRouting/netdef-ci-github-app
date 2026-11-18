@@ -97,4 +97,99 @@ describe CreateExecutionByComment do
       expect(instance.send(:action?)).to be false
     end
   end
+
+  describe '#run_by_plan' do
+    let(:instance) do
+      described_class.allocate.tap do |obj|
+        obj.instance_variable_set(:@pull_request, pull_request)
+        obj.instance_variable_set(:@payload, { 'repository' => { 'full_name' => pull_request.repository } })
+        obj.instance_variable_set(:@logger_manager, [])
+      end
+    end
+
+    before do
+      allow_any_instance_of(described_class).to receive(:run_by_plan).and_call_original
+      allow(pull_request).to receive(:plans).and_return(Plan.where(id: plan.id))
+      Github::DuplicateRequestGuard.claim_rerun?(pull_request)
+    end
+
+    it 'keeps the rerun claim when the execution starts' do
+      allow(instance).to receive(:start_by_plan).and_return([201, 'Starting re-run (comment)'])
+
+      instance.send(:run_by_plan, plan)
+
+      expect(pull_request.reload.rerun_requested_at).not_to be_nil
+    end
+
+    it 'releases the rerun claim when the execution does not start' do
+      allow(instance).to receive(:start_by_plan).and_return([400, 'Failed to create CI Plan'])
+
+      expect(instance.send(:run_by_plan, plan)).to eq([400, 'Failed to create CI Plan'])
+      expect(pull_request.reload.rerun_requested_at).to be_nil
+    end
+
+    it 'releases the rerun claim and re-raises on an exception' do
+      allow(instance).to receive(:start_by_plan).and_raise(RuntimeError, 'Bamboo down')
+
+      expect { instance.send(:run_by_plan, plan) }.to raise_error(RuntimeError, 'Bamboo down')
+      expect(pull_request.reload.rerun_requested_at).to be_nil
+    end
+
+    context 'when the rerun covers several plans' do
+      let(:other_plan) { create(:plan) }
+
+      before { allow(pull_request).to receive(:plans).and_return(Plan.where(id: [plan.id, other_plan.id])) }
+
+      it 'keeps the rerun claim when one execution does not start' do
+        allow(instance).to receive(:start_by_plan).and_return([400, 'Failed to create CI Plan'])
+
+        instance.send(:run_by_plan, plan)
+
+        expect(pull_request.reload.rerun_requested_at).not_to be_nil
+      end
+
+      it 'keeps the rerun claim and re-raises on an exception' do
+        allow(instance).to receive(:start_by_plan).and_raise(RuntimeError, 'Bamboo down')
+
+        expect { instance.send(:run_by_plan, plan) }.to raise_error(RuntimeError, 'Bamboo down')
+        expect(pull_request.reload.rerun_requested_at).not_to be_nil
+      end
+    end
+  end
+
+  describe '#start_by_plan' do
+    let(:check_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:instance) do
+      described_class.allocate.tap do |obj|
+        obj.instance_variable_set(:@pull_request, pull_request)
+        obj.instance_variable_set(:@logger_manager, [])
+      end
+    end
+
+    before do
+      allow(instance).to receive(:sha256_or_comment?).and_return(check_suite)
+      allow(instance).to receive(:stop_previous_execution)
+      allow(instance).to receive(:ci_jobs)
+    end
+
+    it 'does not create the CI jobs when Bamboo refuses the plan' do
+      allow(instance).to receive(:start_new_execution) { instance.instance_variable_set(:@plan_status, 418) }
+
+      expect(instance.send(:start_by_plan, plan)).to eq([418, 'Failed to create CI Plan'])
+      expect(instance).not_to have_received(:ci_jobs)
+    end
+
+    it 'creates the CI jobs when the plan starts' do
+      allow(instance).to receive(:start_new_execution) { instance.instance_variable_set(:@plan_status, 200) }
+
+      expect(instance.send(:start_by_plan, plan)).to eq([201, 'Starting re-run (comment)'])
+      expect(instance).to have_received(:ci_jobs)
+    end
+
+    it 'returns 404 when no check suite can be created' do
+      allow(instance).to receive(:sha256_or_comment?).and_return(nil)
+
+      expect(instance.send(:start_by_plan, plan)).to eq([404, 'Failed to create a check suite'])
+    end
+  end
 end

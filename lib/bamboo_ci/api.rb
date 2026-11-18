@@ -70,18 +70,49 @@ module BambooCi
 
     # With a service account every Bamboo request goes with its Bearer token instead of the ~/.netrc credentials.
     # A cached token Bamboo refuses with 401 (revoked, Bamboo restarted) is replaced and the request sent once more.
-    # When no token can be obtained the request goes without credentials, so callers see Bamboo's 401.
+    # When no token can be obtained (token endpoint down, wrong scope) the request falls back to the ~/.netrc
+    # credentials when there are any; otherwise it goes without credentials, so callers see Bamboo's 401.
     def send_request(uri, req, machine)
       account = BambooCi::ServiceAccount.instance
       return super unless account.configured?
 
-      token, fresh = account.token_for(uri)
-      resp = bearer_request(uri, req, token)
-      token, resp = retry_with_new_token(uri, req, account, token, resp) if resp.code.to_i == 401 && !fresh
+      token, resp = service_account_request(uri, req, account)
+      return request_without_token(uri, req, machine, resp) if token.nil?
 
-      log_token_refusal(req, resp, account) if [401, 403].include?(resp.code.to_i) && !token.nil?
+      log_token_refusal(req, resp, account) if [401, 403].include?(resp.code.to_i)
 
       resp
+    end
+
+    # Returns [token, response]. The token is nil when none could be obtained; the response is then nil
+    # too, unless it is Bamboo's refusal of the cached token.
+    def service_account_request(uri, req, account)
+      token, fresh = account.token_for(uri)
+      return [nil, nil] if token.nil?
+
+      resp = bearer_request(uri, req, token)
+      return [token, resp] unless resp.code.to_i == 401 && !fresh
+
+      retry_with_new_token(uri, req, account, token, resp)
+    end
+
+    def request_without_token(uri, req, machine, resp)
+      return netrc_fallback(uri, req, machine) if netrc_credentials?(machine)
+
+      resp || bearer_request(uri, req, nil)
+    end
+
+    def netrc_fallback(uri, req, machine)
+      logger(Logger::WARN, "No Bamboo service account token for #{req.method} #{req.path}: using ~/.netrc credentials")
+
+      netrc_request(uri, req, machine)
+    end
+
+    # An unreadable ~/.netrc (missing, insecure permissions) counts as no credentials.
+    def netrc_credentials?(machine)
+      !fetch_user_pass(machine).nil?
+    rescue StandardError
+      false
     end
 
     # Only called for a cached token, which is never nil.

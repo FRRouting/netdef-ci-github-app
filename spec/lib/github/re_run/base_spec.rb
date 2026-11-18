@@ -79,6 +79,19 @@ describe Github::ReRun::Base do
       end
     end
 
+    context 'when Bamboo refuses to stop a previous execution' do
+      before do
+        allow(BambooCi::StopPlan).to receive(:stop_execution).with(stopped_suite.bamboo_ci_ref).and_return(false)
+        rerun.send(:stop_and_update_previous_execution, stopped_suite)
+        rerun.send(:comment_stopped_executions, new_suite)
+      end
+
+      it 'neither cancels its checks nor comments that it was cancelled' do
+        expect(rerun).not_to have_received(:cancel_previous_jobs)
+        expect(BambooCi::StopPlan).not_to have_received(:comment)
+      end
+    end
+
     context 'when nothing was stopped' do
       before { rerun.send(:comment_stopped_executions, new_suite) }
 

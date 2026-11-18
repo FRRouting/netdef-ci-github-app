@@ -94,13 +94,23 @@ module Github
       end
 
       ##
-      # Creates a timeout worker for the CheckSuite.
+      # Creates a timeout worker for the CheckSuite, unless one is already pending:
+      # a resumed setup runs create_summary again and must not start a second timeout chain.
       def create_timeout_worker
+        return if timeout_worker_pending?
+
         logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
 
         TimeoutExecution
           .delay(run_at: 30.minute.from_now.utc, queue: 'timeout_execution')
           .timeout(@check_suite.id)
+      end
+
+      def timeout_worker_pending?
+        Delayed::Job
+          .where(queue: 'timeout_execution')
+          .where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{@check_suite.id}\n%")
+          .exists?
       end
 
       ##

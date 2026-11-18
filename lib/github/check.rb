@@ -26,7 +26,11 @@ module Github
   # @attr_reader [Object] app the authenticated GitHub app client.
   # @attr_reader [Object] check_suite the check suite associated with the pull request.
   class Check
-    UPDATE_NOT_FOUND_RETRIES = 3
+    # Kept short: these updates also run inside webhook requests, where every sleep holds a Puma thread.
+    UPDATE_NOT_FOUND_RETRIES = 2
+    UPDATE_NOT_FOUND_DELAY = 0.5 # seconds, multiplied by the attempt number
+    COMPLETED_RETRIES = 3
+    COMPLETED_RETRY_DELAY = 1 # seconds, multiplied by the attempt number
 
     attr_reader :app, :check_suite
 
@@ -239,7 +243,7 @@ module Github
         raise if retry_count > UPDATE_NOT_FOUND_RETRIES
 
         @logger.warn("basic_status: #{check_ref} not found at GitHub - retry #{retry_count}")
-        sleep retry_count * 2
+        sleep retry_count * UPDATE_NOT_FOUND_DELAY
         retry
       end
     end
@@ -271,9 +275,10 @@ module Github
       rescue Octokit::NotFound, RuntimeError
         retry_count += 1
 
-        sleep retry_count * 5
-
-        retry if retry_count <= 3
+        if retry_count <= COMPLETED_RETRIES
+          sleep retry_count * COMPLETED_RETRY_DELAY
+          retry
+        end
 
         @logger.error "#{check_ref} not found at GitHub"
 

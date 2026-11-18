@@ -35,6 +35,14 @@ describe CreateExecutionByCommand do
   end
 
   describe '.create' do
+    it 'creates the new check suite with the plan, so a later cleanup can find it' do
+      allow(Github::Check).to receive(:new).and_return(double('Github::Check', signature: 'secret'))
+
+      described_class.create(plan.id, check_suite.id, payload)
+
+      expect(CheckSuite.where.not(id: check_suite.id).last.plan).to eq(plan)
+    end
+
     it 'returns [404, "Failed to fetch a check suite"] if check_suite is nil' do
       allow(CheckSuite).to receive(:find).with(999).and_return(nil)
       expect(described_class.create(plan.id, 999, payload)).to eq([404, 'Failed to fetch a check suite'])

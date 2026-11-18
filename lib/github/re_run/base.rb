@@ -39,6 +39,10 @@ module Github
         [202, 'Rerun already scheduled']
       end
 
+      def fetch_plans
+        @pull_request.plans.presence || Plan.where(github_repo_name: repo)
+      end
+
       def fetch_run_ci_by_pr(plan)
         CheckSuite
           .joins(pull_request: :plans)
@@ -61,7 +65,17 @@ module Github
         end
       end
 
+      # A build Bamboo refused to stop keeps running, so its checks and its timeout worker are kept.
       def stop_and_update_previous_execution(check_suite)
+        unless BambooCi::StopPlan.stop_execution(check_suite.bamboo_ci_ref)
+          (@still_running_ids ||= []) << check_suite.id
+          return logger(Logger::ERROR, ">>> Bamboo refused to stop #{check_suite.bamboo_ci_ref}")
+        end
+
+        record_stopped_execution(check_suite)
+      end
+
+      def record_stopped_execution(check_suite)
         if @last_check_suite.nil?
           check_suite.update(stopped_in_stage: check_suite.stages.where(status: :in_progress).last)
         else
@@ -73,8 +87,6 @@ module Github
 
         @last_check_suite = check_suite
         (@stopped_check_suites ||= []) << check_suite
-
-        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
       end
 
       # Leaves on each stopped Bamboo result a link to the execution that replaced it. Runs after the new
@@ -119,7 +131,7 @@ module Github
 
         bamboo_plan_run = BambooCi::PlanRun.new(check_suite, plan, logger_level: @logger_level)
         bamboo_plan_run.ci_variables = ci_vars
-        bamboo_plan_run.start_plan
+        @plan_status = bamboo_plan_run.start_plan
 
         audit_retry =
           AuditRetry.create(check_suite: check_suite,
@@ -157,8 +169,13 @@ module Github
 
       # Removes pending timeout workers from previous executions of the same plan.
       # Other plans run in parallel and keep their own timeout workers.
+      # Suites without a plan (created by older re-runs) cannot be told apart, so they are cleaned too.
+      # A build Bamboo refused to stop keeps its timeout worker, so its checks are still closed if it hangs.
       def cleanup(check_suite, plan)
-        check_suite.pull_request.check_suites.where(plan: plan).where.not(id: check_suite.id).each do |suite|
+        check_suite.pull_request.check_suites
+                   .where(plan: [plan, nil])
+                   .where.not(id: [check_suite.id, *@still_running_ids])
+                   .each do |suite|
           Delayed::Job.where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{suite.id}\n%").destroy_all
         end
       end

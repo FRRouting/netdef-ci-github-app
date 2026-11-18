@@ -123,17 +123,22 @@ class CreateExecutionByPlan
     @logger.info 'Stopping previous execution'
     @logger.info @last_check_suite.inspect
 
-    BambooCi::StopPlan.build(@last_check_suite.bamboo_ci_ref)
+    # A build Bamboo refused to stop keeps running, so its checks are not reported as cancelled.
+    unless BambooCi::StopPlan.stop_execution(@last_check_suite.bamboo_ci_ref)
+      return @app_logger.error("CreateExecutionByPlan: Bamboo refused to stop #{@last_check_suite.bamboo_ci_ref}")
+    end
 
     @previous_check_suite = @last_check_suite
   end
 
   # An execution whose Bamboo build started but whose GitHub setup never created stages or jobs
-  # is still running in Bamboo, even though it has nothing open in the database.
+  # has nothing open in the database, so Bamboo is asked whether that build is still going.
   def previous_execution_running?
     return false if @last_check_suite.nil?
+    return true if @last_check_suite.running?
+    return false unless @last_check_suite.stages.empty? and @last_check_suite.ci_jobs.empty?
 
-    @last_check_suite.running? or (@last_check_suite.stages.empty? and @last_check_suite.ci_jobs.empty?)
+    BambooCi::Result.active?(@last_check_suite.bamboo_ci_ref)
   end
 
   # Check suites without a Bamboo reference never started a build, so they cannot be the previous execution.

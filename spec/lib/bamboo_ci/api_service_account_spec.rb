@@ -77,11 +77,20 @@ describe BambooCi::Api, 'with a Bamboo service account' do
         .to_return({ status: 200, body: { access_token: 'tok-1' }.to_json }, { status: 401, body: '' })
       account.token_for(URI(url))
 
-      stub_request(:delete, url).to_return(status: 401)
+      stub_request(:delete, url).with(headers: { 'Authorization' => 'Bearer tok-1' }).to_return(status: 401)
+      stub_request(:delete, url).with(basic_auth: %w[user password]).to_return(status: 204)
     end
 
-    it 'returns the refusal' do
-      expect(client.delete_request(URI(url)).code.to_i).to eq(401)
+    it 'sends the request once more with the netrc credentials' do
+      expect(client.delete_request(URI(url)).code.to_i).to eq(204)
+    end
+
+    context 'without netrc credentials' do
+      before { allow(Netrc).to receive(:read).and_return({}) }
+
+      it 'returns the refusal' do
+        expect(client.delete_request(URI(url)).code.to_i).to eq(401)
+      end
     end
   end
 
@@ -105,10 +114,30 @@ describe BambooCi::Api, 'with a Bamboo service account' do
       stub_request(:delete, url).to_return(status: 401)
     end
 
-    it 'sends the request without credentials' do
-      client.delete_request(URI(url))
+    it 'falls back to the netrc credentials' do
+      stub_request(:delete, url).with(basic_auth: %w[user password]).to_return(status: 204)
 
-      expect(a_request(:delete, url).with { |req| !req.headers.key?('Authorization') }).to have_been_made.once
+      expect(client.delete_request(URI(url)).code.to_i).to eq(204)
+    end
+
+    context 'without netrc credentials' do
+      before { allow(Netrc).to receive(:read).and_return({}) }
+
+      it 'sends the request without credentials' do
+        client.delete_request(URI(url))
+
+        expect(a_request(:delete, url).with { |req| !req.headers.key?('Authorization') }).to have_been_made.once
+      end
+    end
+
+    context 'when the netrc file cannot be read' do
+      before { allow(Netrc).to receive(:read).and_raise(Netrc::Error, 'Permission bits for ~/.netrc should be 0600') }
+
+      it 'sends the request without credentials' do
+        client.delete_request(URI(url))
+
+        expect(a_request(:delete, url).with { |req| !req.headers.key?('Authorization') }).to have_been_made.once
+      end
     end
   end
 end
