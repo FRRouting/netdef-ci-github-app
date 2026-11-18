@@ -720,5 +720,20 @@ describe Github::ReRun::Comment do
       remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
       expect(remaining).to contain_exactly(other_plan_suite.id.to_s, new_suite.id.to_s, "#{old_suite.id}0")
     end
+
+    context 'when Bamboo refused to stop the previous suite' do
+      before do
+        allow(BambooCi::StopPlan).to receive(:stop_execution).with(old_suite.bamboo_ci_ref).and_return(false)
+        rerun.send(:stop_and_update_previous_execution, old_suite)
+      end
+
+      it 'keeps the timeout worker of the build that is still running' do
+        rerun.send(:cleanup, new_suite, plan)
+
+        remaining = Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
+        expect(remaining).to include(old_suite.id.to_s)
+        expect(remaining).not_to include(planless_suite.id.to_s)
+      end
+    end
   end
 end
