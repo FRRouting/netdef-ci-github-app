@@ -22,6 +22,13 @@
 module Github
   module Build
     class Action
+      # Output of a stage that has not started yet. Also used by Build::Retry when it enqueues stages again.
+      def self.stage_output(stage)
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
+
+        { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+      end
+
       ##
       # Initializes the Action class with the given parameters.
       #
@@ -107,10 +114,7 @@ module Github
       end
 
       def timeout_worker_pending?
-        Delayed::Job
-          .where(queue: 'timeout_execution')
-          .where('handler LIKE ?', "%method_name: :timeout\nargs:\n- #{@check_suite.id}\n%")
-          .exists?
+        DelayedJobLookup.pending(queue: 'timeout_execution', method: :timeout, first_arg: @check_suite.id).exists?
       end
 
       ##
@@ -192,9 +196,7 @@ module Github
       end
 
       def stage_output(stage)
-        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
-
-        { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+        self.class.stage_output(stage)
       end
 
       ##
@@ -212,11 +214,18 @@ module Github
         output
       end
 
+      # Counts the repository's plans, not the pull request's: plans move to whichever pull request was
+      # built last, and the name of a stage must not change between executions of the same pull request.
       def stage_name(stage_config)
-        return stage_config.github_check_run_name if @check_suite.pull_request.plans.count == 1 or @name.blank?
+        return stage_config.github_check_run_name if @name.blank?
         return stage_config.github_check_run_name unless GitHubApp::Configuration.instance.multi_plan?
+        return stage_config.github_check_run_name if repository_plans_count == 1
 
         "#{stage_config.github_check_run_name} - #{@name}"
+      end
+
+      def repository_plans_count
+        @repository_plans_count ||= Plan.where(github_repo_name: @check_suite.pull_request.repository).count
       end
 
       ##

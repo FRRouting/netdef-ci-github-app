@@ -17,6 +17,30 @@ module Github
       # still queued/in_progress here lost its status update (e.g. the Checkout Code hook never fired).
       # Its result is read from Bamboo instead of leaving the stage stuck.
       class PendingJobs
+        QUEUE = 'sync_pending_jobs'
+
+        # Summary runs inside webhooks, so the Bamboo reads happen in a Delayed Job, once per stage at a time.
+        def self.schedule(stage, agent)
+          return if DelayedJobLookup.pending(method: :sync, first_arg: stage.id, queue: QUEUE).exists?
+
+          SyncPendingJobs.delay(queue: QUEUE).sync(stage.id, agent)
+        end
+
+        # Once Bamboo's results close the stage, its summary is built again like for any finished job.
+        # Guarded by the stage status, not its jobs: a retry after a GitHub error must still finish the
+        # summary of a stage whose jobs were already saved as finished.
+        def self.sync_stage(stage_id, agent)
+          stage = Stage.find_by(id: stage_id)
+          return if stage.nil? or !(stage.queued? or stage.in_progress?)
+
+          new(Github::Check.new(stage.check_suite), agent).sync(stage)
+          last_job = stage.reload.jobs.last
+
+          return if stage.running? or last_job.nil?
+
+          Github::Build::Summary.new(last_job, agent: agent).build_summary
+        end
+
         def initialize(github, agent)
           @github = github
           @agent = agent
@@ -47,7 +71,7 @@ module Github
 
           CiJobFetchTopotestFailures
             .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
-            .update(job.id, 1)
+            .update(job.id, 1, job.retry.to_i)
         end
       end
     end

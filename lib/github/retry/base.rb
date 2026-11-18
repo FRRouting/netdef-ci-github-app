@@ -49,7 +49,8 @@ module Github
 
         normal_flow
       rescue StandardError
-        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        # Once Bamboo restarted the build, a duplicate must still be refused even if a later step failed.
+        Github::DuplicateRequestGuard.release_retry(@check_suite) unless @restarted
         raise
       end
 
@@ -78,9 +79,10 @@ module Github
 
         PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'partial' })
 
-        create_ci_jobs(@check_suite)
+        build_retry = create_ci_jobs(@check_suite)
+        return restart_failed(build_retry) unless restart_bamboo
 
-        BambooCi::Retry.restart(@check_suite.bamboo_ci_ref)
+        @restarted = true
         Github::Build::UnavailableJobs.new(@check_suite).update
 
         SlackBot.instance.execution_started_notification(@check_suite)
@@ -107,7 +109,31 @@ module Github
         build_retry.enqueued_stages
         build_retry.enqueued_failure_tests
 
-        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+        # Runs inside the webhook: the stop (one request per job) is only sent to a build Bamboo still runs.
+        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref) if BambooCi::Result.active?(check_suite.bamboo_ci_ref)
+
+        build_retry
+      end
+
+      def restart_bamboo
+        BambooCi::Retry.restart!(@check_suite.bamboo_ci_ref)
+
+        true
+      rescue BambooCi::Retry::RestartFailed => e
+        logger(Logger::ERROR, ">>> #{e.message}")
+
+        false
+      end
+
+      # Nothing was restarted: the retried checks go back to failure and the claim is freed,
+      # so the user can ask for the retry again.
+      def restart_failed(build_retry)
+        @check_suite.update(retry: [@check_suite.retry - 1, 0].max)
+        build_retry.revert('Bamboo did not restart the build. Please retry again.')
+        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        github_reaction_feedback_down(@comment_id)
+
+        [502, 'Bamboo did not restart the build']
       end
 
       def enqueued

@@ -40,7 +40,7 @@ deploy/ansible/
 | Configuration | `/etc/netdef-ci-ruby/config.yml` (webhook secret, GitHub Apps, metrics credentials, `ci.url`, port), `/etc/netdef-ci-ruby/database.yml`, `~/.netrc` (0600: Bamboo as `ci1.netdef.org`, Slack as `slack_bot.netdef.org`); the Bamboo 12 service account (`vault_netdef_ci_bamboo_client_id/client_secret`) goes to the env file as `BAMBOO_CLIENT_ID`/`BAMBOO_CLIENT_SECRET`/`BAMBOO_OAUTH_SCOPE` and replaces the netrc credentials      |
 | Release links | the code reads/writes some paths relative to its directory; each release gets symlinks: `config.yml`, `config/database.yml`, `logs/`, `tmp/`, `puma.pid`, `.session.key`, `telemetry.json`, `watch_dog.log`                  |
 | Ruby/gems     | `/opt/ruby/3.3.13` (idempotent), the Bundler version of `Gemfile.lock` (`BUNDLED WITH`), `bundle install` into `<release>/vendor/bundle`                                                                                     |
-| Processes     | `netdef-ci-ruby-web.service` (Puma, `WEB_CONCURRENCY` workers), `netdef-ci-ruby-worker-{q0-1,q2-3,q4-5,q6-7,q8-9,create-by-plan,create-by-comment,create-by-command,timeout,topotest}.service`, `netdef-ci-ruby.target`, timers `netdef-ci-ruby-watchdog` and `netdef-ci-ruby-pr-sync` |
+| Processes     | `netdef-ci-ruby-web.service` (Puma, `WEB_CONCURRENCY` workers), `netdef-ci-ruby-worker-{q0-1,q2-3,q4-5,q6-7,q8-9,create-by-plan,create-by-comment,create-by-command,timeout,topotest,pending-jobs}.service`, `netdef-ci-ruby.target`, timers `netdef-ci-ruby-watchdog` and `netdef-ci-ruby-pr-sync` |
 | Hardening     | `NoNewPrivileges`, `ProtectSystem=strict` (writable: log and state directories), `ProtectHome`, `PrivateTmp/Devices`, empty `CapabilityBoundingSet=`, `RestrictAddressFamilies`, `UMask=0027`…                             |
 | Migrations    | `bundle exec rake db:migrate` with the **new** release, before switching `current` (`netdef_ci_run_migrations: false` to skip)                                                                                              |
 | Restart       | the `Restart netdef-ci` handler only fires when config, a unit or the `current` link changes                                                                                                                                 |
@@ -48,7 +48,7 @@ deploy/ansible/
 
 Every queue used by the code must be in some worker of `netdef_ci_job_workers`, or its jobs never run. The queues are
 `0`–`9` (status updates, `github_pr_id % 10`), `create_execution_by_plan`, `create_execution_by_comment`,
-`create_execution_by_command`, `timeout_execution` and `fetch_topotest_failures`.
+`create_execution_by_command`, `timeout_execution`, `fetch_topotest_failures` and `sync_pending_jobs`.
 
 ## Prerequisites
 

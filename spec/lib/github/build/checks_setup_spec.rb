@@ -68,6 +68,15 @@ describe Github::Build::ChecksSetup do
       expect(SlackBot.instance).to have_received(:execution_started_notification).with(check_suite)
     end
 
+    context 'when recording the user fails' do
+      before { allow(Github::UserInfo).to receive(:new).and_raise(NoMethodError, 'rate limited') }
+
+      it 'still creates the summary' do
+        expect(setup.run).to eq([200, 'Pull Request created'])
+        expect(fake_action).to have_received(:create_summary)
+      end
+    end
+
     context 'when the Slack notification fails' do
       before do
         allow(SlackBot.instance).to receive(:execution_started_notification).and_raise(StandardError, 'slack down')
@@ -78,11 +87,21 @@ describe Github::Build::ChecksSetup do
       end
     end
 
+    context 'when cancelling the previous checks fails' do
+      before { allow(Github::Build::OpenChecks).to receive(:cancel).and_raise(Octokit::ServerError) }
+
+      it 'has already sent the execution started notification' do
+        expect { setup.run }.to raise_error(Octokit::ServerError)
+
+        expect(SlackBot.instance).to have_received(:execution_started_notification).with(check_suite)
+      end
+    end
+
     context 'when Bamboo does not return the running plan' do
       before { allow(BambooCi::RunningPlan).to receive(:fetch).and_return([]) }
 
-      it 'returns 422' do
-        expect(setup.run).to eq([422, 'Failed to fetch RunningPlan'])
+      it 'raises, so the GitHub setup is tried again' do
+        expect { setup.run }.to raise_error(BambooCi::RunningPlan::Unavailable)
       end
     end
 
@@ -102,6 +121,21 @@ describe Github::Build::ChecksSetup do
 
         expect(BambooCi::StopPlan).not_to have_received(:comment)
       end
+    end
+  end
+
+  describe '.cancel_stopped' do
+    it 'cancels the open stages of the stopped execution without creating the new checks' do
+      described_class.cancel_stopped(check_suite, plan, previous)
+
+      expect(previous.stages.reload.map(&:status)).to all(eq('cancelled'))
+      expect(Github::Build::Action).not_to have_received(:new)
+    end
+
+    it 'does not raise when GitHub fails' do
+      allow(Github::Build::OpenChecks).to receive(:cancel).and_raise(Octokit::ServerError)
+
+      expect { described_class.cancel_stopped(check_suite, plan, previous) }.not_to raise_error
     end
   end
 
@@ -125,9 +159,12 @@ describe Github::Build::ChecksSetup do
     end
 
     context 'when a newer execution has started' do
+      let(:stopped) { true }
+
       before do
         check_suite
         create(:check_suite, pull_request: pull_request, plan: plan)
+        allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(stopped)
       end
 
       it 'does not set up the checks of the superseded execution' do
@@ -140,6 +177,26 @@ describe Github::Build::ChecksSetup do
         setup.run
 
         expect(previous.stages.reload.map(&:status)).to all(eq('cancelled'))
+      end
+
+      it 'stops its own build and closes its open jobs in the database only' do
+        ci_job = create(:ci_job, check_suite: check_suite, status: :in_progress)
+
+        setup.run
+
+        expect(BambooCi::StopPlan).to have_received(:stop_execution).with(check_suite.bamboo_ci_ref)
+        expect(ci_job.reload.status).to eq('cancelled')
+      end
+
+      context 'when Bamboo refuses to stop it' do
+        let(:stopped) { false }
+
+        it 'leaves its jobs open, since the build keeps running' do
+          ci_job = create(:ci_job, check_suite: check_suite, status: :in_progress)
+
+          expect(setup.run).to eq([200, 'Superseded by a newer execution'])
+          expect(ci_job.reload.status).to eq('in_progress')
+        end
       end
     end
   end

@@ -405,7 +405,7 @@ describe Github::PlanExecution::Finished, 'lookup and Bamboo failures' do
     let(:finished) { described_class.new(payload) }
 
     before do
-      allow(finished).to receive(:get_request).and_return(nil)
+      allow(finished).to receive_messages(get_request: nil, get_request_with_status: nil)
     end
 
     context 'when the suite is not hanged' do
@@ -430,6 +430,47 @@ describe Github::PlanExecution::Finished, 'lookup and Bamboo failures' do
 
     it 'treats a status without currentStage as running' do
       expect(finished.in_progress?({ 'finished' => false })).to be(true)
+    end
+  end
+
+  describe '#in_progress? when Bamboo refuses the credentials' do
+    let(:finished) { described_class.new({ 'check_suite_id' => create(:check_suite).id }) }
+
+    it 'does not take a 401 or 403 answer as a stopped build' do
+      expect(finished.in_progress?({ 'message' => 'Unauthorized', 'status-code' => 401 })).to be(true)
+      expect(finished.in_progress?({ 'message' => 'Forbidden', 'status-code' => 403 })).to be(true)
+    end
+
+    it 'still takes a deleted build as stopped' do
+      expect(finished.in_progress?({ 'message' => 'Not found', 'status-code' => 404 })).to be(false)
+    end
+  end
+
+  describe 'when Bamboo refuses the build status request with a body that only has a message' do
+    let(:check_suite) { create(:check_suite, :with_in_progress) }
+    let(:payload) { { 'bamboo_ref' => check_suite.bamboo_ci_ref } }
+    let(:pla_exec) { described_class.new(payload) }
+    let(:url_status) { "https://127.0.0.1/rest/api/latest/result/status/#{check_suite.bamboo_ci_ref}" }
+
+    before do
+      allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+      allow(Github::Check).to receive(:new).and_return(instance_double(Github::Check, skipped: true))
+      allow(SlackBot.instance).to receive(:execution_finished_notification)
+
+      stub_request(:get, %r{/rest/api/latest/result/#{check_suite.bamboo_ci_ref}\?})
+        .to_return(status: 200, body: {}.to_json)
+      stub_request(:get, url_status).to_return(status: 401, body: { 'message' => 'Unauthorized' }.to_json)
+    end
+
+    it 'keeps the HTTP status and does not skip the running jobs' do
+      expect(pla_exec.finished).to eq([200, 'Still running'])
+      expect(check_suite.ci_jobs.reload.pluck(:status).uniq).to eq(['in_progress'])
+    end
+
+    it 'still takes a 404 with only a message as a stopped build' do
+      stub_request(:get, url_status).to_return(status: 404, body: { 'message' => 'Not found' }.to_json)
+
+      expect(pla_exec.in_progress?(pla_exec.send(:fetch_build_status))).to be(false)
     end
   end
 end

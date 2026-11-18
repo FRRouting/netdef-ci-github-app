@@ -25,6 +25,7 @@ module PrometheusMetrics
   require_relative 'prometheus_metrics/metrics_definitions'
   require_relative 'prometheus_metrics/refresh_helpers'
 
+  # Only records metrics: an error raised by the block is counted and raised again for the caller to handle.
   def self.track_bamboo(operation)
     start = Time.now
     result = yield
@@ -34,7 +35,7 @@ module PrometheusMetrics
   rescue StandardError
     BAMBOO_REQUESTS.increment(labels: { operation: operation, status: 'error' })
     BAMBOO_DURATION.observe(Time.now - start, labels: { operation: operation })
-    nil
+    raise
   end
 
   def self.track_slack(type)

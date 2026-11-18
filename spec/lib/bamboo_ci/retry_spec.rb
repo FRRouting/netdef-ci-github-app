@@ -97,4 +97,29 @@ describe BambooCi::Retry do
       end
     end
   end
+
+  describe '.restart!' do
+    let(:plan_key) { 'PLAN-12' }
+    let(:url) { "https://127.0.0.1/rest/api/latest/queue/#{plan_key}?executeAllStages=true" }
+
+    it 'returns the response when Bamboo accepts the restart' do
+      stub_request(:put, url).to_return(status: 200, body: 'ok')
+
+      expect(described_class.restart!(plan_key).code.to_i).to eq(200)
+    end
+
+    it 'raises when Bamboo refuses the restart' do
+      stub_request(:put, url).to_return(status: 403, body: 'forbidden')
+
+      expect { described_class.restart!(plan_key) }
+        .to raise_error(BambooCi::Retry::RestartFailed, /did not restart PLAN-12: HTTP 403/)
+    end
+
+    it 'raises when Bamboo does not answer' do
+      allow(described_class).to receive(:put_request).and_return(nil)
+
+      expect { described_class.restart!(plan_key) }
+        .to raise_error(BambooCi::Retry::RestartFailed, /HTTP no response/)
+    end
+  end
 end

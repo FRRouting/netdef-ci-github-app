@@ -66,8 +66,10 @@ describe BambooCi::StopPlan do
     let(:account) { BambooCi::ServiceAccount.instance }
     let(:bamboo_ci_ref) { 'PLAN-12' }
     let(:result_url) { "https://127.0.0.1/rest/api/latest/result/#{bamboo_ci_ref}?expand=stages.stage.results" }
+    let(:job_state) { 'InProgress' }
     let(:running_plan) do
       { 'stages' => { 'stage' => [{ 'results' => { 'result' => [{ 'key' => 'PLAN-JOB1-12', 'stage' => 'Build',
+                                                                  'lifeCycleState' => job_state,
                                                                   'plan' => { 'shortName' => 'Job 1' } }] } }] } }
     end
 
@@ -119,12 +121,111 @@ describe BambooCi::StopPlan do
     end
 
     context 'when the job already finished' do
+      let(:job_state) { 'Finished' }
+
       before do
         stub_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12').to_return(status: 404)
       end
 
       it 'reports the execution as stopped' do
         expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(204)
+      end
+    end
+
+    context 'when a running job is no longer in the queue' do
+      let(:job_result_url) { 'https://127.0.0.1/rest/api/latest/result/PLAN-JOB1-12?expand=' }
+
+      before do
+        stub_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12').to_return(status: 404)
+      end
+
+      it 'does not confirm the stop while Bamboo still runs the job' do
+        stub_request(:get, job_result_url).to_return(status: 200, body: { lifeCycleState: 'InProgress' }.to_json)
+
+        expect(described_class.build(bamboo_ci_ref)).to be_nil
+        expect(described_class.stop_execution(bamboo_ci_ref)).to be(false)
+      end
+
+      it 'confirms the stop once Bamboo reports the job as finished' do
+        stub_request(:get, job_result_url).to_return(status: 200, body: { lifeCycleState: 'Finished' }.to_json)
+
+        expect(described_class.stop_execution(bamboo_ci_ref)).to be(true)
+      end
+    end
+
+    context 'when Bamboo no longer knows the build' do
+      before do
+        stub_request(:delete, "https://127.0.0.1/rest/api/latest/queue/#{bamboo_ci_ref}").to_return(status: 404)
+        stub_request(:get, result_url).to_return(status: 404, body: { message: 'not found' }.to_json)
+      end
+
+      it 'takes the execution as stopped' do
+        expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(404)
+        expect(described_class.stop_execution(bamboo_ci_ref)).to be(true)
+      end
+    end
+
+    context 'when Bamboo does not list the jobs of a build it still knows' do
+      before do
+        stub_request(:delete, "https://127.0.0.1/rest/api/latest/queue/#{bamboo_ci_ref}").to_return(status: 404)
+        stub_request(:get, result_url).to_return(status: 500, body: { message: 'error' }.to_json)
+      end
+
+      it 'does not confirm the stop' do
+        expect(described_class.build(bamboo_ci_ref)).to be_nil
+      end
+    end
+
+    context 'when the execution DELETE fails but every job is stopped' do
+      before do
+        stub_request(:delete, "https://127.0.0.1/rest/api/latest/queue/#{bamboo_ci_ref}").to_raise(Errno::ECONNRESET)
+      end
+
+      it 'confirms the stop' do
+        expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(204)
+        expect(described_class.stop_execution(bamboo_ci_ref)).to be(true)
+      end
+    end
+
+    context 'when Bamboo lists a stage without results' do
+      let(:running_plan) { { 'stages' => { 'stage' => [{ 'results' => {} }] } } }
+
+      it 'stops the execution without raising' do
+        expect(described_class.build(bamboo_ci_ref).code.to_i).to eq(204)
+      end
+    end
+
+    context 'when stopping raises unexpectedly' do
+      let(:app_logger) { instance_double(Logger, add: true) }
+
+      before do
+        described_class.instance_variable_set(:@app_logger, app_logger)
+        allow(described_class).to receive(:stop_by_rest).and_raise(NoMethodError, 'odd answer')
+      end
+
+      after { described_class.instance_variable_set(:@app_logger, nil) }
+
+      it 'does not confirm the stop and logs the error' do
+        expect(described_class.build(bamboo_ci_ref)).to be_nil
+        expect(described_class.stop_execution(bamboo_ci_ref)).to be(false)
+        expect(app_logger).to have_received(:add).with(Logger::ERROR, /Stop of PLAN-12 failed: NoMethodError/).twice
+      end
+    end
+
+    context 'when a stop request raises' do
+      let(:app_logger) { instance_double(Logger, add: true) }
+
+      before do
+        described_class.instance_variable_set(:@app_logger, app_logger)
+        stub_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12').to_raise(Errno::ECONNRESET)
+      end
+
+      after { described_class.instance_variable_set(:@app_logger, nil) }
+
+      it 'counts the job as refused and logs the error' do
+        expect(described_class.build(bamboo_ci_ref)).to be_nil
+        expect(app_logger)
+          .to have_received(:add).with(Logger::ERROR, /stop request for PLAN-JOB1-12 failed: Errno::ECONNRESET/)
       end
     end
 

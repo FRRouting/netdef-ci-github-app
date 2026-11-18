@@ -88,7 +88,7 @@ module Github
         end
 
         def tests_message(job)
-          failure = job.topotest_failures.first
+          failure = TopotestFailure.current_attempt_of(job).first
 
           return '' if failure.nil?
 

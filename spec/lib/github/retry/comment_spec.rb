@@ -46,9 +46,10 @@ describe Github::Retry::Comment do
       allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
       allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
-      allow(BambooCi::Retry).to receive(:restart)
+      allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
       allow(BambooCi::StopPlan).to receive(:build)
+      allow(BambooCi::Result).to receive(:active?).and_return(true)
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
 

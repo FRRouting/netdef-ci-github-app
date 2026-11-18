@@ -72,9 +72,12 @@ module BambooCi
     # A cached token Bamboo refuses with 401 (revoked, Bamboo restarted) is replaced and the request sent once more.
     # When no token can be obtained (token endpoint down, wrong scope) the request falls back to the ~/.netrc
     # credentials when there are any; otherwise it goes without credentials, so callers see Bamboo's 401.
+    # The token only authenticates REST endpoints: anything else (artifact links such as the ErrorLog download)
+    # uses the ~/.netrc credentials, or none when there are none, so the caller sees Bamboo's refusal.
     def send_request(uri, req, machine)
       account = BambooCi::ServiceAccount.instance
       return super unless account.configured?
+      return non_rest_request(uri, req, machine) unless uri.path.to_s.start_with?('/rest/')
 
       token, resp = service_account_request(uri, req, account)
       return request_without_token(uri, req, machine, resp) if token.nil?
@@ -94,6 +97,10 @@ module BambooCi
       return [token, resp] unless resp.code.to_i == 401 && !fresh
 
       retry_with_new_token(uri, req, account, token, resp)
+    end
+
+    def non_rest_request(uri, req, machine)
+      netrc_credentials?(machine) ? netrc_request(uri, req, machine) : bearer_request(uri, req, nil)
     end
 
     def request_without_token(uri, req, machine, resp)

@@ -102,6 +102,17 @@ describe CreateExecutionByPlan do
         expect(new_suite).not_to eq(legacy_check_suite)
         expect(new_suite.plan).to eq(plan)
       end
+
+      context 'when the repository has several plans' do
+        before { create(:plan, github_repo_name: plan.github_repo_name) }
+
+        it 'does not take the legacy check suite for one of this plan' do
+          described_class.create(legacy_pr.id, payload, plan.id)
+
+          expect(BambooCi::StopPlan).not_to have_received(:build)
+          expect(legacy_check_suite.ci_jobs.reload.map(&:status)).to all(eq('in_progress'))
+        end
+      end
     end
 
     context 'when GitHub fails after the Bamboo plan has started' do
@@ -130,6 +141,23 @@ describe CreateExecutionByPlan do
 
         check_suite = pull_request.check_suites.reload.last
         expect(delayed).to have_received(:setup_github_checks).with(check_suite.id, plan.id, nil, 123)
+      end
+    end
+
+    context 'when Bamboo does not list the jobs of the new build yet' do
+      let(:plan) { pull_request.plans.last }
+      let(:delayed) { double('delayed') }
+
+      before do
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
+        allow(described_class).to receive(:delay).and_return(delayed)
+        allow(delayed).to receive(:setup_github_checks)
+      end
+
+      it 'reschedules the GitHub setup instead of ending without checks' do
+        expect(described_class.create(pull_request.id, payload, plan.id))
+          .to eq([202, 'GitHub Checks setup rescheduled'])
+        expect(delayed).to have_received(:setup_github_checks)
       end
     end
 
@@ -214,6 +242,24 @@ describe CreateExecutionByPlan do
         described_class.create(pull_request.id, payload, plan.id)
 
         expect(running.stages.reload.map(&:status)).to all(eq('cancelled'))
+      end
+
+      context 'when the new plan does not start' do
+        before { allow(fake_plan_run).to receive(:start_plan).and_return(429) }
+
+        it 'still cancels the stages of the stopped execution' do
+          expect(described_class.create(pull_request.id, payload, plan.id)).to eq([429, 'Failed to create CI Plan'])
+
+          expect(running.stages.reload.map(&:status)).to all(eq('cancelled'))
+        end
+
+        context 'when GitHub fails while cancelling them' do
+          before { allow(Github::Build::OpenChecks).to receive(:cancel).and_raise(Octokit::ServerError) }
+
+          it 'still reports the failed start' do
+            expect(described_class.create(pull_request.id, payload, plan.id)).to eq([429, 'Failed to create CI Plan'])
+          end
+        end
       end
 
       context 'when Bamboo refuses to stop it' do

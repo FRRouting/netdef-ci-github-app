@@ -73,8 +73,7 @@ module Github
           .where(configuration: { position: (0...current_position) })
           .where(status: %i[in_progress queued])
           .each do |stage|
-            PendingJobs.new(@github, @agent).sync(stage) if stage.running?
-            next if stage.running?
+            next PendingJobs.schedule(stage, @agent) if stage.running?
 
             logger(Logger::INFO, "must_update_previous_stage: #{stage.inspect}")
             finished_stage_summary(stage)

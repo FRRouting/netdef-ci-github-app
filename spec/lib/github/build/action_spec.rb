@@ -172,6 +172,43 @@ describe Github::Build::Action do
     end
   end
 
+  describe '#stage_name' do
+    let(:ci_job) { create(:ci_job, check_suite: check_suite, stage: stage) }
+    let(:stage_config) { stage.configuration }
+    let(:repository) { check_suite.pull_request.repository }
+    let(:multi_plan) { true }
+    let(:stage_name) { action.send(:stage_name, stage_config) }
+
+    before { allow(GitHubApp::Configuration.instance).to receive(:multi_plan?).and_return(multi_plan) }
+
+    context 'when the repository has several plans that now belong to another pull request' do
+      before do
+        other_pull_request = create(:pull_request, github_pr_id: 99, repository: repository)
+        create_list(:plan, 2, github_repo_name: repository, pull_request: other_pull_request)
+      end
+
+      it 'keeps the plan suffix' do
+        expect(stage_name).to eq("#{stage_config.github_check_run_name} - Tato")
+      end
+    end
+
+    context 'when the repository has a single plan' do
+      before { create(:plan, github_repo_name: repository) }
+
+      it 'uses the bare check run name' do
+        expect(stage_name).to eq(stage_config.github_check_run_name)
+      end
+    end
+
+    context 'when multi plan is disabled' do
+      let(:multi_plan) { false }
+
+      it 'uses the bare check run name' do
+        expect(stage_name).to eq(stage_config.github_check_run_name)
+      end
+    end
+  end
+
   context 'when stage is the Final' do
     let(:ci_job) { create(:ci_job, name: 'Final') }
     let(:check_suite_new) { create(:check_suite) }

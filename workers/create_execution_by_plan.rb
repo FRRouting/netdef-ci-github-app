@@ -12,8 +12,8 @@
 # never repeats a Bamboo side effect:
 #   1. GitHub authentication, before anything is written (an error here leaves nothing behind);
 #   2. Bamboo: stop the previous build, start the new one;
-#   3. GitHub checks (Github::Build::ChecksSetup). Errors here do not reach Delayed Job:
-#      only this part is rescheduled, through .setup_github_checks.
+#   3. GitHub checks (Github::Build::ChecksSetup). Errors here, including Bamboo not listing the new
+#      build's jobs yet, do not reach Delayed Job: only this part is rescheduled, through .setup_github_checks.
 class CreateExecutionByPlan
   # Short on purpose: until the resume creates the CI jobs, Bamboo status callbacks find no job and are dropped.
   GITHUB_SETUP_RETRY_DELAY = 10 # seconds
@@ -82,9 +82,18 @@ class CreateExecutionByPlan
 
     @logger.info "New execution started with status: #{status}"
 
-    return @status = [status, 'Failed to create CI Plan'] if status != 200
+    return @status = failed_start(plan, status) if status != 200
 
     @status = setup_github_checks(plan)
+  end
+
+  # The previous build is already stopped in Bamboo, and ChecksSetup will not run to close its checks.
+  def failed_start(plan, status)
+    unless @previous_check_suite.nil?
+      Github::Build::ChecksSetup.cancel_stopped(@check_suite, plan, @previous_check_suite)
+    end
+
+    [status, 'Failed to create CI Plan']
   end
 
   def setup_github_checks(plan)
@@ -146,7 +155,7 @@ class CreateExecutionByPlan
     @last_check_suite =
       CheckSuite
       .where(pull_request: @pull_request)
-      .where(plan: [plan, nil])
+      .where(plan_id: plan.suite_plan_ids)
       .where.not(bamboo_ci_ref: nil)
       .last
   end

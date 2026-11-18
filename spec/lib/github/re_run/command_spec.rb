@@ -157,7 +157,9 @@ describe Github::ReRun::Command do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
+        # The rerun now needs Bamboo to list the jobs of the new build before it creates the checks.
+        allow(BambooCi::RunningPlan).to receive(:fetch)
+          .and_return([{ name: 'Checkout', job_ref: 'CHK-01', stage: create(:stage_configuration).bamboo_stage_name }])
       end
 
       it 'must return success using plans from repository' do

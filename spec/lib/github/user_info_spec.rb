@@ -45,6 +45,25 @@ describe Github::UserInfo do
     end
   end
 
+  context 'when GitHub does not return the user' do
+    let(:check_suite) { create(:check_suite) }
+    let(:github_info) { false }
+
+    it 'creates the user without details' do
+      described_class.new(45, check_suite: check_suite)
+
+      expect(GithubUser.find_by(github_id: 45).check_suites).to include(check_suite)
+    end
+
+    it 'keeps the details already stored' do
+      GithubUser.create(github_id: 46, github_login: 'old-login')
+
+      described_class.new(46, check_suite: check_suite)
+
+      expect(GithubUser.find_by(github_id: 46).github_login).to eq('old-login')
+    end
+  end
+
   context 'when called with a pull request only' do
     let(:pull_request) { create(:pull_request) }
 

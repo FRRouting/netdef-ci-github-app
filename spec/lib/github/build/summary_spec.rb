@@ -437,7 +437,7 @@ describe Github::Build::Summary do
 
         summary.build_summary
 
-        expect(delayed).to have_received(:update).with(checkout_job.id, 1)
+        expect(delayed).to have_received(:update).with(checkout_job.id, 1, checkout_job.retry)
       end
     end
 

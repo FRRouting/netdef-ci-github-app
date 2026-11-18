@@ -71,6 +71,7 @@ netdef_ci_job_workers:
   - {name: create-by-command, queues: "create_execution_by_command"}
   - {name: timeout, queues: "timeout_execution"}
   - {name: topotest, queues: "fetch_topotest_failures"}
+  - {name: pending-jobs, queues: "sync_pending_jobs"}
 # Periodic tasks (systemd timers), replacing the cron entries of bin/watch_dog_*.sh and bin/pr_bamboo_sync.sh.
 netdef_ci_timers:
   watchdog: {enabled: true, on_calendar: "*:0/15"}

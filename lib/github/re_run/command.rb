@@ -41,9 +41,9 @@ module Github
       private
 
       def suite_by_plan(check_suite)
-        plans = check_suite.pull_request.plans.presence || Plan.where(github_repo_name: repo)
+        @pull_request = check_suite.pull_request
 
-        plans.each do |plan|
+        fetch_plans.each do |plan|
           CreateExecutionByCommand
             .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_command')
             .create(plan.id, check_suite.id, @payload)

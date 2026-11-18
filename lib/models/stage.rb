@@ -18,16 +18,8 @@ class Stage < ActiveRecord::Base
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
-  scope :related_stages, lambda { |check_suite, suffix|
-                           where('stages.name LIKE ?', "%#{suffix}").where(check_suite: check_suite)
-                         }
-
   scope :next_stage, ->(current_position) { where(configuration: { position: current_position + 1 }) }
   scope :next_stages, ->(current_position) { where(configuration: { position: [(current_position + 1)..] }) }
-
-  def suffix
-    name.split(' - ').last
-  end
 
   def update_execution_time
     started = audit_statuses.find_by(status: :in_progress)
@@ -40,18 +32,6 @@ class Stage < ActiveRecord::Base
 
   def running?
     jobs.where(status: %i[queued in_progress]).any?
-  end
-
-  def previous_stage
-    position = configuration&.position.to_i
-
-    return nil unless suffix
-
-    check_suite.stages
-               .joins(:configuration)
-               .where(configuration: { position: position - 1 })
-               .where('stages.name LIKE ?', "%#{suffix}")
-               .first
   end
 
   def finished?

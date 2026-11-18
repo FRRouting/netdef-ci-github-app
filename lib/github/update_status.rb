@@ -143,18 +143,7 @@ module Github
       logger(Logger::INFO,
              "Removing old delayed job for queue: #{queue} and bamboo_ci_ref: #{@check_suite.bamboo_ci_ref}")
 
-      Delayed::Job
-        .where(queue: queue)
-        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{bamboo_ref_pattern}\n%")
-    end
-
-    ##
-    # Escapes the Bamboo reference for LIKE. The handler YAML has one argument per line,
-    # so the trailing newline stops "PLAN-12" from matching "PLAN-123".
-    #
-    # @return [String] The escaped Bamboo reference.
-    def bamboo_ref_pattern
-      ActiveRecord::Base.sanitize_sql_like(@check_suite.bamboo_ci_ref.to_s)
+      DelayedJobLookup.pending(queue: queue, method: :update, first_arg: @check_suite.bamboo_ci_ref)
     end
 
     ##
@@ -169,7 +158,7 @@ module Github
 
       CiJobFetchTopotestFailures
         .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
-        .update(@job.id, 1)
+        .update(@job.id, 1, @job.retry.to_i)
     end
 
     ##

@@ -34,6 +34,15 @@ class CheckSuite < ActiveRecord::Base
     !running?
   end
 
+  # A newer execution of the same plan has started in Bamboo for this pull request.
+  def superseded?
+    CheckSuite
+      .where(pull_request_id: pull_request_id, plan_id: plan_id)
+      .where.not(bamboo_ci_ref: nil)
+      .where('id > ?', id)
+      .exists?
+  end
+
   def running?
     stages.where(status: %i[queued in_progress]).any?
   end
