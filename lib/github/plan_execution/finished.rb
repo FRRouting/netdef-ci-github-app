@@ -29,16 +29,14 @@ module Github
     class Finished
       include BambooCi::Api
 
+      AUTH_REFUSED = [401, 403].freeze
+
       ##
       # Initializes the Finished class with the given payload.
       #
       # @param [Hash] payload The payload containing information about the CheckSuite.
       def initialize(payload)
-        @check_suite = CheckSuite.where(
-          bamboo_ci_ref: payload['bamboo_ref']
-        ).or(
-          CheckSuite.where(id: payload['check_suite_id'])
-        ).last
+        @check_suite = fetch_check_suite(payload)
 
         @logger = GithubLogger.instance.create('github_plan_execution_finished.log', Logger::INFO)
         @hanged = payload['hanged'] || false
@@ -59,7 +57,7 @@ module Github
 
         @logger.info ">>> build_status: #{build_status.inspect}. Hanged? #{@hanged}"
 
-        return [200, 'Still running'] if in_progress?(build_status) and !@hanged
+        return [200, 'Still running'] if !@hanged and in_progress?(build_status)
 
         check_stages
         clear_deleted_jobs
@@ -73,7 +71,7 @@ module Github
       #
       # @return [Hash] The build status.
       def fetch_build_status
-        get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
+        get_request_with_status(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
       end
 
       ##
@@ -82,16 +80,35 @@ module Github
       # @param [Hash] build_status The build status.
       # @return [Boolean] Returns true if the build is still in progress, false otherwise.
       def in_progress?(build_status)
+        # Bamboo unreachable or unexpected answer: assume it is still running
+        return true unless build_status.is_a?(Hash)
+
         @logger.info ">>> ci_stopped?: #{ci_stopped?(build_status)}"
         @logger.info ">>> ci_hanged?: #{ci_hanged?(build_status)}"
 
         return false if ci_hanged?(build_status)
-        return false if build_status['currentStage'].casecmp('final').zero?
+        return false if build_status['currentStage'].to_s.casecmp('final').zero?
 
         true
       end
 
       private
+
+      ##
+      # Looks up the CheckSuite by Bamboo reference, falling back to the ID.
+      # A missing key must not turn into `IS NULL`, which would match an unrelated suite.
+      #
+      # @param [Hash] payload The payload containing 'bamboo_ref' and/or 'check_suite_id'.
+      # @return [CheckSuite, nil] The CheckSuite found or nil.
+      def fetch_check_suite(payload)
+        bamboo_ref = payload['bamboo_ref']
+        check_suite_id = payload['check_suite_id']
+
+        return CheckSuite.where(bamboo_ci_ref: bamboo_ref).last if bamboo_ref.present?
+        return CheckSuite.find_by(id: check_suite_id) if check_suite_id.present?
+
+        nil
+      end
 
       ##
       # Updates the status of all stages for the CheckSuite.
@@ -123,8 +140,14 @@ module Github
       #
       # @param [Hash] build_status The build status.
       # @return [Boolean] Returns true if the build has stopped, false otherwise.
+      # A 401/403 is Bamboo refusing the credentials (missing scope, revoked token), not a deleted build.
       def ci_stopped?(build_status)
-        build_status.key?('message') and !build_status.key?('finished')
+        build_status.key?('message') and !build_status.key?('finished') and !auth_refused?(build_status)
+      end
+
+      # The HTTP status is authoritative; the body's own 'status-code' is only present on some Bamboo errors.
+      def auth_refused?(build_status)
+        build_status.values_at('http-status', 'status-code').any? { |code| AUTH_REFUSED.include?(code.to_i) }
       end
 
       ##
@@ -200,17 +223,17 @@ module Github
         summary = Github::Build::Summary.new(ci_job, agent: 'WatchDog')
         summary.build_summary
 
-        finished_execution?(ci_job.check_suite)
+        notify_if_execution_finished(ci_job.check_suite)
       end
 
       ##
-      # Checks if the execution of the CheckSuite has finished.
+      # Sends the Slack "execution finished" notification when the CheckSuite
+      # is the PR's current execution and has finished.
       #
       # @param [CheckSuite] check_suite The CheckSuite to check.
-      # @return [Boolean] Returns true if the execution has finished, false otherwise.
-      def finished_execution?(check_suite)
-        return false unless check_suite.pull_request.current_execution?(check_suite)
-        return false unless check_suite.finished?
+      def notify_if_execution_finished(check_suite)
+        return unless check_suite.pull_request.current_execution?(check_suite)
+        return unless check_suite.finished?
 
         SlackBot.instance.execution_finished_notification(check_suite)
       end
@@ -232,7 +255,8 @@ module Github
       def check_stages
         github_check = Github::Check.new(@check_suite)
         @logger.info ">>> @result: #{@result.inspect}"
-        return if @result.nil? or @result.empty? or @result['status-code']&.between?(400, 500)
+        return unless @result.is_a?(Hash)
+        return if @result.empty? or @result['status-code']&.between?(400, 500)
 
         @result.dig('stages', 'stage')&.each do |stage|
           check_stage(stage, github_check)

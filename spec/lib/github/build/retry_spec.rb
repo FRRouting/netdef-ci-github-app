@@ -78,6 +78,25 @@ describe Github::Build::Retry do
     end
   end
 
+  context 'when the stage name carries the plan suffix' do
+    let(:configuration) { create(:stage_configuration, can_retry: true) }
+    let(:ci_job) { create(:ci_job, :failure, stage: stage, check_suite: check_suite) }
+    let(:stage) do
+      create(:stage, :failure, check_suite: check_suite, configuration: configuration,
+                               name: "#{configuration.github_check_run_name} - FRR")
+    end
+
+    before do
+      ci_job
+
+      github_retry.enqueued_stages
+    end
+
+    it 'still enqueues the stage again' do
+      expect(stage.reload.status).to eq('queued')
+    end
+  end
+
   context 'when stage can be retry, but stage passed' do
     let(:configuration) { create(:stage_configuration, can_retry: true) }
     let(:ci_job) { create(:ci_job, :success, stage: stage, check_suite: check_suite) }

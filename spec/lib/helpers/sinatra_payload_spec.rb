@@ -17,9 +17,7 @@ class Dummy
 
   def env; end
 
-  def halt(_, _opt = nil)
-    false
-  end
+  def halt(_, _opt = nil); end
 end
 
 describe Sinatra::Payload do

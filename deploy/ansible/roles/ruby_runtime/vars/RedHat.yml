@@ -1,0 +1,21 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  RedHat.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+# Not exercised by the project's validation (the existing infrastructure is Debian/Ubuntu based).
+ruby_runtime_packages:
+  - gcc
+  - make
+  - ca-certificates
+  - curl
+  - openssl-devel
+  - libyaml-devel
+  - zlib-devel
+  - libffi-devel
+  - readline-devel
+  - gmp-devel

@@ -108,6 +108,18 @@ describe BambooCi::PlanRun do
       end
     end
 
+    context 'when sending the HTTP POST raises' do
+      let(:check_suite) { create(:check_suite) }
+      let(:status) { 200 }
+      let(:body) { '{}' }
+
+      before { allow(plan_run).to receive(:create_http).and_raise(Errno::ECONNRESET) }
+
+      it 'must returns 418 instead of raising' do
+        expect(plan_run.start_plan).to eq(418)
+      end
+    end
+
     context 'when HTTP POST returns 300' do
       let(:check_suite) { create(:check_suite) }
       let(:status) { 300 }

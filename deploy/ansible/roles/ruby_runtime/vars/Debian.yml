@@ -1,0 +1,19 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  Debian.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+ruby_runtime_packages:
+  - build-essential
+  - ca-certificates
+  - curl
+  - libssl-dev
+  - libyaml-dev
+  - zlib1g-dev
+  - libffi-dev
+  - libreadline-dev
+  - libgmp-dev

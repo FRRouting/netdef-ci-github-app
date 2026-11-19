@@ -9,11 +9,11 @@ name: Ruby
 
 on:
   push:
-    branches: [ "master" ]
+    branches: [ "master", "stable" ]
     paths-ignore:
       - 'README.md'
   pull_request:
-    branches: [ "master", "develop" ]
+    branches: [ "master", "develop", "stable" ]
     paths-ignore:
       - 'README.md'
 
@@ -32,7 +32,7 @@ jobs:
 
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1.2
+          ruby-version: '3.1'
 
       - name: rubocop
         uses: reviewdog/action-rubocop@v2.22.0
@@ -65,11 +65,11 @@ jobs:
         with:
           fetch-depth: 0
          
-      - name: Set up Ruby 3.1.2
+      - name: Set up Ruby 3.1
         id: ruby
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: 3.1.2
+          ruby-version: '3.1'
           bundler-cache: true
 
       - name: Install required package

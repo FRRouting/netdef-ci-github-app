@@ -17,6 +17,17 @@ module BambooCi
   class RunningPlan
     extend BambooCi::Api
 
+    # Bamboo may not list the jobs of a build that has just started.
+    class Unavailable < StandardError; end
+
+    # Like fetch, but raises when Bamboo does not list any job yet, so the GitHub setup can be tried again.
+    def self.fetch!(plan_key)
+      jobs = fetch(plan_key)
+      raise Unavailable, "Bamboo did not return the jobs of #{plan_key}" if jobs.nil? or jobs.empty?
+
+      jobs
+    end
+
     def self.fetch(plan_key)
       @logger = GithubLogger.instance.create('github_running_plan.log', Logger::INFO)
 
@@ -30,7 +41,7 @@ module BambooCi
     def self.mount_jobs(resp)
       jobs = []
       resp.dig('stages', 'stage').each do |stage|
-        stage.dig('results', 'result').each do |job|
+        Array(stage.dig('results', 'result')).each do |job|
           jobs << { name: job.dig('plan', 'shortName'), job_ref: job['key'], stage: job['stage'] }
         end
       end

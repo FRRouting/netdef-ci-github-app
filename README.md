@@ -1,8 +1,27 @@
-# GitHub Hook Server
-Allows a GitHub application to communicate with a server and 
-that server can trigger executions on a CI and control the 
-creation of Check Suite and Run for each new creation and 
-commit in a PR.
+<p align="center">
+  <img src="doc/assets/octoboo.svg" alt="Octoboo, a cat-eared ghost with curly tentacles holding a bamboo stalk" width="200">
+</p>
+
+<h1 align="center">Octoboo</h1>
+
+<p align="center">
+  <em>The friendly ghost that haunts your pull requests and whispers them to Bamboo CI.</em>
+</p>
+
+---
+
+**Octoboo** is a middleware between GitHub and Bamboo CI. It receives GitHub
+webhook events, triggers Bamboo builds for each new pull request and commit,
+polls for results, keeps GitHub Check Suites and Check Runs up to date, and
+sends Slack notifications along the way.
+
+### Meet the mascot 👻
+
+Octoboo is a ghost that floats between two worlds: the GitHub side, where
+pull requests show up, and the Bamboo forest, where builds run. You never
+see it working, but every PR gets its green ✓ (or a gentle ✗) delivered on time.
+
+New to the project? Start with the [architecture overview](doc/general/architecture.md).
 
 # Installation
 

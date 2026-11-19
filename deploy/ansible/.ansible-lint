@@ -1,0 +1,15 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  .ansible-lint
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+profile: production
+exclude_paths:
+  - inventories/*/group_vars/all/vault.yml.example
+  - inventories/*/group_vars/all/vault.yml
+  - tests/converge/vault.yml
+skip_list: []

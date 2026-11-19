@@ -102,6 +102,63 @@ describe Github::ReRun::Comment do
       end
     end
 
+    context 'when receives the same command twice in a row' do
+      let(:pull_request) { create(:pull_request, github_pr_id: 22, repository: 'test') }
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
+      let(:ci_jobs) do
+        [{ name: 'First Test', job_ref: 'UNIT-TEST-FIRST-1', stage: fake_translation.bamboo_stage_name }]
+      end
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => "CI:rerun ##{check_suite.commit_sha_ref}", 'id' => 1 },
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+      let(:check_suites) { CheckSuite.where(commit_sha_ref: check_suite.commit_sha_ref) }
+
+      before do
+        check_suite
+
+        allow(Octokit::Client).to receive(:new).and_return(fake_client)
+        allow(fake_client).to receive(:find_app_installations).and_return([{ 'id' => 1 }])
+        allow(fake_client).to receive(:create_app_installation_access_token).and_return({ 'token' => 1 })
+
+        allow(Github::Check).to receive(:new).and_return(fake_github_check)
+        allow(fake_github_check).to receive_messages(create: check_suite, fetch_username: {}, check_runs_for_ref: {})
+        %i[add_comment cancelled in_progress queued comment_reaction_thumb_up].each do |method|
+          allow(fake_github_check).to receive(method)
+        end
+
+        allow(BambooCi::PlanRun).to receive(:new).and_return(fake_plan_run)
+        allow(fake_plan_run).to receive_messages(start_plan: 200, bamboo_reference: 'CHK-01')
+
+        allow(BambooCi::StopPlan).to receive(:build)
+        allow(BambooCi::RunningPlan).to receive(:fetch).and_return(ci_jobs)
+      end
+
+      it 'schedules only the first one' do
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
+        expect(described_class.new(payload).start).to eq([202, 'Rerun already scheduled'])
+        expect(check_suites.size).to eq(2)
+      end
+
+      it 'reacts only to the request that was scheduled' do
+        rerun.start
+        described_class.new(payload).start
+
+        expect(fake_github_check).to have_received(:comment_reaction_thumb_up).once
+      end
+
+      it 'schedules the plan runs even when GitHub refuses the reaction' do
+        allow(fake_github_check).to receive(:comment_reaction_thumb_up).and_raise(Octokit::Forbidden)
+
+        expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
+        expect(check_suites.size).to eq(2)
+      end
+    end
+
     context 'when receives a valid command but can save' do
       let(:pull_request) { create(:pull_request) }
       let(:check_suite) { create(:check_suite, :with_running_ci_jobs, pull_request: pull_request) }
@@ -342,7 +399,9 @@ describe Github::ReRun::Comment do
         allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
+        # The rerun now needs Bamboo to list the jobs of the new build before it creates the checks.
+        allow(BambooCi::RunningPlan).to receive(:fetch)
+          .and_return([{ name: 'Checkout', job_ref: 'CHK-01', stage: create(:stage_configuration).bamboo_stage_name }])
       end
 
       it 'must return success using plans from repository' do
@@ -574,7 +633,7 @@ describe Github::ReRun::Comment do
             'body' => 'CI:rerun 000000',
             'user' => { 'login' => 'John' }
           },
-          'repository' => { 'full_name' => 'unit_test' },
+          'repository' => { 'full_name' => pull_request.repository },
           'issue' => { 'number' => pull_request.github_pr_id }
         }
       end
@@ -610,6 +669,63 @@ describe Github::ReRun::Comment do
         expect(rerun.start).to eq([200, 'Scheduled Plan Runs'])
         expect(check_suite_rerun).not_to be_nil
       end
+    end
+  end
+
+  describe 'pull request lookup' do
+    let(:pull_request) { create(:pull_request, github_pr_id: 42, repository: 'org/repo-a') }
+    let(:payload) do
+      {
+        'action' => 'created',
+        'comment' => { 'body' => 'ci:rerun', 'user' => { 'login' => 'John' } },
+        'repository' => { 'full_name' => 'org/repo-b' },
+        'issue' => { 'number' => 42 }
+      }
+    end
+
+    before { create(:check_suite, pull_request: pull_request) }
+
+    it 'does not use a pull request with the same number from another repository' do
+      expect(described_class.new(payload).start).to eq([404, 'Pull Request not found'])
+    end
+  end
+
+  describe '#cleanup' do
+    let(:pull_request) { create(:pull_request) }
+    let(:stopped_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:queued_only_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:refused_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:new_suite) { create(:check_suite, pull_request: pull_request) }
+    let(:rerun) { described_class.new({}) }
+
+    def timeout_job(suite_id)
+      Delayed::Job.create!(
+        queue: 'timeout_execution',
+        handler: "--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/class 'TimeoutExecution'\n" \
+                 "method_name: :timeout\nargs:\n- #{suite_id}\n"
+      )
+    end
+
+    def remaining_suite_ids
+      Delayed::Job.pluck(:handler).map { |h| h[/args:\n- (\d+)/, 1] }
+    end
+
+    before do
+      [stopped_suite, queued_only_suite, refused_suite, new_suite].each { |suite| timeout_job(suite.id) }
+      timeout_job("#{stopped_suite.id}0")
+
+      allow(rerun).to receive(:cancel_previous_jobs)
+      allow(BambooCi::StopPlan).to receive(:stop_execution).and_return(true)
+      allow(BambooCi::StopPlan).to receive(:stop_execution).with(refused_suite.bamboo_ci_ref).and_return(false)
+
+      rerun.send(:stop_and_update_previous_execution, stopped_suite)
+      rerun.send(:stop_and_update_previous_execution, refused_suite)
+      rerun.send(:cleanup, new_suite)
+    end
+
+    it 'removes only the timeout workers of the executions it stopped' do
+      expect(remaining_suite_ids).to contain_exactly(queued_only_suite.id.to_s, refused_suite.id.to_s,
+                                                     new_suite.id.to_s, "#{stopped_suite.id}0")
     end
   end
 end

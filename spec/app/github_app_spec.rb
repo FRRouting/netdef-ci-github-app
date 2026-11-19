@@ -18,6 +18,28 @@ describe 'GithubApp' do
     end
   end
 
+  context 'when no route matches' do
+    it 'returns 404 instead of a server error' do
+      allow(PrometheusMetrics::APP_EXCEPTIONS).to receive(:increment)
+
+      get '/does-not-exist'
+
+      expect(last_response.status).to eq 404
+      expect(PrometheusMetrics::APP_EXCEPTIONS).not_to have_received(:increment)
+    end
+  end
+
+  context 'when a route raises' do
+    before { allow(Telemetry.instance).to receive(:stats).and_raise(StandardError, 'boom') }
+
+    it 'returns a JSON server error' do
+      get '/telemetry'
+
+      expect(last_response.status).to eq 500
+      expect(JSON.parse(last_response.body)).to eq('error' => 'Internal Server Error')
+    end
+  end
+
   describe '#UpdateStatus' do
     before do
       allow(File).to receive(:read).and_return('')

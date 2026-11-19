@@ -1,0 +1,18 @@
+{#
+  SPDX-License-Identifier: BSD-2-Clause
+
+  database.yml.j2
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-#}
+# {{ ansible_managed }}
+# Database of the application (database_loader.rb, config/delayed_job.rb). Contains the password: mode 0640.
+{{ {netdef_ci_rack_env: {
+      'adapter': 'postgresql',
+      'url': netdef_ci_database_url_normalised,
+      'encoding': 'utf8',
+      'pool': netdef_ci_database_pool | int,
+      'timeout': 5000,
+   }} | to_nice_yaml(indent=2) }}

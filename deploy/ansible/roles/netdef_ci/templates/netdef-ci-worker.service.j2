@@ -1,0 +1,34 @@
+{#
+  SPDX-License-Identifier: BSD-2-Clause
+
+  netdef-ci-worker.service.j2
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-#}
+# {{ ansible_managed }}
+[Unit]
+Description=NetDEF CI GitHub App (Ruby) - job worker {{ item.name }} (queues: {{ item.queues }})
+After=network-online.target
+Wants=network-online.target
+PartOf={{ netdef_ci_target }}
+
+[Service]
+Type=simple
+User={{ netdef_ci_user }}
+Group={{ netdef_ci_group }}
+WorkingDirectory={{ netdef_ci_current_link }}
+EnvironmentFile={{ netdef_ci_env_file }}
+Environment=QUEUES={{ item.queues }}
+ExecStart={{ netdef_ci_bundle }} exec rake jobs:work
+Restart=always
+RestartSec=5
+# Delayed::Worker.max_run_time is 5 minutes: let the running job finish on SIGTERM
+TimeoutStopSec=330
+RuntimeDirectory={{ netdef_ci_runtime_dir_name }}
+RuntimeDirectoryPreserve=yes
+{% include 'hardening.conf.j2' %}
+
+[Install]
+WantedBy={{ netdef_ci_target }}

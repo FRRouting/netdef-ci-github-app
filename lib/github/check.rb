@@ -26,6 +26,12 @@ module Github
   # @attr_reader [Object] app the authenticated GitHub app client.
   # @attr_reader [Object] check_suite the check suite associated with the pull request.
   class Check
+    # Kept short: these updates also run inside webhook requests, where every sleep holds a Puma thread.
+    UPDATE_NOT_FOUND_RETRIES = 2
+    UPDATE_NOT_FOUND_DELAY = 0.5 # seconds, multiplied by the attempt number
+    COMPLETED_RETRIES = 3
+    COMPLETED_RETRY_DELAY = 1 # seconds, multiplied by the attempt number
+
     attr_reader :app, :check_suite
 
     # Initializes a new Github::Check object.
@@ -105,13 +111,21 @@ module Github
 
     # Creates a new check run.
     #
+    # Sending the output on creation avoids an update right after the POST,
+    # which GitHub may answer with 404 while the new check run is not readable yet.
+    #
     # @param name [String] the name of the check run.
+    # @param output [Hash] the initial output of the check run.
     # @return [Hash] the created check run information.
-    def create(name)
+    def create(name, output: {})
+      opts = {}
+      opts[:output] = output unless output.empty?
+
       @app.create_check_run(
         @check_suite.pull_request.repository,
         name,
-        @check_suite.commit_sha_ref
+        @check_suite.commit_sha_ref,
+        opts
       )
     end
 
@@ -210,16 +224,28 @@ module Github
 
       opts[:output] = output unless output.empty?
 
-      resp =
-        @app.update_check_run(
-          @check_suite.pull_request.repository,
-          check_ref.to_i,
-          opts
-        ).to_h
+      resp = update_check_run_with_retry(check_ref, opts)
 
       @logger.info("basic_status: #{check_ref}, status: #{status} -> resp: #{resp}")
 
       resp
+    end
+
+    # GitHub may answer 404 for a check run created moments ago (read-after-write lag).
+    # Re-raises after the last attempt, so a check run that really does not exist still fails.
+    def update_check_run_with_retry(check_ref, opts)
+      retry_count = 0
+
+      begin
+        @app.update_check_run(@check_suite.pull_request.repository, check_ref.to_i, opts).to_h
+      rescue Octokit::NotFound
+        retry_count += 1
+        raise if retry_count > UPDATE_NOT_FOUND_RETRIES
+
+        @logger.warn("basic_status: #{check_ref} not found at GitHub - retry #{retry_count}")
+        sleep retry_count * UPDATE_NOT_FOUND_DELAY
+        retry
+      end
     end
 
     # Completes a check run with a specific conclusion.
@@ -249,9 +275,10 @@ module Github
       rescue Octokit::NotFound, RuntimeError
         retry_count += 1
 
-        sleep retry_count * 5
-
-        retry if retry_count <= 3
+        if retry_count <= COMPLETED_RETRIES
+          sleep retry_count * COMPLETED_RETRY_DELAY
+          retry
+        end
 
         @logger.error "#{check_ref} not found at GitHub"
 

@@ -1,0 +1,21 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  migrate.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+# Prometheus files and the schema dump go to the state directory: /run/<name> exists only while a service runs, and the
+# release is read-only for the service user.
+- name: Apply database migrations with the new release
+  ansible.builtin.command:
+    cmd: "{{ netdef_ci_bundle }} exec rake db:migrate"
+    chdir: "{{ netdef_ci_release_dir }}"
+  environment: "{{ netdef_ci_release_env | combine({'PROMETHEUS_METRICS_DIR': netdef_ci_state_dir ~ '/prometheus-tasks'}) }}"
+  become: true
+  become_user: "{{ netdef_ci_user }}"
+  register: netdef_ci_migration
+  changed_when: "'migrated' in netdef_ci_migration.stdout"
+  run_once: true

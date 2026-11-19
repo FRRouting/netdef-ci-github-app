@@ -1,0 +1,33 @@
+{#
+  SPDX-License-Identifier: BSD-2-Clause
+
+  netdef-ci-web.service.j2
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-#}
+# {{ ansible_managed }}
+[Unit]
+Description=NetDEF CI GitHub App (Ruby) - web ({{ netdef_ci_env }})
+After=network-online.target
+Wants=network-online.target
+PartOf={{ netdef_ci_target }}
+
+[Service]
+Type=simple
+User={{ netdef_ci_user }}
+Group={{ netdef_ci_group }}
+WorkingDirectory={{ netdef_ci_current_link }}
+EnvironmentFile={{ netdef_ci_env_file }}
+# config.ru starts Puma itself (config/puma.rb: port/bind from config.yml, WEB_CONCURRENCY workers)
+ExecStart={{ netdef_ci_bundle }} exec rackup config.ru
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+RuntimeDirectory={{ netdef_ci_runtime_dir_name }}
+RuntimeDirectoryPreserve=yes
+{% include 'hardening.conf.j2' %}
+
+[Install]
+WantedBy={{ netdef_ci_target }}

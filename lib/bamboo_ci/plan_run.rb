@@ -83,9 +83,7 @@ module BambooCi
     end
 
     def failed(response)
-      logger(Logger::DEBUG, '')
-      logger(Logger::DEBUG, "ci submission failed: #{response.body}")
-      logger(Logger::DEBUG, "Error #{response.code}")
+      logger(Logger::ERROR, "ci submission failed (HTTP #{response.code}): #{ServiceAccount.summary(response)}")
 
       return 429 if response.body.include?('reached the maximum number of concurrent builds')
 

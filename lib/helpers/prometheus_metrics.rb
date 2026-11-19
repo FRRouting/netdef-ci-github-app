@@ -20,12 +20,12 @@ module PrometheusMetrics
   REGISTRY = Prometheus::Client.registry
   DJ_MAX_ATTEMPTS = 5
   DJ_MAX_RUN_TIME = 300 # 5 minutes, matches Delayed::Worker.max_run_time
-end
 
-require_relative 'prometheus_metrics/metrics_definitions'
-require_relative 'prometheus_metrics/refresh_helpers'
+  # Loaded here because they depend on the constants above.
+  require_relative 'prometheus_metrics/metrics_definitions'
+  require_relative 'prometheus_metrics/refresh_helpers'
 
-module PrometheusMetrics
+  # Only records metrics: an error raised by the block is counted and raised again for the caller to handle.
   def self.track_bamboo(operation)
     start = Time.now
     result = yield
@@ -35,7 +35,7 @@ module PrometheusMetrics
   rescue StandardError
     BAMBOO_REQUESTS.increment(labels: { operation: operation, status: 'error' })
     BAMBOO_DURATION.observe(Time.now - start, labels: { operation: operation })
-    nil
+    raise
   end
 
   def self.track_slack(type)

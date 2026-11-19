@@ -74,3 +74,18 @@ describe TimeoutExecution do
     end
   end
 end
+
+describe TimeoutExecution, 'suite without CI jobs' do
+  let(:check_suite) { create(:check_suite) }
+
+  before do
+    allow(TimeoutExecution).to receive_message_chain(:delay, :timeout)
+  end
+
+  it 'falls back to the check suite update time' do
+    allow(CheckSuite).to receive(:find).and_return(check_suite)
+    allow(check_suite).to receive(:finished?).and_return(false)
+
+    expect { described_class.timeout(check_suite.id) }.not_to raise_error
+  end
+end

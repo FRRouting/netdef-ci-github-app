@@ -14,6 +14,7 @@ require_relative '../../bamboo_ci/running_plan'
 require_relative '../../helpers/github_logger'
 require_relative '../../bamboo_ci/result'
 require_relative 'summary/message_formatter'
+require_relative 'summary/pending_jobs'
 
 module Github
   module Build
@@ -72,7 +73,7 @@ module Github
           .where(configuration: { position: (0...current_position) })
           .where(status: %i[in_progress queued])
           .each do |stage|
-            next if stage.running?
+            next PendingJobs.schedule(stage, @agent) if stage.running?
 
             logger(Logger::INFO, "must_update_previous_stage: #{stage.inspect}")
             finished_stage_summary(stage)
@@ -140,7 +141,7 @@ module Github
       end
 
       def finished_stage_update(stage, output)
-        if stage.jobs.failure.empty?
+        if stage.jobs.unsuccessful.empty?
           logger(Logger::WARN, "Stage: #{stage.name} finished - success")
           stage.success(@github, output: output, agent: @agent)
           stage.update_execution_time

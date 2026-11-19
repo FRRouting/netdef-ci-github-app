@@ -32,7 +32,8 @@ module Github
     #
     # @param [Hash] payload The payload containing information about the CI job.
     def initialize(payload)
-      @status = payload['status']
+      # Bamboo's hook reports a failed job as "failed"
+      @status = payload['status'] == 'failed' ? 'failure' : payload['status']
 
       @reference = payload['bamboo_ref'] || 'invalid_reference'
       @job = CiJob.find_by(job_ref: payload['bamboo_ref'])
@@ -75,13 +76,7 @@ module Github
     ##
     # Records the failure statistics for the CI job.
     def failures_stats
-      @failures.each do |failure|
-        TopotestFailure.create(ci_job: @job,
-                               test_suite: failure['suite'],
-                               test_case: failure['case'],
-                               message: failure['message'],
-                               execution_time: failure['execution_time'])
-      end
+      TopotestFailure.replace_for(@job, @failures)
     end
 
     ##
@@ -148,9 +143,7 @@ module Github
       logger(Logger::INFO,
              "Removing old delayed job for queue: #{queue} and bamboo_ci_ref: #{@check_suite.bamboo_ci_ref}")
 
-      Delayed::Job
-        .where(queue: queue)
-        .where('handler LIKE ?', "%method_name: :update\nargs:\n- #{@check_suite.bamboo_ci_ref}%")
+      DelayedJobLookup.pending(queue: queue, method: :update, first_arg: @check_suite.bamboo_ci_ref)
     end
 
     ##
@@ -165,7 +158,7 @@ module Github
 
       CiJobFetchTopotestFailures
         .delay(run_at: 5.minutes.from_now.utc, queue: 'fetch_topotest_failures')
-        .update(@job.id, 1)
+        .update(@job.id, 1, @job.retry.to_i)
     end
 
     ##

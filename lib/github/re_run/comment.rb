@@ -18,7 +18,7 @@ module Github
       TIMER = 1 # seconds
 
       def initialize(payload, logger_level: Logger::INFO)
-        super(payload, logger_level: logger_level)
+        super
 
         @logger_manager << GithubLogger.instance.create('github_rerun_comment.log', logger_level)
         @logger_manager << Logger.new($stdout)
@@ -39,6 +39,8 @@ module Github
         return [404, 'Pull Request not found'] if @pull_request.nil?
         return [404, 'Can not rerun a new PullRequest'] if @pull_request.check_suites.empty?
 
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_rerun?(@pull_request)
+
         github_reaction_feedback(comment_id)
 
         fetch_plans.each do |plan|
@@ -50,20 +52,19 @@ module Github
         [200, 'Scheduled Plan Runs']
       end
 
-      def fetch_plans
-        @pull_request.plans.presence || Plan.where(github_repo_name: repo)
-      end
-
+      # The reaction is only feedback: a GitHub failure here must not leave the rerun claimed and unscheduled.
       def github_reaction_feedback(comment_id)
         return if comment_id.nil?
 
         github_check = Github::Check.new(@pull_request.check_suites.last)
 
         github_check.comment_reaction_thumb_up(repo, comment_id)
+      rescue StandardError => e
+        logger(Logger::WARN, ">>> Failed to react to comment #{comment_id}: #{e.message}")
       end
 
       def fetch_pull_request
-        @pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        @pull_request = PullRequest.find_by(github_pr_id: pr_id, repository: repo)
       end
 
       def action?

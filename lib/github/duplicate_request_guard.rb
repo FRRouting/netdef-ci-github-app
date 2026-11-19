@@ -1,0 +1,59 @@
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  duplicate_request_guard.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
+
+module Github
+  # Several ci:retry / ci:rerun triggers for the same target can arrive within
+  # a few seconds (repeated comments, GitHub "Re-run" firing one event per check
+  # run, webhook redeliveries). Each one runs stop + queue in Bamboo, so a late
+  # duplicate stops the execution the first one has just started.
+  #
+  # The claim is a single conditional UPDATE: PostgreSQL re-evaluates the WHERE
+  # clause after the row lock is released, so only one concurrent request wins.
+  module DuplicateRequestGuard
+    WINDOW = 60 # seconds
+
+    def self.claim_retry?(check_suite)
+      claim?(CheckSuite, check_suite.id, :retry_requested_at)
+    end
+
+    # Frees the claim after a failed attempt, so the user can retry right away
+    # instead of having the next request dropped as a duplicate.
+    def self.release_retry(check_suite)
+      CheckSuite.unscoped.where(id: check_suite.id).update_all(retry_requested_at: nil)
+    end
+
+    def self.claim_rerun?(pull_request)
+      claim?(PullRequest, pull_request.id, :rerun_requested_at)
+    end
+
+    def self.release_rerun(pull_request)
+      PullRequest.unscoped.where(id: pull_request.id).update_all(rerun_requested_at: nil)
+    end
+
+    # The rerun claim covers the whole pull request, but each plan runs in its own worker. With several
+    # plans, a failed one must not unlock the protection of a plan that has just started, so the claim
+    # is left to expire on its own.
+    def self.release_failed_rerun(pull_request, plans)
+      return if plans.size > 1
+
+      release_rerun(pull_request)
+    end
+
+    def self.claim?(model, id, column)
+      now = Time.now.utc
+
+      model
+        .unscoped
+        .where(id: id)
+        .where("#{column} IS NULL OR #{column} < ?", now - WINDOW)
+        .update_all(column => now) == 1
+    end
+  end
+end

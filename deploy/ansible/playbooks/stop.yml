@@ -1,0 +1,23 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  stop.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+# Stop every process of the application (web, job workers, periodic timers) and keep them stopped across reboots.
+# Meant for the Ruby <-> Python transition: stop this application before the Python one takes the webhooks (both use
+# the same database tables only if configured so; never run both sets of workers against the same database).
+# Nothing is removed (release, configuration, database and pending jobs stay); start again with start.yml.
+#   ansible-playbook -i inventories/prod_frr_public/hosts.yml playbooks/stop.yml --ask-vault-pass
+# Add -e netdef_ci_stop_disable=false to stop only until the next reboot.
+- name: Stop NetDEF CI GitHub App (Ruby)
+  hosts: netdef_ci_servers
+  become: true
+  tasks:
+    - name: Stop the services and timers
+      ansible.builtin.include_role:
+        name: netdef_ci
+        tasks_from: stop.yml

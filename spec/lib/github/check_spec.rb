@@ -109,12 +109,29 @@ describe Github::Check do
     before do
       allow(fake_client).to receive(:create_check_run)
         .with(check_suite.pull_request.repository, name,
-              check_suite.commit_sha_ref)
+              check_suite.commit_sha_ref, {})
         .and_return(pr_info)
     end
 
     it 'must returns success' do
       expect(check.create(name)).to eq(pr_info)
+    end
+  end
+
+  context 'when call create with an output' do
+    let(:name) { 'test' }
+    let(:output) { { title: 'Build summary', summary: 'Uninitialized stage' } }
+    let(:pr_info) { { id: 1, name: name } }
+
+    before do
+      allow(fake_client).to receive(:create_check_run)
+        .with(check_suite.pull_request.repository, name,
+              check_suite.commit_sha_ref, { output: output })
+        .and_return(pr_info)
+    end
+
+    it 'sends the output in the creation request' do
+      expect(check.create(name, output: output)).to eq(pr_info)
     end
   end
 
@@ -351,10 +368,53 @@ describe Github::Check do
     end
   end
 
+  describe 'retry basic_status' do
+    let(:id) { 1 }
+
+    before { allow(check).to receive(:sleep) }
+
+    context 'when GitHub answers 404 once and then succeeds' do
+      before do
+        call_count = 0
+        allow(fake_client).to receive(:update_check_run) do
+          call_count += 1
+          raise Octokit::NotFound if call_count == 1
+
+          { status: 'queued' }
+        end
+      end
+
+      it 'retries and returns the update' do
+        expect(check.queued(id)).to eq({ status: 'queued' })
+        expect(fake_client).to have_received(:update_check_run).twice
+      end
+    end
+
+    context 'when GitHub keeps answering 404' do
+      before do
+        allow(fake_client).to receive(:update_check_run).and_raise(Octokit::NotFound)
+      end
+
+      it 'raises after the last retry' do
+        expect { check.in_progress(id) }.to raise_error(Octokit::NotFound)
+        expect(fake_client).to have_received(:update_check_run)
+          .exactly(Github::Check::UPDATE_NOT_FOUND_RETRIES + 1).times
+      end
+
+      it 'waits at most a couple of seconds in total' do
+        expect { check.in_progress(id) }.to raise_error(Octokit::NotFound)
+        expect(check).to have_received(:sleep).with(0.5).ordered
+        expect(check).to have_received(:sleep).with(1.0).ordered
+      end
+    end
+  end
+
   describe 'retry send_update ' do
     let(:id) { 1 }
     let(:status) { 'completed' }
     let(:conclusion) { 'success' }
+
+    before { allow(check).to receive(:sleep) }
 
     context 'when send_update returns error' do
       before do
@@ -363,6 +423,14 @@ describe Github::Check do
 
       it 'must returns raise' do
         expect(check.skipped(id)).to eq({})
+      end
+
+      it 'gives up after a few seconds instead of half a minute' do
+        check.skipped(id)
+
+        expect(fake_client).to have_received(:update_check_run).exactly(Github::Check::COMPLETED_RETRIES + 1).times
+        expect(check).not_to have_received(:sleep).with(4)
+        [1, 2, 3].each { |delay| expect(check).to have_received(:sleep).with(delay) }
       end
     end
 

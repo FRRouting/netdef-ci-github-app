@@ -1,0 +1,28 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+# Non-secret settings of the DEVELOPMENT environment. Secrets live in vault.yml (see vault.yml.example).
+netdef_ci_env: development
+netdef_ci_version: master                    # branch, tag or commit; override with -e netdef_ci_version=<ref>
+netdef_ci_repo_url: https://github.com/FRRouting/netdef-ci-github-app
+
+netdef_ci_listen_host: 0.0.0.0
+netdef_ci_listen_port: 4668                  # dev port
+netdef_ci_web_workers: 2
+netdef_ci_keep_releases: 3
+
+netdef_ci_debug: true
+netdef_ci_ci_host: ci2.netdef.org            # https://<host>/browse/<KEY> links
+
+netdef_ci_timers:
+  watchdog: {enabled: true, on_calendar: "*:0/15"}
+  pr_sync: {enabled: false, on_calendar: "hourly"}
+
+# Manual installation to stop on this host (deployment/github_server.service style); empty = untouched.
+# netdef_ci_legacy_units: [github_server_devel.service]

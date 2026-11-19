@@ -78,4 +78,18 @@ describe BambooCi::RunningPlan do
       expect(service).to eq([])
     end
   end
+
+  describe '.fetch!' do
+    it 'returns the jobs Bamboo lists' do
+      allow(described_class).to receive(:fetch).with('PLAN-1').and_return([{ job_ref: 'PLAN-JOB1-1' }])
+
+      expect(described_class.fetch!('PLAN-1')).to eq([{ job_ref: 'PLAN-JOB1-1' }])
+    end
+
+    it 'raises while Bamboo lists no job yet' do
+      allow(described_class).to receive(:fetch).with('PLAN-1').and_return([])
+
+      expect { described_class.fetch!('PLAN-1') }.to raise_error(described_class::Unavailable, /PLAN-1/)
+    end
+  end
 end

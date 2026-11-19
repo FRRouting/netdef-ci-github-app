@@ -1,0 +1,20 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+galaxy_info:
+  author: NetDEF
+  description: Installs and updates the NetDEF CI GitHub App (Ruby)
+  license: BSD-2-Clause
+  min_ansible_version: "2.16"
+  platforms:
+    - name: Debian
+      versions: [all]
+    - name: Ubuntu
+      versions: [all]
+dependencies: []

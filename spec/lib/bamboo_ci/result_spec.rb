@@ -34,4 +34,26 @@ describe BambooCi::Result do
       expect(service).to eq({})
     end
   end
+
+  describe '.active?' do
+    before { allow(described_class).to receive(:fetch).with('PLAN-1', expand: '').and_return(result) }
+
+    context 'when Bamboo reports the build in progress' do
+      let(:result) { { 'lifeCycleState' => 'InProgress' } }
+
+      it { expect(described_class.active?('PLAN-1')).to be(true) }
+    end
+
+    context 'when Bamboo reports the build finished' do
+      let(:result) { { 'lifeCycleState' => 'Finished' } }
+
+      it { expect(described_class.active?('PLAN-1')).to be(false) }
+    end
+
+    context 'when Bamboo does not answer' do
+      let(:result) { nil }
+
+      it { expect(described_class.active?('PLAN-1')).to be(true) }
+    end
+  end
 end

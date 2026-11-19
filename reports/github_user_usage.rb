@@ -10,7 +10,7 @@
 
 require_relative '../database_loader'
 
-ActiveRecord::Base.logger = Logger.new('/dev/null')
+ActiveRecord::Base.logger = Logger.new(File::NULL)
 
 user = GithubUser.find_by_github_login(ARGV[0])
 

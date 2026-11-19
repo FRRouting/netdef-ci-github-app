@@ -60,4 +60,20 @@ describe BambooCi::Download do
       expect(service).to eq('')
     end
   end
+
+  context 'when Bamboo refuses the log' do
+    let(:url) { 'https://127.0.0.1/download/PLAN-JOB1/build_logs/PLAN-JOB1-12.log' }
+
+    before do
+      allow(Netrc).to receive(:read).and_return({ 'ci1.netdef.org' => %w[user password] })
+      allow(described_class).to receive(:sleep)
+      stub_request(:get, url).to_return(status: 401, body: "<html>\nlogin\n</html>")
+    end
+
+    it 'returns an empty log right away instead of the HTML page' do
+      expect(described_class.build_log(url)).to eq('')
+      expect(a_request(:get, url)).to have_been_made.once
+      expect(described_class).not_to have_received(:sleep)
+    end
+  end
 end

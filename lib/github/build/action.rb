@@ -22,6 +22,13 @@
 module Github
   module Build
     class Action
+      # Output of a stage that has not started yet. Also used by Build::Retry when it enqueues stages again.
+      def self.stage_output(stage)
+        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
+
+        { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
+      end
+
       ##
       # Initializes the Action class with the given parameters.
       #
@@ -49,17 +56,19 @@ module Github
       # Creates a summary for the CheckSuite, including jobs and timeout workers.
       #
       # @param [Boolean] rerun Indicates if the jobs should be rerun (default: false).
-      def create_summary(rerun: false)
+      # @param [Boolean] resume Completes a summary that an earlier attempt left half done:
+      #   existing stages only get what they are missing and existing CI jobs are kept.
+      def create_summary(rerun: false, resume: false)
         logger(Logger::INFO, "SUMMARY #{@stages_config.inspect}")
 
         Github::Build::SkipOldTests.new(@check_suite).skip_old_tests
 
         @stages_config.each do |stage_config|
-          create_check_run_stage(stage_config)
+          resume ? resume_check_run_stage(stage_config) : create_check_run_stage(stage_config)
         end
 
         logger(Logger::INFO, "@jobs - #{@jobs.inspect}")
-        create_jobs(rerun)
+        create_jobs(rerun, resume)
         create_timeout_worker
       end
 
@@ -69,8 +78,11 @@ module Github
       # Creates jobs for the CheckSuite.
       #
       # @param [Boolean] rerun Indicates if the jobs should be rerun.
-      def create_jobs(rerun)
+      # @param [Boolean] resume Skips jobs already created by an earlier attempt.
+      def create_jobs(rerun, resume)
         @jobs.each do |job|
+          next if resume and CiJob.exists?(check_suite: @check_suite, job_ref: job[:job_ref])
+
           ci_job = create_ci_job(job)
 
           next if ci_job.nil?
@@ -89,13 +101,20 @@ module Github
       end
 
       ##
-      # Creates a timeout worker for the CheckSuite.
+      # Creates a timeout worker for the CheckSuite, unless one is already pending:
+      # a resumed setup runs create_summary again and must not start a second timeout chain.
       def create_timeout_worker
+        return if timeout_worker_pending?
+
         logger(Logger::INFO, "CiJobStatus::Update: TimeoutExecution for '#{@check_suite.id}'")
 
         TimeoutExecution
           .delay(run_at: 30.minute.from_now.utc, queue: 'timeout_execution')
           .timeout(@check_suite.id)
+      end
+
+      def timeout_worker_pending?
+        DelayedJobLookup.pending(queue: 'timeout_execution', method: :timeout, first_arg: @check_suite.id).exists?
       end
 
       ##
@@ -143,6 +162,20 @@ module Github
       end
 
       ##
+      # Creates the stage, or finishes the GitHub side of a stage an earlier attempt created.
+      #
+      # @param [StageConfiguration] stage_config The stage configuration.
+      def resume_check_run_stage(stage_config)
+        stage = Stage.find_by(name: stage_name(stage_config), check_suite_id: @check_suite.id)
+
+        return create_stage(stage_config) if stage.nil?
+
+        stage.enqueue(@github, output: stage_output(stage)) if stage.check_ref.nil?
+        # Bamboo may have finished (or a failure cancelled) the stage while the resume was waiting.
+        stage.in_progress(@github) if stage_config.start_in_progress? and stage.queued?
+      end
+
+      ##
       # Creates a new stage for the given stage configuration.
       #
       # @param [StageConfiguration] stage_config The stage configuration.
@@ -156,13 +189,14 @@ module Github
                        status: 'queued',
                        name: name)
 
-        url = "https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{stage.check_suite.bamboo_ci_ref}"
-        output = { title: "#{stage.name} summary", summary: "Uninitialized stage\nDetails at [#{url}](#{url})" }
-
-        stage.enqueue(@github, output: output)
+        stage.enqueue(@github, output: stage_output(stage))
         stage.in_progress(@github) if stage_config.start_in_progress?
 
         stage
+      end
+
+      def stage_output(stage)
+        self.class.stage_output(stage)
       end
 
       ##
@@ -180,11 +214,18 @@ module Github
         output
       end
 
+      # Counts the repository's plans, not the pull request's: plans move to whichever pull request was
+      # built last, and the name of a stage must not change between executions of the same pull request.
       def stage_name(stage_config)
-        return stage_config.github_check_run_name if @check_suite.pull_request.plans.count == 1 or @name.blank?
+        return stage_config.github_check_run_name if @name.blank?
         return stage_config.github_check_run_name unless GitHubApp::Configuration.instance.multi_plan?
+        return stage_config.github_check_run_name if repository_plans_count == 1
 
         "#{stage_config.github_check_run_name} - #{@name}"
+      end
+
+      def repository_plans_count
+        @repository_plans_count ||= Plan.where(github_repo_name: @check_suite.pull_request.repository).count
       end
 
       ##

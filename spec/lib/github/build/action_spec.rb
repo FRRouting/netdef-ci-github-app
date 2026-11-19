@@ -172,6 +172,43 @@ describe Github::Build::Action do
     end
   end
 
+  describe '#stage_name' do
+    let(:ci_job) { create(:ci_job, check_suite: check_suite, stage: stage) }
+    let(:stage_config) { stage.configuration }
+    let(:repository) { check_suite.pull_request.repository }
+    let(:multi_plan) { true }
+    let(:stage_name) { action.send(:stage_name, stage_config) }
+
+    before { allow(GitHubApp::Configuration.instance).to receive(:multi_plan?).and_return(multi_plan) }
+
+    context 'when the repository has several plans that now belong to another pull request' do
+      before do
+        other_pull_request = create(:pull_request, github_pr_id: 99, repository: repository)
+        create_list(:plan, 2, github_repo_name: repository, pull_request: other_pull_request)
+      end
+
+      it 'keeps the plan suffix' do
+        expect(stage_name).to eq("#{stage_config.github_check_run_name} - Tato")
+      end
+    end
+
+    context 'when the repository has a single plan' do
+      before { create(:plan, github_repo_name: repository) }
+
+      it 'uses the bare check run name' do
+        expect(stage_name).to eq(stage_config.github_check_run_name)
+      end
+    end
+
+    context 'when multi plan is disabled' do
+      let(:multi_plan) { false }
+
+      it 'uses the bare check run name' do
+        expect(stage_name).to eq(stage_config.github_check_run_name)
+      end
+    end
+  end
+
   context 'when stage is the Final' do
     let(:ci_job) { create(:ci_job, name: 'Final') }
     let(:check_suite_new) { create(:check_suite) }
@@ -185,6 +222,98 @@ describe Github::Build::Action do
     it 'must not change' do
       expect { described_class.new(check_suite_new, fake_github_check, [ci_job], '').create_summary(rerun: false) }
         .not_to raise_error
+    end
+  end
+
+  context 'when resuming a summary that an earlier attempt left half done' do
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+
+    it 'creates the missing check run of a stage that has none' do
+      stage.update(check_ref: nil)
+
+      action.create_summary(resume: true)
+
+      expect(fake_github_check).to have_received(:create).with('[CI] Build', output: anything)
+      expect(stage.reload.check_ref).not_to be_nil
+    end
+
+    it 'does not create a new check run for a stage that already has one' do
+      action.create_summary(resume: true)
+
+      expect(fake_github_check).not_to have_received(:create).with('[CI] Build', output: anything)
+    end
+
+    it 'puts a start-in-progress stage in progress' do
+      stage.configuration.update(start_in_progress: true)
+
+      action.create_summary(resume: true)
+
+      expect(stage.reload.status).to eq('in_progress')
+    end
+
+    it 'does not move a start-in-progress stage that Bamboo already finished back to in progress' do
+      stage.configuration.update(start_in_progress: true)
+      stage.update(status: :success)
+      allow(fake_github_check).to receive(:in_progress)
+
+      action.create_summary(resume: true)
+
+      expect(stage.reload.status).to eq('success')
+      expect(fake_github_check).not_to have_received(:in_progress).with(stage.check_ref, anything)
+    end
+
+    it 'does not move a cancelled start-in-progress stage back to in progress' do
+      stage.configuration.update(start_in_progress: true)
+      stage.update(status: :cancelled)
+
+      action.create_summary(resume: true)
+
+      expect(stage.reload.status).to eq('cancelled')
+    end
+
+    it 'does not duplicate CI jobs that already exist' do
+      ci_job
+
+      expect { action.create_summary(resume: true) }.not_to change(CiJob, :count)
+    end
+
+    it 'creates the stages that do not exist yet' do
+      config = create(:stage_configuration, github_check_run_name: 'Missing Stage')
+
+      action.create_summary(resume: true)
+
+      expect(Stage.find_by(check_suite: check_suite, configuration: config)).not_to be_nil
+    end
+  end
+
+  context 'when the summary is created again for the same check suite' do
+    let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }
+    let(:delayed) { double('delayed TimeoutExecution', timeout: true) }
+
+    def timeout_job(suite_id)
+      Delayed::Job.create!(
+        queue: 'timeout_execution',
+        handler: "--- !ruby/object:Delayed::PerformableMethod\nobject: !ruby/class 'TimeoutExecution'\n" \
+                 "method_name: :timeout\nargs:\n- #{suite_id}\n"
+      )
+    end
+
+    before { allow(TimeoutExecution).to receive(:delay).and_return(delayed) }
+
+    it 'does not queue a second timeout worker' do
+      timeout_job(check_suite.id)
+
+      action.create_summary(resume: true)
+
+      expect(delayed).not_to have_received(:timeout)
+    end
+
+    it 'queues one when only another check suite has a timeout worker' do
+      timeout_job("#{check_suite.id}0")
+
+      action.create_summary(resume: true)
+
+      expect(delayed).to have_received(:timeout).with(check_suite.id)
     end
   end
 end

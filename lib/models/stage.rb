@@ -18,16 +18,8 @@ class Stage < ActiveRecord::Base
 
   default_scope -> { order(id: :asc) }, all_queries: true
 
-  scope :related_stages, lambda { |check_suite, suffix|
-                           where('stages.name LIKE ?', "%#{suffix}").where(check_suite: check_suite)
-                         }
-
   scope :next_stage, ->(current_position) { where(configuration: { position: current_position + 1 }) }
   scope :next_stages, ->(current_position) { where(configuration: { position: [(current_position + 1)..] }) }
-
-  def suffix
-    name.split(' - ').last
-  end
 
   def update_execution_time
     started = audit_statuses.find_by(status: :in_progress)
@@ -42,27 +34,15 @@ class Stage < ActiveRecord::Base
     jobs.where(status: %i[queued in_progress]).any?
   end
 
-  def previous_stage
-    position = configuration&.position.to_i
-
-    return nil unless suffix
-
-    check_suite.stages
-               .joins(:configuration)
-               .where(configuration: { position: position - 1 })
-               .where('stages.name LIKE ?', "%#{suffix}")
-               .first
-  end
-
   def finished?
     jobs.where(status: %w[queued in_progress]).empty?
   end
 
   def enqueue(github, output: {}, agent: 'Github')
-    check_run = github.create(github_stage_full_name(name))
-    github.queued(check_run.id, output)
-    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
+    # A new check run is already queued, so no update is needed right after creating it.
+    check_run = github.create(github_stage_full_name(name), output: output)
     update(check_ref: check_run.id, status: :queued)
+    AuditStatus.create(auditable: self, status: :queued, agent: agent, created_at: Time.now)
   end
 
   def in_progress(github, output: output_in_progress, agent: 'Github')

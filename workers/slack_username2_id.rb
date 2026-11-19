@@ -16,7 +16,7 @@ class SlackUsername2Id
 
       user = GithubUser.find_by(github_login: username)
 
-      return false unless user
+      return unless user
 
       id = SlackBot.instance.find_user_id_by_name(slack_name)
 
@@ -24,8 +24,6 @@ class SlackUsername2Id
 
       user.slack_id = id
       user.save
-
-      true
     end
   end
 end

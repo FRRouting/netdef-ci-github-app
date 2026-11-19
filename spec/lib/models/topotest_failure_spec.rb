@@ -1,0 +1,54 @@
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  topotest_failure_spec.rb
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+#  frozen_string_literal: true
+
+describe TopotestFailure do
+  describe '.replace_for' do
+    let(:ci_job) { create(:ci_job) }
+    let(:other_job) { create(:ci_job) }
+    let(:failures) do
+      [
+        { 'suite' => 'suite_a', 'case' => 'case_a', 'message' => 'boom', 'execution_time' => 10 },
+        { 'suite' => 'suite_b', 'case' => 'case_b', 'message' => 'bang', 'execution_time' => 20 }
+      ]
+    end
+
+    before { create(:topotest_failure, ci_job: other_job) }
+
+    it 'does not duplicate failures reported twice' do
+      described_class.replace_for(ci_job, failures)
+      described_class.replace_for(ci_job, failures)
+
+      expect(ci_job.topotest_failures.map(&:to_h)).to match_array(failures)
+    end
+
+    it 'keeps the failures of earlier attempts of the same job' do
+      described_class.replace_for(ci_job, failures)
+      ci_job.update(retry: ci_job.retry + 1)
+      described_class.replace_for(ci_job, [failures.first])
+
+      expect(ci_job.topotest_failures.count).to eq(3)
+      expect(described_class.current_attempt_of(ci_job).map(&:to_h)).to eq([failures.first])
+    end
+
+    it 'stores the failures under the attempt they came from, not the current one' do
+      ci_job.update(retry: 1)
+      described_class.replace_for(ci_job, failures, attempt: 0)
+
+      expect(ci_job.topotest_failures.pluck(:attempt)).to all(eq(0))
+      expect(described_class.current_attempt_of(ci_job)).to be_empty
+    end
+
+    it 'keeps the failures of other jobs' do
+      described_class.replace_for(ci_job, failures)
+
+      expect(other_job.topotest_failures.count).to eq(1)
+    end
+  end
+end

@@ -21,7 +21,11 @@ module BambooCi
       uri = URI(url)
 
       begin
-        body = download(uri).split("\n").last(10).join("\n")
+        resp = send_request(uri, Net::HTTP::Get.new(uri), 'ci1.netdef.org')
+        # A refused or missing log (401/403/404) will not change on retry, and its HTML is not a build log.
+        return '' unless resp.is_a?(Net::HTTPSuccess)
+
+        body = resp.body.to_s.split("\n").last(10).join("\n")
 
         raise 'Must try' if body.empty?
 

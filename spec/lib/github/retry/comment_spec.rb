@@ -46,9 +46,10 @@ describe Github::Retry::Comment do
       allow(fake_plan_run).to receive(:bamboo_reference).and_return('UNIT-TEST-1')
       allow(fake_plan_run).to receive(:bamboo_reference).and_return('CHK-01')
 
-      allow(BambooCi::Retry).to receive(:restart)
+      allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
       allow(BambooCi::StopPlan).to receive(:build)
+      allow(BambooCi::Result).to receive(:active?).and_return(true)
       allow(BambooCi::RunningPlan).to receive(:fetch).with(fake_plan_run.bamboo_reference).and_return(ci_jobs)
     end
 
@@ -77,6 +78,32 @@ describe Github::Retry::Comment do
       it 'must returns success' do
         expect(github_retry.start).to eq([200, 'Retrying failure jobs'])
         expect(check_suite.stages.last.reload.status).to eq('queued')
+      end
+    end
+
+    context 'when a retry for the same check suite has just started' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:ci_jobs) { [] }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
+          'repository' => { 'full_name' => check_suite.pull_request.repository },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+
+      before do
+        check_suite.stages.each { |stage| stage.update(status: :failure) }
+        check_suite.stages.last.jobs.each { |job| job.update(status: :failure) }
+        check_suite.update(retry_requested_at: 2.seconds.ago)
+      end
+
+      it 'ignores the duplicate without stopping or restarting Bamboo' do
+        expect(github_retry.start).to eq([202, 'Retry already in progress'])
+        expect(BambooCi::StopPlan).not_to have_received(:build)
+        expect(BambooCi::Retry).not_to have_received(:restart)
+        expect(check_suite.reload.retry).to eq(0)
       end
     end
 
@@ -122,6 +149,38 @@ describe Github::Retry::Comment do
           'comment' => { 'body' => 'ci:retry', 'id' => 1 },
           'repository' => { 'full_name' => 'test' },
           'issue' => { 'number' => 0 }
+        }
+      end
+
+      it 'must returns stage not found' do
+        expect(github_retry.start).to eq([404, 'Stage not found'])
+      end
+    end
+
+    context 'when the PR number exists only in another repository' do
+      let(:check_suite) { create(:check_suite, :with_running_ci_jobs) }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
+          'repository' => { 'full_name' => 'another/repository' },
+          'issue' => { 'number' => check_suite.pull_request.github_pr_id }
+        }
+      end
+
+      it 'must returns stage not found' do
+        expect(github_retry.start).to eq([404, 'Stage not found'])
+      end
+    end
+
+    context 'when the PR has no check suites' do
+      let(:pull_request) { create(:pull_request) }
+      let(:payload) do
+        {
+          'action' => 'created',
+          'comment' => { 'body' => 'ci:retry', 'id' => 1 },
+          'repository' => { 'full_name' => pull_request.repository },
+          'issue' => { 'number' => pull_request.github_pr_id }
         }
       end
 

@@ -1,0 +1,16 @@
+{#
+  SPDX-License-Identifier: BSD-2-Clause
+
+  netdef-ci.target.j2
+  Part of NetDEF CI System
+
+  Copyright (c) 2026 by
+  Network Device Education Foundation, Inc. ("NetDEF")
+-#}
+# {{ ansible_managed }}
+[Unit]
+Description=NetDEF CI GitHub App - Ruby ({{ netdef_ci_env }})
+Wants={% for name in netdef_ci_service_names %}{{ name }}.service {% endfor %}
+
+[Install]
+WantedBy=multi-user.target

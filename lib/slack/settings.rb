@@ -11,9 +11,8 @@
 module Slack
   class Settings
     def call(payload)
-      message = []
-      PullRequestSubscription.where(slack_user_id: payload['slack_user_id']).each do |subscribe|
-        message << [subscribe.rule, subscribe.target, subscribe.notification]
+      message = PullRequestSubscription.where(slack_user_id: payload['slack_user_id']).map do |subscribe|
+        [subscribe.rule, subscribe.target, subscribe.notification]
       end
 
       message.empty? ? "You don't have any subscription" : to_table(message)

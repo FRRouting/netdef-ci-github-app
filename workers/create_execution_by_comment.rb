@@ -9,6 +9,7 @@
 #   frozen_string_literal: true
 
 class CreateExecutionByComment < Github::ReRun::Base
+  QUEUE = 'create_execution_by_comment'
   def self.create(pull_request_id, payload, plan_id)
     logger = GithubLogger.instance.create('github_app.log', Logger::INFO)
     plan = Plan.find_by(id: plan_id)
@@ -34,12 +35,16 @@ class CreateExecutionByComment < Github::ReRun::Base
     @pull_request = PullRequest.find(pull_request_id)
     @status = []
 
-    run_by_plan(plan)
+    @status = run_by_plan(plan)
   end
 
   private
 
   def run_by_plan(plan)
+    release_claim_on_failure { start_by_plan(plan) }
+  end
+
+  def start_by_plan(plan)
     check_suite = sha256_or_comment?
     logger(Logger::DEBUG, ">>> Check suite: #{check_suite.inspect}")
 
@@ -47,13 +52,7 @@ class CreateExecutionByComment < Github::ReRun::Base
 
     check_suite.update(plan: plan)
 
-    stop_previous_execution(plan)
-
-    start_new_execution(check_suite, plan)
-
-    ci_jobs(check_suite, plan)
-
-    [201, 'Starting re-run (comment)']
+    execute_rerun(check_suite, plan, 'comment')
   end
 
   def sha256_or_comment?
@@ -79,16 +78,12 @@ class CreateExecutionByComment < Github::ReRun::Base
 
   # Fetches the GitHub check associated with the pull request.
   #
-  # This method finds the pull request by its GitHub PR ID and then retrieves
-  # the last check suite associated with that pull request. It then initializes
-  # a new `Github::Check` object with the last check suite.
+  # Initializes a new `Github::Check` object with the last check suite of
+  # the pull request being re-run.
   #
   # @return [Github::Check] the GitHub check associated with the pull request.
-  #
-  # @raise [ActiveRecord::RecordNotFound] if the pull request is not found.
   def fetch_github_check
-    pull_request = PullRequest.find_by(github_pr_id: pr_id)
-    Github::Check.new(pull_request.check_suites.last)
+    Github::Check.new(@pull_request.check_suites.last)
   end
 
   def create_check_suite_by_commit(commit, pull_request, pull_request_info)

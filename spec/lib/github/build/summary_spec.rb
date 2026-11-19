@@ -395,6 +395,88 @@ describe Github::Build::Summary do
     end
   end
 
+  context 'when a previous stage job never received its status update' do
+    let(:stage1_config) { create(:stage_configuration, position: 1) }
+    let(:stage2_config) { create(:stage_configuration, position: 2) }
+    let(:stage1) do
+      create(:stage, :in_progress, name: 'Verify Source', configuration: stage1_config, check_suite: check_suite)
+    end
+    let(:stage2) { create(:stage, :in_progress, name: 'Build', configuration: stage2_config, check_suite: check_suite) }
+    let(:checkout_job) { create(:ci_job, :in_progress, name: 'Checkout Code', check_suite: check_suite, stage: stage1) }
+    let(:ci_job) { create(:ci_job, :in_progress, check_suite: check_suite, stage: stage2) }
+
+    before do
+      checkout_job
+      ci_job
+      allow(BambooCi::Result).to receive(:fetch).with(checkout_job.job_ref, expand: '').and_return(bamboo_result)
+    end
+
+    context 'when Bamboo reports the job as successful' do
+      let(:bamboo_result) { { 'state' => 'Successful', 'lifeCycleState' => 'Finished' } }
+
+      it 'marks the job and the previous stage as success' do
+        summary.build_summary
+        expect(checkout_job.reload.status).to eq('success')
+        expect(stage1.reload.status).to eq('success')
+        expect(stage2.reload.status).to eq('in_progress')
+      end
+    end
+
+    context 'when Bamboo reports the job as failed' do
+      let(:bamboo_result) { { 'state' => 'Failed', 'lifeCycleState' => 'Finished' } }
+
+      it 'marks the job and the previous stage as failure' do
+        summary.build_summary
+        expect(checkout_job.reload.status).to eq('failure')
+        expect(stage1.reload.status).to eq('failure')
+      end
+
+      it 'schedules the fetch of the failure details' do
+        delayed = double('delayed CiJobFetchTopotestFailures', update: true)
+        allow(CiJobFetchTopotestFailures).to receive(:delay).and_return(delayed)
+
+        summary.build_summary
+
+        expect(delayed).to have_received(:update).with(checkout_job.id, 1, checkout_job.retry)
+      end
+    end
+
+    context 'when Bamboo reports the job as successful after it ran' do
+      let(:bamboo_result) { { 'state' => 'Successful', 'lifeCycleState' => 'Finished' } }
+
+      before do
+        AuditStatus.create(auditable: checkout_job, status: :in_progress, agent: 'Github', created_at: 2.minutes.ago)
+      end
+
+      it 'records the execution time' do
+        summary.build_summary
+
+        expect(checkout_job.reload.execution_time).to be >= 100
+      end
+    end
+
+    context 'when Bamboo has no final state for the job yet' do
+      let(:bamboo_result) { { 'state' => 'Unknown', 'lifeCycleState' => 'InProgress' } }
+
+      it 'keeps the job in progress' do
+        summary.build_summary
+
+        expect(checkout_job.reload.status).to eq('in_progress')
+        expect(checkout_job.execution_time).to be_nil
+      end
+    end
+
+    context 'when Bamboo is unreachable' do
+      let(:bamboo_result) { nil }
+
+      it 'keeps the previous stage in progress' do
+        summary.build_summary
+        expect(checkout_job.reload.status).to eq('in_progress')
+        expect(stage1.reload.status).to eq('in_progress')
+      end
+    end
+  end
+
   context 'when the current stage is cancelled' do
     let(:stage) { create(:stage, :cancelled, check_suite: check_suite) }
     let(:ci_job) { create(:ci_job, stage: stage, check_suite: check_suite) }

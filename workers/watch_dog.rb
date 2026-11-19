@@ -31,6 +31,9 @@ class WatchDog
     suites.each do |check_suite|
       @logger.info ">>> Updating suite: #{check_suite.inspect}"
       Github::PlanExecution::Finished.new({ 'bamboo_ref' => check_suite.bamboo_ci_ref }).finished
+    rescue StandardError => e
+      # One broken suite (e.g. a check run deleted at GitHub) must not stop the others
+      @logger.error ">>> Suite #{check_suite.id} failed: #{e.class} #{e.message}"
     end
   end
 

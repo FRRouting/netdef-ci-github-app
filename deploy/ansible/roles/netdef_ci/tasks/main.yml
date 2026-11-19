@@ -1,0 +1,40 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+- name: Validate required variables
+  ansible.builtin.include_tasks: validate.yml
+
+- name: Create the service account and directories
+  ansible.builtin.include_tasks: user.yml
+
+- name: Install configuration, keys and credentials
+  ansible.builtin.include_tasks: config.yml
+
+- name: Fetch the requested version and install its gems
+  ansible.builtin.include_tasks: release.yml
+
+- name: Apply database migrations (run with the new release before switching)
+  ansible.builtin.include_tasks: migrate.yml
+  when: netdef_ci_run_migrations | bool
+
+- name: Install systemd units
+  ansible.builtin.include_tasks: systemd.yml
+
+- name: Stop the units of a manual installation
+  ansible.builtin.include_tasks: legacy.yml
+  when: netdef_ci_legacy_units | length > 0
+
+- name: Switch the current release
+  ansible.builtin.include_tasks: switch.yml
+
+- name: Verify the deployment
+  ansible.builtin.include_tasks: healthcheck.yml
+
+- name: Remove old releases
+  ansible.builtin.include_tasks: cleanup.yml

@@ -1,0 +1,19 @@
+---
+#  SPDX-License-Identifier: BSD-2-Clause
+#
+#  main.yml
+#  Part of NetDEF CI System
+#
+#  Copyright (c) 2026 by
+#  Network Device Education Foundation, Inc. ("NetDEF")
+#
+# Ruby built from the official cache.ruby-lang.org source tarball and installed in its own prefix, so the system Ruby (if
+# any) is never touched. Version/checksum chosen on 2026-11-16: latest 3.3 release (3.3.13), a maintained line that
+# runs the locked gems (activerecord 7.2, puma 6, pg 1.5).
+ruby_runtime_version: "3.3.13"
+ruby_runtime_sha256: "4cae72e971bd1cdb20ca87d299111182417c5276c162de8ead0ab0531426cd61"
+ruby_runtime_url: >-
+  https://cache.ruby-lang.org/pub/ruby/{{ ruby_runtime_version.split('.')[:2] | join('.') }}/ruby-{{ ruby_runtime_version }}.tar.gz
+ruby_runtime_prefix: "/opt/ruby/{{ ruby_runtime_version }}"
+ruby_runtime_src_dir: /usr/local/src
+ruby_runtime_build_jobs: "{{ ansible_facts['processor_vcpus'] | default(2) }}"

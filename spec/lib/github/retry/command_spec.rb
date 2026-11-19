@@ -95,7 +95,8 @@ describe Github::Retry::Command do
         allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::Retry).to receive(:restart)
+        allow(BambooCi::Result).to receive(:active?).and_return(true)
+        allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
         allow(BambooCi::RunningPlan).to receive(:fetch).and_return([])
 
@@ -116,6 +117,89 @@ describe Github::Retry::Command do
 
       it 'must still have its previous status' do
         expect(ci_job_checkout_code.reload.status).to eq('failure')
+      end
+
+      context 'when Bamboo fails while restarting the plan' do
+        before do
+          allow(BambooCi::Retry).to receive(:restart).and_raise(StandardError, 'Bamboo unavailable')
+        end
+
+        it 'releases the claim so the next retry is not dropped as a duplicate' do
+          expect { github_retry.start }.to raise_error(StandardError, 'Bamboo unavailable')
+          expect(check_suite.reload.retry_requested_at).to be_nil
+        end
+      end
+
+      context 'when Bamboo no longer runs the build' do
+        before { allow(BambooCi::Result).to receive(:active?).and_return(false) }
+
+        it 'retries without sending a stop' do
+          expect(github_retry.start).to eq([200, 'Retrying failure jobs'])
+          expect(BambooCi::StopPlan).not_to have_received(:build)
+        end
+      end
+
+      context 'when Bamboo does not confirm the restart' do
+        before do
+          allow(BambooCi::Retry).to receive(:restart).and_return(nil)
+          allow(fake_github_check).to receive(:failure)
+          allow(SlackBot.instance).to receive(:stage_finished_notification)
+        end
+
+        it 'puts the retried checks back to failure and releases the claim' do
+          expect(github_retry.start).to eq([502, 'Bamboo did not restart the build'])
+
+          expect(ci_job_checkout_code.reload.status).to eq('failure')
+          expect(ci_job_build_stage.reload.status).to eq('failure')
+          expect(check_suite.reload.retry_requested_at).to be_nil
+        end
+
+        it 'puts the retry counters back to the attempt that failed' do
+          github_retry.start
+
+          expect(ci_job_checkout_code.reload.retry).to eq(0)
+          expect(check_suite.reload.retry).to eq(0)
+        end
+
+        context 'when GitHub fails while reverting a check' do
+          let(:delayed) { double('delayed', sync: true) }
+
+          before do
+            allow(fake_github_check).to receive(:failure).and_raise(Octokit::ServerError)
+            allow(RevertRetryCheck).to receive(:delay).and_return(delayed)
+          end
+
+          it 'still releases the claim' do
+            expect(github_retry.start).to eq([502, 'Bamboo did not restart the build'])
+            expect(check_suite.reload.retry_requested_at).to be_nil
+          end
+
+          it 'saves the checks as failure so the next retry is accepted' do
+            github_retry.start
+
+            expect(ci_job_build_stage.reload.status).to eq('failure')
+            expect(ci_job_checkout_code.reload.status).to eq('failure')
+          end
+
+          it 'updates GitHub later' do
+            github_retry.start
+
+            expect(RevertRetryCheck)
+              .to have_received(:delay).with(hash_including(queue: 'revert_retry_check')).at_least(:once)
+            expect(delayed).to have_received(:sync).with('Stage', ci_job_build_stage.id, anything)
+          end
+        end
+      end
+
+      context 'when a retry for the same check suite has just started' do
+        before { check_suite.update(retry_requested_at: 1.second.ago) }
+
+        it 'ignores the duplicate without stopping or restarting Bamboo' do
+          expect(github_retry.start).to eq([202, 'Retry already in progress'])
+          expect(BambooCi::StopPlan).not_to have_received(:build)
+          expect(BambooCi::Retry).not_to have_received(:restart)
+          expect(ci_job.reload.status).to eq('failure')
+        end
       end
     end
 
@@ -160,7 +244,8 @@ describe Github::Retry::Command do
         allow(fake_github_check).to receive(:fetch_username).and_return({})
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::Retry).to receive(:restart)
+        allow(BambooCi::Result).to receive(:active?).and_return(true)
+        allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
         allow(SlackBot.instance).to receive(:invalid_rerun_group)
 
@@ -246,7 +331,8 @@ describe Github::Retry::Command do
         allow(fake_github_check).to receive(:get_check_run).with(stage2.check_ref).and_return(output2)
 
         allow(BambooCi::StopPlan).to receive(:build)
-        allow(BambooCi::Retry).to receive(:restart)
+        allow(BambooCi::Result).to receive(:active?).and_return(true)
+        allow(BambooCi::Retry).to receive(:restart).and_return(Net::HTTPOK.new('1.1', '200', 'OK'))
 
         create(:pull_request_subscription, pull_request: check_suite.pull_request, target: pr_number)
 

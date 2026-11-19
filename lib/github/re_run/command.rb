@@ -16,7 +16,7 @@ module Github
       TIMER = 1 # seconds
 
       def initialize(payload, logger_level: Logger::INFO)
-        super(payload, logger_level: logger_level)
+        super
 
         @logger_manager << GithubLogger.instance.create('github_rerun_command.log', logger_level)
       end
@@ -29,6 +29,7 @@ module Github
         check_suite = fetch_check_suite
 
         return [404, 'Failed to fetch a check suite'] if check_suite.nil?
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_rerun?(check_suite.pull_request)
 
         @github_check = Github::Check.new(check_suite)
 
@@ -40,9 +41,9 @@ module Github
       private
 
       def suite_by_plan(check_suite)
-        plans = check_suite.pull_request.plans.presence || Plan.where(github_repo_name: repo)
+        @pull_request = check_suite.pull_request
 
-        plans.each do |plan|
+        fetch_plans.each do |plan|
           CreateExecutionByCommand
             .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_command')
             .create(plan.id, check_suite.id, @payload)

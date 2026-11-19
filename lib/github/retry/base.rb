@@ -17,6 +17,7 @@ require_relative '../../bamboo_ci/stop_plan'
 require_relative '../../github/build/retry'
 
 require_relative '../check'
+require_relative '../duplicate_request_guard'
 require_relative '../build/unavailable_jobs'
 
 module Github
@@ -38,10 +39,26 @@ module Github
 
         return enqueued if @check_suite.in_progress?
 
-        normal_flow
+        retry_once
       end
 
       private
+
+      def retry_once
+        return duplicated_request unless Github::DuplicateRequestGuard.claim_retry?(@check_suite)
+
+        normal_flow
+      rescue StandardError
+        # Once Bamboo restarted the build, a duplicate must still be refused even if a later step failed.
+        Github::DuplicateRequestGuard.release_retry(@check_suite) unless @restarted
+        raise
+      end
+
+      def duplicated_request
+        logger(Logger::WARN, ">>> Duplicated retry request ignored for check suite #{@check_suite.id}")
+
+        [202, 'Retry already in progress']
+      end
 
       def github_reaction_feedback(comment_id)
         return if comment_id.nil?
@@ -62,9 +79,10 @@ module Github
 
         PrometheusMetrics::CI_JOB_RETRIES.increment(labels: { reason: 'partial' })
 
-        create_ci_jobs(@check_suite)
+        build_retry = create_ci_jobs(@check_suite)
+        return restart_failed(build_retry) unless restart_bamboo
 
-        BambooCi::Retry.restart(@check_suite.bamboo_ci_ref)
+        @restarted = true
         Github::Build::UnavailableJobs.new(@check_suite).update
 
         SlackBot.instance.execution_started_notification(@check_suite)
@@ -91,7 +109,31 @@ module Github
         build_retry.enqueued_stages
         build_retry.enqueued_failure_tests
 
-        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref)
+        # Runs inside the webhook: the stop (one request per job) is only sent to a build Bamboo still runs.
+        BambooCi::StopPlan.build(check_suite.bamboo_ci_ref) if BambooCi::Result.active?(check_suite.bamboo_ci_ref)
+
+        build_retry
+      end
+
+      def restart_bamboo
+        BambooCi::Retry.restart!(@check_suite.bamboo_ci_ref)
+
+        true
+      rescue BambooCi::Retry::RestartFailed => e
+        logger(Logger::ERROR, ">>> #{e.message}")
+
+        false
+      end
+
+      # Nothing was restarted: the retried checks go back to failure and the claim is freed,
+      # so the user can ask for the retry again.
+      def restart_failed(build_retry)
+        @check_suite.update(retry: [@check_suite.retry - 1, 0].max)
+        build_retry.revert('Bamboo did not restart the build. Please retry again.')
+        Github::DuplicateRequestGuard.release_retry(@check_suite)
+        github_reaction_feedback_down(@comment_id)
+
+        [502, 'Bamboo did not restart the build']
       end
 
       def enqueued

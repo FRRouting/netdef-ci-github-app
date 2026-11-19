@@ -40,34 +40,6 @@ describe Stage do
     end
   end
 
-  describe '#previous_stage' do
-    context 'when has a valid config' do
-      let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
-
-      it 'must update status' do
-        expect(stage.previous_stage).to be_nil
-      end
-    end
-
-    context 'when has an invalid config' do
-      let(:stage) { create(:stage, :with_check_suite, configuration: nil, check_ref: nil) }
-
-      it 'must update status' do
-        expect(stage.previous_stage).to be_nil
-      end
-    end
-
-    context 'when suffix is nil (name has no content after split)' do
-      let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
-
-      before { allow(stage).to receive(:suffix).and_return(nil) }
-
-      it 'returns nil immediately' do
-        expect(stage.previous_stage).to be_nil
-      end
-    end
-  end
-
   describe '#update_execution_time' do
     let(:stage) { create(:stage, :with_check_suite, check_ref: nil) }
 
@@ -106,6 +78,14 @@ describe Stage do
     it 'must update status' do
       stage.enqueue(github)
       expect(stage.reload.status).to eq('queued')
+    end
+
+    it 'creates the check run with the output and does not update it right after' do
+      output = { title: 'Build summary', summary: 'Uninitialized stage' }
+      stage.enqueue(github, output: output)
+
+      expect(github).to have_received(:create).with("[CI] #{stage.name}", output: output)
+      expect(github).not_to have_received(:queued)
     end
   end
 
