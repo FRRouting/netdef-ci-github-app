@@ -54,6 +54,12 @@ describe Github::Build::ChecksSetup do
       expect(previous.stages.reload.map(&:status)).to all(eq('cancelled'))
     end
 
+    it 'cancels them on the commit of the stopped execution' do
+      setup.run
+
+      expect(Github::Check).to have_received(:new).with(previous)
+    end
+
     it 'records the user who triggered the execution' do
       allow(Github::UserInfo).to receive(:new)
 

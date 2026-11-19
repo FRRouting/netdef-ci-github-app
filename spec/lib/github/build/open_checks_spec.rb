@@ -18,7 +18,12 @@ describe Github::Build::OpenChecks do
 
   before do
     allow(SlackBot.instance).to receive(:stage_finished_notification)
-    described_class.cancel(check_suite, github)
+    allow(Github::Check).to receive(:new).and_return(github)
+    described_class.cancel(check_suite)
+  end
+
+  it 'reports the cancellation on the commit of the stopped suite' do
+    expect(Github::Check).to have_received(:new).with(check_suite)
   end
 
   it 'cancels the open jobs and stages' do

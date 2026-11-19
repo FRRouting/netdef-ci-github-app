@@ -17,6 +17,9 @@ module BambooCi
   class StopPlan
     extend BambooCi::Api
 
+    STOP_CONFIRM_ATTEMPTS = 5
+    STOP_CONFIRM_INTERVAL = 2 # seconds
+
     def self.stop(job_key)
       PrometheusMetrics.track_bamboo('stop_job') { delete_from_queue(job_key) }
     end
@@ -85,28 +88,42 @@ module BambooCi
       end
     end
 
-    # Every job is sent its DELETE. Returns the first refused answer (nil when that request failed).
-    # When every job was stopped the build is stopped, even if the execution DELETE itself failed, so an
-    # accepted answer is returned.
+    # Every job is sent its DELETE. Returns the first refused answer (nil when that request failed, or when
+    # a running job did not stop). When every job was stopped the build is stopped, even if the execution
+    # DELETE itself failed, so an accepted answer is returned.
     def self.stop_jobs(jobs, response)
-      answers = jobs.map { |job| stop_job(job) }
-      refused = answers.reject { |answer| stop_accepted?(answer) }
+      answers = jobs.map { |job| [job, delete_from_queue(job[:ref])] }
+      refused = answers.map(&:last).reject { |answer| stop_accepted?(answer) }
 
       return refused.first unless refused.empty?
+      return nil unless stopped?(stopping_jobs(answers))
 
-      stop_accepted?(response) ? response : answers.last
+      accepted_answer(response, answers)
+    end
+
+    def self.accepted_answer(response, answers)
+      stop_accepted?(response) ? response : answers.last&.last
     end
 
     # A 404 only means the job is no longer queued. A job Bamboo listed as active may still be running, so
     # its stop is confirmed only once Bamboo no longer reports it as active.
-    def self.stop_job(job)
-      answer = delete_from_queue(job[:ref])
-      return answer unless job[:active] and answer&.code.to_i == 404
-      return answer unless BambooCi::Result.active?(job[:ref])
+    def self.stopping_jobs(answers)
+      answers.filter_map { |job, answer| job[:ref] if job[:active] and answer.code.to_i == 404 }
+    end
 
-      logger(Logger::ERROR, "Bamboo still runs #{job[:ref]} after its stop")
+    # Bamboo stops a running job asynchronously (its agent has to kill it), so the job may still show as
+    # active for a few seconds. All of them are polled together, which bounds the wait for the whole build.
+    def self.stopped?(job_refs)
+      STOP_CONFIRM_ATTEMPTS.times do |attempt|
+        job_refs = job_refs.select { |ref| BambooCi::Result.active?(ref) }
+        return true if job_refs.empty?
 
-      nil
+        sleep(STOP_CONFIRM_INTERVAL) if attempt < STOP_CONFIRM_ATTEMPTS - 1
+      end
+
+      logger(Logger::ERROR, "Bamboo still runs #{job_refs.join(', ')} after its stop")
+
+      false
     end
 
     def self.unconfirmed_stop(bamboo_ci_ref)

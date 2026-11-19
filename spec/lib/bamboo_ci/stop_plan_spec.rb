@@ -135,15 +135,27 @@ describe BambooCi::StopPlan do
     context 'when a running job is no longer in the queue' do
       let(:job_result_url) { 'https://127.0.0.1/rest/api/latest/result/PLAN-JOB1-12?expand=' }
 
+      let(:in_progress) { { status: 200, body: { lifeCycleState: 'InProgress' }.to_json } }
+      let(:finished) { { status: 200, body: { lifeCycleState: 'Finished' }.to_json } }
+
       before do
+        allow(described_class).to receive(:sleep)
         stub_request(:delete, 'https://127.0.0.1/rest/api/latest/queue/PLAN-JOB1-12').to_return(status: 404)
       end
 
       it 'does not confirm the stop while Bamboo still runs the job' do
-        stub_request(:get, job_result_url).to_return(status: 200, body: { lifeCycleState: 'InProgress' }.to_json)
+        stub_request(:get, job_result_url).to_return(in_progress)
 
         expect(described_class.build(bamboo_ci_ref)).to be_nil
-        expect(described_class.stop_execution(bamboo_ci_ref)).to be(false)
+        expect(a_request(:get, job_result_url)).to have_been_made.times(described_class::STOP_CONFIRM_ATTEMPTS)
+        expect(described_class).to have_received(:sleep).exactly(described_class::STOP_CONFIRM_ATTEMPTS - 1).times
+      end
+
+      it 'confirms the stop once Bamboo finishes stopping the job' do
+        stub_request(:get, job_result_url).to_return(in_progress, in_progress, finished)
+
+        expect(described_class.stop_execution(bamboo_ci_ref)).to be(true)
+        expect(a_request(:get, job_result_url)).to have_been_made.times(3)
       end
 
       it 'confirms the stop once Bamboo reports the job as finished' do

@@ -27,8 +27,14 @@ describe Github::ReRun::Base do
       allow(fake_github_check).to receive(:cancelled)
       allow(SlackBot.instance).to receive(:stage_finished_notification)
 
-      rerun.instance_variable_set(:@github_check, fake_github_check)
+      # The rerun's own client points to the new suite, possibly on another commit.
+      rerun.instance_variable_set(:@github_check, instance_double(Github::Check))
+      allow(Github::Check).to receive(:new).with(check_suite).and_return(fake_github_check)
       rerun.send(:cancel_previous_jobs, check_suite)
+    end
+
+    it 'creates the cancelled checks on the commit of the stopped suite' do
+      expect(fake_github_check).to have_received(:create).at_least(:once)
     end
 
     it 'cancels the jobs and the open stages of the previous execution' do

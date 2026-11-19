@@ -139,7 +139,7 @@ module Github
       end
 
       def cancel_previous_jobs(check_suite)
-        Github::Build::OpenChecks.cancel(check_suite, @github_check)
+        Github::Build::OpenChecks.cancel(check_suite)
       end
 
       # Raises while Bamboo lists no job of the new build yet, which reschedules the GitHub side.
