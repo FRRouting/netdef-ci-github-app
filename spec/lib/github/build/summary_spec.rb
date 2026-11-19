@@ -412,7 +412,7 @@ describe Github::Build::Summary do
     end
 
     context 'when Bamboo reports the job as successful' do
-      let(:bamboo_result) { { 'state' => 'Successful' } }
+      let(:bamboo_result) { { 'state' => 'Successful', 'lifeCycleState' => 'Finished' } }
 
       it 'marks the job and the previous stage as success' do
         summary.build_summary
@@ -423,7 +423,7 @@ describe Github::Build::Summary do
     end
 
     context 'when Bamboo reports the job as failed' do
-      let(:bamboo_result) { { 'state' => 'Failed' } }
+      let(:bamboo_result) { { 'state' => 'Failed', 'lifeCycleState' => 'Finished' } }
 
       it 'marks the job and the previous stage as failure' do
         summary.build_summary
@@ -442,7 +442,7 @@ describe Github::Build::Summary do
     end
 
     context 'when Bamboo reports the job as successful after it ran' do
-      let(:bamboo_result) { { 'state' => 'Successful' } }
+      let(:bamboo_result) { { 'state' => 'Successful', 'lifeCycleState' => 'Finished' } }
 
       before do
         AuditStatus.create(auditable: checkout_job, status: :in_progress, agent: 'Github', created_at: 2.minutes.ago)
@@ -456,7 +456,7 @@ describe Github::Build::Summary do
     end
 
     context 'when Bamboo has no final state for the job yet' do
-      let(:bamboo_result) { { 'state' => 'Unknown' } }
+      let(:bamboo_result) { { 'state' => 'Unknown', 'lifeCycleState' => 'InProgress' } }
 
       it 'keeps the job in progress' do
         summary.build_summary

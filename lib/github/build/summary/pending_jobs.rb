@@ -54,7 +54,7 @@ module Github
 
         def sync_job(job)
           result = BambooCi::Result.fetch(job.job_ref, expand: '')
-          return unless result.is_a?(Hash)
+          return unless current_result?(job, result)
 
           case result['state']
           when 'Successful' then job.success(@github, agent: @agent)
@@ -63,6 +63,24 @@ module Github
           end
 
           job.update_execution_time
+        end
+
+        # Bamboo keeps only the latest result of a job key. Until it restarts a job that a retry re-queued,
+        # that result is still the attempt that failed, so it only counts when it finished after the re-queue.
+        def current_result?(job, result)
+          return false unless result.is_a?(Hash) and result['lifeCycleState'] == 'Finished'
+          return true if job.retry.to_i.zero?
+
+          requeued = job.audit_statuses.where(status: :queued).maximum(:created_at)
+          completed = completed_time(result)
+
+          requeued.nil? or (!completed.nil? and completed >= requeued)
+        end
+
+        def completed_time(result)
+          Time.iso8601(result['buildCompletedTime'].to_s)
+        rescue ArgumentError
+          nil
         end
 
         # Same follow-up as a failure reported by Bamboo (Github::UpdateStatus), so the job gets its failure details.

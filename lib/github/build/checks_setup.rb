@@ -60,7 +60,7 @@ module Github
 
         save_stopped_in_stage
 
-        Github::Build::OpenChecks.cancel(@previous_check_suite, github)
+        Github::Build::OpenChecks.cancel(@previous_check_suite)
       end
 
       def github

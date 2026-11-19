@@ -69,4 +69,72 @@ describe Github::Build::Summary::PendingJobs do
       end
     end
   end
+  describe '#sync' do
+    let(:github) { instance_double(Github::Check, success: true, failure: true) }
+    let(:job) { create(:ci_job, :in_progress, stage: stage, check_suite: stage.check_suite, retry: retry_count) }
+    let(:retry_count) { 0 }
+    let(:requeued_at) { Time.now }
+    let(:fetch_failures) { double('delayed CiJobFetchTopotestFailures', update: true) }
+
+    before do
+      AuditStatus.create(auditable: job, status: :queued, agent: 'Github', created_at: requeued_at)
+      allow(CiJobFetchTopotestFailures).to receive(:delay).and_return(fetch_failures)
+      allow(SlackBot.instance).to receive(:stage_finished_notification)
+    end
+
+    def bamboo_result(state, life_cycle: 'Finished', completed: Time.now)
+      result = { 'state' => state, 'lifeCycleState' => life_cycle, 'buildCompletedTime' => completed&.iso8601(3) }
+      allow(BambooCi::Result).to receive(:fetch).with(job.job_ref, expand: '').and_return(result)
+    end
+
+    def sync
+      described_class.new(github, 'WatchDog').sync(stage)
+    end
+
+    it 'saves the result Bamboo reports for the job' do
+      bamboo_result('Successful')
+
+      sync
+
+      expect(job.reload.status).to eq('success')
+    end
+
+    it 'keeps the job while Bamboo has not finished it' do
+      bamboo_result('Unknown', life_cycle: 'InProgress')
+
+      sync
+
+      expect(job.reload.status).to eq('in_progress')
+    end
+
+    context 'when a retry re-queued the job' do
+      let(:retry_count) { 1 }
+
+      it 'ignores the failure of the previous attempt' do
+        bamboo_result('Failed', completed: requeued_at - 600)
+
+        sync
+
+        expect(job.reload.status).to eq('in_progress')
+        expect(CiJobFetchTopotestFailures).not_to have_received(:delay)
+      end
+
+      it 'ignores a result without its completion time' do
+        bamboo_result('Failed', completed: nil)
+
+        sync
+
+        expect(job.reload.status).to eq('in_progress')
+      end
+
+      it 'saves the failure of the new attempt' do
+        bamboo_result('Failed', completed: requeued_at + 600)
+
+        sync
+
+        expect(job.reload.status).to eq('failure')
+        expect(fetch_failures).to have_received(:update).with(job.id, 1, 1)
+      end
+    end
+  end
 end

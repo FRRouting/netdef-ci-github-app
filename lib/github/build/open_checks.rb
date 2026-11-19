@@ -15,7 +15,11 @@ module Github
     module OpenChecks
       STATUSES = %w[queued in_progress].freeze
 
-      def self.cancel(check_suite, github)
+      # The GitHub client is built for the stopped suite: Stage#cancelled creates a new check run on the
+      # client's commit, and the suite that replaced this one may be on another commit.
+      def self.cancel(check_suite)
+        github = Github::Check.new(check_suite)
+
         check_suite.ci_jobs.where(status: STATUSES).each { |job| job.cancelled(github) }
 
         # An open stage would be finished later by the watchdog, which creates a new check run on the

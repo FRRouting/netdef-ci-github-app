@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 290" width="280" height="290" role="img" aria-label="Octoboo, a cat-eared ghost with curly tentacles holding a bamboo stalk">
+  <title>Octoboo</title>
+  <!-- bamboo stalk -->
+  <g stroke="#2f6b2a" stroke-width="3">
+    <rect x="214" y="44" width="22" height="214" rx="6" fill="#7cc36a"/>
+    <line x1="214" y1="100" x2="236" y2="100"/>
+    <line x1="214" y1="156" x2="236" y2="156"/>
+    <line x1="214" y1="212" x2="236" y2="212"/>
+  </g>
+  <path d="M236 96 q24 -18 34 -6 q-16 14 -34 10z" fill="#7cc36a" stroke="#2f6b2a" stroke-width="3" stroke-linejoin="round"/>
+  <path d="M214 152 q-12 -20 -26 -18 q8 16 26 22z" fill="#7cc36a" stroke="#2f6b2a" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- shadow -->
+  <ellipse cx="118" cy="274" rx="80" ry="8" fill="#000" opacity="0.12"/>
+
+  <!-- ghost body: rounded head, pointy cat ears, curly tentacle hem -->
+  <path d="M42 140
+           C40 108 46 84 58 66
+           L50 22 L92 44
+           C106 39 130 39 144 44
+           L186 22 L178 66
+           C190 84 196 108 194 140
+           L194 214
+           C194 238 214 240 214 226
+           C214 218 204 220 206 228
+           C200 256 172 246 170 226
+           C168 214 160 218 160 230
+           C160 256 132 260 128 236
+           C126 222 116 222 114 236
+           C110 260 82 256 80 230
+           C80 218 72 214 70 226
+           C68 246 40 256 34 228
+           C36 220 26 218 26 226
+           C26 240 42 238 42 214 Z"
+        fill="#24292f" stroke="#8b949e" stroke-width="4" stroke-linejoin="round"/>
+
+  <!-- inner ear highlights -->
+  <path d="M60 36 L64 60 L82 48 Z" fill="#57606a"/>
+  <path d="M176 36 L172 60 L154 48 Z" fill="#57606a"/>
+
+  <!-- face plate -->
+  <path d="M64 120 C64 92 86 80 118 80 C150 80 172 92 172 120 C172 150 150 162 118 162 C86 162 64 150 64 120 Z" fill="#f4f1ff"/>
+
+  <!-- eyes -->
+  <ellipse cx="98" cy="118" rx="10" ry="14" fill="#24292f"/>
+  <ellipse cx="138" cy="118" rx="10" ry="14" fill="#24292f"/>
+  <circle cx="102" cy="111" r="4" fill="#fff"/>
+  <circle cx="142" cy="111" r="4" fill="#fff"/>
+
+  <!-- blush -->
+  <ellipse cx="80" cy="140" rx="9" ry="5" fill="#ff9fb2" opacity="0.9"/>
+  <ellipse cx="156" cy="140" rx="9" ry="5" fill="#ff9fb2" opacity="0.9"/>
+
+  <!-- smile -->
+  <path d="M108 140 q10 10 20 0" fill="none" stroke="#24292f" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- arm holding bamboo -->
+  <path d="M190 160 q18 -6 20 6 q0 10 -18 8" fill="#24292f" stroke="#8b949e" stroke-width="4" stroke-linejoin="round"/>
+  <!-- waving arm -->
+  <path d="M46 160 q-26 -8 -30 -30 q12 -4 18 8 q4 10 14 12" fill="#24292f" stroke="#8b949e" stroke-width="4" stroke-linejoin="round"/>
+
+</svg>
