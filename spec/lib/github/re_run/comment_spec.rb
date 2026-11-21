@@ -151,6 +151,16 @@ describe Github::ReRun::Comment do
         expect(fake_github_check).to have_received(:comment_reaction_thumb_up).once
       end
 
+      it 'enqueues the plan id instead of the Plan record' do
+        allow(CreateExecutionByComment).to receive(:create).and_call_original
+
+        rerun.start
+
+        pull_request.plans.each do |plan|
+          expect(CreateExecutionByComment).to have_received(:create).with(pull_request.id, payload, plan.id)
+        end
+      end
+
       it 'schedules the plan runs even when GitHub refuses the reaction' do
         allow(fake_github_check).to receive(:comment_reaction_thumb_up).and_raise(Octokit::Forbidden)
 

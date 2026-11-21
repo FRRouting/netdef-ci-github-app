@@ -718,7 +718,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
       end
     end
 
-    context 'when a test sends an invalid status' do
+    context 'when a queued test reports its end (its in_progress hook was lost)' do
       let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued') }
       let(:payload) do
         {
@@ -727,8 +727,50 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         }
       end
 
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+
+      it 'must confirm the result with Bamboo instead of dropping it' do
+        expect(update_status.update).to eq([202, 'Accepted'])
+        expect(Github::Build::Summary::PendingJobs).to have_received(:schedule).with(ci_job.stage, 'Github')
+      end
+
+      it 'must keep the job queued until Bamboo confirms it' do
+        update_status.update
+        expect(ci_job.reload.status).to eq('queued')
+      end
+    end
+
+    context 'when a queued test without stage reports its end' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued', stage: nil) }
+      let(:payload) do
+        {
+          'status' => 'success',
+          'bamboo_ref' => ci_job.job_ref
+        }
+      end
+
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+
       it 'must returns not modified' do
         expect(update_status.update).to eq([304, 'Not Modified'])
+        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule)
+      end
+    end
+
+    context 'when a queued test sends an invalid status' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued') }
+      let(:payload) do
+        {
+          'status' => 'cancelled',
+          'bamboo_ref' => ci_job.job_ref
+        }
+      end
+
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+
+      it 'must returns not modified' do
+        expect(update_status.update).to eq([304, 'Not Modified'])
+        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule)
       end
     end
 
@@ -770,5 +812,35 @@ describe Github::UpdateStatus, 'delayed job lookup' do
     status_job('PLAN-123')
 
     expect(update_status.send(:fetch_delayed_job, '1')).to contain_exactly(target)
+  end
+end
+
+describe Github::UpdateStatus, 'delayed job queue' do
+  let(:pull_request) { create(:pull_request, github_pr_id: 24_358) }
+  let(:check_suite) { create(:check_suite, pull_request: pull_request, bamboo_ci_ref: 'PLAN-12') }
+  let(:ci_job) { create(:ci_job, check_suite: check_suite) }
+  let(:update_status) { described_class.new({ 'status' => 'success', 'bamboo_ref' => ci_job.job_ref }) }
+
+  let(:delayed) { double(update: true) }
+
+  before do
+    update_status.instance_variable_set(:@job, ci_job)
+    allow(CiJobStatus).to receive(:delay).and_return(delayed)
+  end
+
+  it 'uses the last digit of the PR number as the queue' do
+    update_status.send(:insert_new_delayed_job)
+
+    expect(CiJobStatus).to have_received(:delay).with(hash_including(queue: 8))
+  end
+
+  context 'when the database returns github_pr_id as a string' do
+    before { allow(ci_job.check_suite.pull_request).to receive(:github_pr_id).and_return('24358') }
+
+    it 'still uses the last digit of the PR number as the queue' do
+      update_status.send(:insert_new_delayed_job)
+
+      expect(CiJobStatus).to have_received(:delay).with(hash_including(queue: 8))
+    end
   end
 end
