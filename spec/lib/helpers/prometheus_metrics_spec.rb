@@ -103,6 +103,27 @@ describe PrometheusMetrics do
     end
   end
 
+  describe '.track_github_notice' do
+    context 'when the block succeeds' do
+      it 'increments GITHUB_NOTICES with sent status and returns the value' do
+        expect(PrometheusMetrics::GITHUB_NOTICES).to receive(:increment)
+          .with(labels: { type: 'rerun_failure_comment', status: 'sent' })
+
+        expect(PrometheusMetrics.track_github_notice('rerun_failure_comment') { 'ok' }).to eq('ok')
+      end
+    end
+
+    context 'when the block raises a StandardError' do
+      it 'increments GITHUB_NOTICES with error status and re-raises' do
+        expect(PrometheusMetrics::GITHUB_NOTICES).to receive(:increment)
+          .with(labels: { type: 'rerun_failure_comment', status: 'error' })
+
+        expect { PrometheusMetrics.track_github_notice('rerun_failure_comment') { raise StandardError, 'boom' } }
+          .to raise_error(StandardError, 'boom')
+      end
+    end
+  end
+
   describe '.cleanup_stale_metric_files!' do
     let(:metrics_dir) { PrometheusMetrics::METRICS_DIR }
 

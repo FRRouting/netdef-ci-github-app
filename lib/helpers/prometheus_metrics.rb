@@ -47,6 +47,16 @@ module PrometheusMetrics
     nil
   end
 
+  # Only records metrics: an error raised by the block is counted and raised again for the caller to handle.
+  def self.track_github_notice(type)
+    result = yield
+    GITHUB_NOTICES.increment(labels: { type: type, status: 'sent' })
+    result
+  rescue StandardError
+    GITHUB_NOTICES.increment(labels: { type: type, status: 'error' })
+    raise
+  end
+
   def self.subscribe_query_notifications!
     ActiveSupport::Notifications.subscribe('sql.active_record') do |*args|
       event     = ActiveSupport::Notifications::Event.new(*args)

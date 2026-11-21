@@ -144,6 +144,12 @@ module PrometheusMetrics
     labels: %i[event result]
   )
 
+  GITHUB_NOTICES = REGISTRY.counter(
+    :github_notices_total,
+    docstring: 'Notices the app posts on GitHub pull requests (comments, reactions), by type and delivery status',
+    labels: %i[type status]
+  )
+
   # --- Bamboo CI API integration ---
 
   BAMBOO_REQUESTS = REGISTRY.counter(
@@ -168,6 +174,11 @@ module PrometheusMetrics
     :ci_job_retry_total,
     docstring: 'CI job retries triggered, by reason (partial or full)',
     labels: [:reason]
+  )
+  CI_JOBS_WITHOUT_WEBHOOK = REGISTRY.counter(
+    :ci_jobs_without_webhook_total,
+    docstring: 'CI jobs created without the GitHub Check tasks (status polled from Bamboo), by Bamboo plan',
+    labels: [:plan]
   )
   CI_TIMEOUTS = REGISTRY.counter(
     :ci_job_timeout_total,

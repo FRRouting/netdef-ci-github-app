@@ -24,6 +24,7 @@ require_relative '../../database_loader'
 require_relative '../../lib/bamboo_ci/result'
 require_relative '../slack_bot/slack_bot'
 require_relative 'build/summary'
+require_relative 'build/summary_refresh'
 
 module Github
   class UpdateStatus
@@ -53,7 +54,7 @@ module Github
     def update
       logger(Logger::INFO, "Updating status for job: #{@reference} with status: #{@status}")
       return job_not_found if @job.nil?
-      return [304, 'Not Modified'] if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
+      return queued_job_update if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
       return [304, 'Not Modified'] if @job.in_progress? and !%w[success failure].include? @status
 
       @github_check = Github::Check.new(@job.check_suite)
@@ -71,6 +72,22 @@ module Github
       logger(Logger::ERROR, "CI JOB not found: '#{@reference}'")
 
       [404, 'CI JOB not found']
+    end
+
+    ##
+    # A queued job reporting its end lost its in_progress hook, and would stay queued until the plan finishes.
+    # The hook alone cannot finish it: after a retry re-queued the job, a late hook of the attempt that failed
+    # arrives the same way. PendingJobs reads the result from Bamboo and only takes one that finished after
+    # the re-queue.
+    #
+    # @return [Array] An array containing the status code and message.
+    def queued_job_update
+      return [304, 'Not Modified'] if @job.stage.nil? or !%w[success failure].include?(@status)
+
+      logger(Logger::WARN, "Job #{@reference} reported #{@status} while queued: confirming with Bamboo")
+      Github::Build::Summary::PendingJobs.schedule(@job.stage, 'Github')
+
+      [202, 'Accepted']
     end
 
     ##
@@ -109,41 +126,12 @@ module Github
     end
 
     ##
-    # Inserts a new delayed job for the CI job.
+    # Schedules the rebuild of the stage summaries (one pending per execution, on the PR's queue).
     def insert_new_delayed_job
-      queue = @job.check_suite.pull_request.github_pr_id % 10
-
-      logger(Logger::INFO, "Inserting new delayed job for queue: #{queue} to update job #{@job.id}")
-
-      delete_and_create_delayed_job(queue)
-    end
-
-    ##
-    # Deletes existing delayed jobs and creates a new one.
-    #
-    # @param [Integer] queue The queue number for the delayed job.
-    def delete_and_create_delayed_job(queue)
-      fetch_delayed_job(queue).destroy_all
-
       logger(Logger::INFO,
-             "Inserting new delayed job for queue: #{queue} to update job #{@job.id} " \
-             "and bamboo_ci_ref: #{@check_suite.bamboo_ci_ref}")
+             "Scheduling the summary refresh of #{@check_suite.bamboo_ci_ref} for job #{@job.id}")
 
-      CiJobStatus
-        .delay(run_at: DELAYED_JOB_TIMER.seconds.from_now.utc, queue: queue)
-        .update(@check_suite.bamboo_ci_ref, @job.id)
-    end
-
-    ##
-    # Fetches the delayed job for the given queue.
-    #
-    # @param [Integer] queue The queue number for the delayed job.
-    # @return [ActiveRecord::Relation] The relation containing the delayed jobs.
-    def fetch_delayed_job(queue)
-      logger(Logger::INFO,
-             "Removing old delayed job for queue: #{queue} and bamboo_ci_ref: #{@check_suite.bamboo_ci_ref}")
-
-      DelayedJobLookup.pending(queue: queue, method: :update, first_arg: @check_suite.bamboo_ci_ref)
+      Github::Build::SummaryRefresh.schedule(@job)
     end
 
     ##

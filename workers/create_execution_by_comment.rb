@@ -21,7 +21,21 @@ class CreateExecutionByComment < Github::ReRun::Base
     logger.info "CreateExecutionByComment: Plan '#{plan.name}' for Pull Request ID: #{pull_request_id} with " \
                 "status: #{instance.status.inspect}"
 
+    notify_failure(pull_request_id, payload, plan, instance.status.last) unless instance.status.first == 201
+
     instance.status
+  end
+
+  # Delayed Job hook: runs once the job has used up all its attempts. Older jobs carry the Plan record instead of
+  # its id, and Plan.find_by accepts both.
+  def self.failure(job)
+    pull_request_id, payload, plan_ref = job.payload_object.args
+
+    notify_failure(pull_request_id, payload, Plan.find_by(id: plan_ref), 'internal error')
+  end
+
+  def self.notify_failure(pull_request_id, payload, plan, reason)
+    Github::ReRun::FailureNotice.notify(PullRequest.find_by(id: pull_request_id), payload, plan&.name, reason)
   end
 
   attr_reader :status

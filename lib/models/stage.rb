@@ -62,37 +62,42 @@ class Stage < ActiveRecord::Base
   end
 
   def cancelled(github, output: {}, agent: 'Github')
-    check_run = refresh_reference(github)
-    github.cancelled(check_run.id, output)
+    ref = complete_check_run(github, :cancelled, output)
 
-    update(status: :cancelled, check_ref: check_run.id)
+    update(status: :cancelled, check_ref: ref)
     AuditStatus.create(auditable: self, status: :cancelled, agent: agent, created_at: Time.now)
     notification
   end
 
   def failure(github, output: {}, agent: 'Github')
-    check_run = refresh_reference(github)
-    github.failure(check_run.id, output)
+    ref = complete_check_run(github, :failure, output)
 
-    update(status: :failure, check_ref: check_run.id)
+    update(status: :failure, check_ref: ref)
     AuditStatus.create(auditable: self, status: :failure, agent: agent, created_at: Time.now)
     notification
   end
 
   def success(github, output: {}, agent: 'Github')
-    check_run = refresh_reference(github)
-    github.success(check_run.id, output)
+    ref = complete_check_run(github, :success, output)
 
     reload
-    update(status: :success, check_ref: check_run.id)
+    update(status: :success, check_ref: ref)
     AuditStatus.create(auditable: self, status: :success, agent: agent, created_at: Time.now)
     notification
   end
 
   private
 
-  def refresh_reference(github)
-    github.create(github_stage_full_name(name))
+  # Completes the stage's own check run. Creating a new one each time left the old one in_progress next to
+  # it forever, so a new check run is only created when there is none or GitHub refuses the update
+  # (Github::Check answers {} once its retries are spent).
+  def complete_check_run(github, conclusion, output)
+    return check_ref if !check_ref.nil? and github.public_send(conclusion, check_ref, output).present?
+
+    check_run = github.create(github_stage_full_name(name))
+    github.public_send(conclusion, check_run.id, output)
+
+    check_run.id
   end
 
   def in_progress_notification

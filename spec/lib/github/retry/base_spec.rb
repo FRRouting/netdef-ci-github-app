@@ -29,6 +29,21 @@ describe Github::Retry::Base do
       end
     end
 
+    context 'when Bamboo restarted the build' do
+      before do
+        unavailable = instance_double(Github::Build::UnavailableJobs, update: true)
+        allow(Github::Build::UnavailableJobs).to receive(:new).and_return(unavailable)
+        allow(SlackBot.instance).to receive(:execution_started_notification)
+        allow(Github::Build::JobsWithoutWebhook).to receive(:schedule)
+      end
+
+      it 'polls the re-queued jobs without webhook again' do
+        retry_flow.send(:retry_once)
+
+        expect(Github::Build::JobsWithoutWebhook).to have_received(:schedule).with(check_suite)
+      end
+    end
+
     context 'when the restart is never reached' do
       before { allow(retry_flow).to receive(:create_ci_jobs).and_raise(RuntimeError, 'GitHub down') }
 
