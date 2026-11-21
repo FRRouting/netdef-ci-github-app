@@ -101,6 +101,34 @@ describe CreateExecutionByComment do
     end
   end
 
+  describe 'a queued job that uses up its attempts' do
+    let(:job) do
+      described_class.delay(queue: described_class::QUEUE).create(pull_request.id, payload, plan.id)
+      Delayed::Job.find_by(queue: described_class::QUEUE)
+    end
+
+    before do
+      Delayed::Worker.delay_jobs = true
+      allow(Github::ReRun::FailureNotice).to receive(:notify)
+      allow_any_instance_of(described_class).to receive(:run_by_plan).and_raise(StandardError, 'boom')
+    end
+
+    it 'reaches the failure hook through Delayed Job and notifies the pull request' do
+      job.update(attempts: Delayed::Worker.max_attempts - 1)
+
+      Delayed::Worker.new(quiet: true).run(job)
+
+      expect(Github::ReRun::FailureNotice)
+        .to have_received(:notify).with(pull_request, payload, plan.name, 'internal error')
+    end
+
+    it 'does not notify while attempts remain' do
+      Delayed::Worker.new(quiet: true).run(job)
+
+      expect(Github::ReRun::FailureNotice).not_to have_received(:notify)
+    end
+  end
+
   describe '#fetch_last_commit_or_sha256' do
     it 'returns commit if commit exists and action matches ci:rerun # pattern' do
       instance = described_class.allocate

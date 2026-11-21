@@ -26,20 +26,28 @@ module Github
       def notify(plan_name, reason)
         return if @pull_request.nil?
 
-        github_check = Github::Check.new(@pull_request.check_suites.last)
+        unless comment_id.nil?
+          deliver('rerun_failure_reaction') { github_check.comment_reaction_thumb_down(repository, comment_id) }
+        end
 
-        github_check.comment_reaction_thumb_down(repository, comment_id) unless comment_id.nil?
-        github_check.add_comment(@pull_request.github_pr_id, message(plan_name, reason), repository)
-      rescue StandardError => e
-        # The notice is best effort: it must never turn a failed rerun into a failing notification job.
-        log_failure(e)
+        deliver('rerun_failure_comment') do
+          github_check.add_comment(@pull_request.github_pr_id, message(plan_name, reason), repository)
+        end
       end
 
       private
 
-      def log_failure(error)
-        @logger.error("[#{self.class}] Failed to notify PR #{@pull_request&.github_pr_id}: " \
-                      "#{error.class}: #{error.message}")
+      # Each GitHub call is best effort on its own: a command comment deleted in the meantime must not keep the
+      # explanation from being posted, and no error may turn a failed rerun into a failing notification job.
+      def deliver(type, &block)
+        PrometheusMetrics.track_github_notice(type, &block)
+      rescue StandardError => e
+        @logger.error("[#{self.class}] #{type} failed for PR #{@pull_request.github_pr_id}: " \
+                      "#{e.class}: #{e.message}")
+      end
+
+      def github_check
+        @github_check ||= Github::Check.new(@pull_request.check_suites.last)
       end
 
       def message(plan_name, reason)
