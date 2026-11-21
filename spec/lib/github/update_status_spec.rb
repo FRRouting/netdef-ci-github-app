@@ -718,7 +718,7 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
       end
     end
 
-    context 'when a test sends an invalid status' do
+    context 'when a queued test reports its end (its in_progress hook was lost)' do
       let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued') }
       let(:payload) do
         {
@@ -727,8 +727,50 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         }
       end
 
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+
+      it 'must confirm the result with Bamboo instead of dropping it' do
+        expect(update_status.update).to eq([202, 'Accepted'])
+        expect(Github::Build::Summary::PendingJobs).to have_received(:schedule).with(ci_job.stage, 'Github')
+      end
+
+      it 'must keep the job queued until Bamboo confirms it' do
+        update_status.update
+        expect(ci_job.reload.status).to eq('queued')
+      end
+    end
+
+    context 'when a queued test without stage reports its end' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued', stage: nil) }
+      let(:payload) do
+        {
+          'status' => 'success',
+          'bamboo_ref' => ci_job.job_ref
+        }
+      end
+
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+
       it 'must returns not modified' do
         expect(update_status.update).to eq([304, 'Not Modified'])
+        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule)
+      end
+    end
+
+    context 'when a queued test sends an invalid status' do
+      let(:ci_job) { create(:ci_job, name: 'TopoTest Part 0', status: 'queued') }
+      let(:payload) do
+        {
+          'status' => 'cancelled',
+          'bamboo_ref' => ci_job.job_ref
+        }
+      end
+
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+
+      it 'must returns not modified' do
+        expect(update_status.update).to eq([304, 'Not Modified'])
+        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule)
       end
     end
 

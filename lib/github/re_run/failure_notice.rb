@@ -32,10 +32,15 @@ module Github
         github_check.add_comment(@pull_request.github_pr_id, message(plan_name, reason), repository)
       rescue StandardError => e
         # The notice is best effort: it must never turn a failed rerun into a failing notification job.
-        @logger.error("[#{self.class}] Failed to notify PR #{@pull_request&.github_pr_id}: #{e.class}: #{e.message}")
+        log_failure(e)
       end
 
       private
+
+      def log_failure(error)
+        @logger.error("[#{self.class}] Failed to notify PR #{@pull_request&.github_pr_id}: " \
+                      "#{error.class}: #{error.message}")
+      end
 
       def message(plan_name, reason)
         "The `ci:rerun` request could not start the CI for plan `#{plan_name}` (#{reason}). " \
