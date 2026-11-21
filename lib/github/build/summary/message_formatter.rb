@@ -18,6 +18,7 @@ module Github
           header = queued_message(jobs)
           header += in_progress_message(jobs)
           header += generate_success_failure_info(stage.name, jobs)
+          header += without_webhook_message(jobs)
 
           header[0..65_535]
         end
@@ -53,6 +54,19 @@ module Github
           end
 
           header
+        end
+
+        # These jobs are also listed above by status; this section says why their status comes late.
+        def without_webhook_message(jobs)
+          without_webhook = jobs.where(webhook: false)
+          return '' if without_webhook.empty?
+
+          message = "\n\n:warning: Jobs without webhook: #{without_webhook.size}/#{jobs.size} " \
+                    "(status polled from Bamboo)\n\n"
+
+          message + without_webhook.map do |job|
+            "- **#{job.name}** (#{job.status}) -> https://#{GitHubApp::Configuration.instance.ci_url}/browse/#{job.job_ref}\n"
+          end.join("\n")
         end
 
         def in_progress_message(jobs)

@@ -19,6 +19,9 @@
 #
 #  frozen_string_literal: true
 
+require_relative 'jobs_without_webhook'
+require_relative 'webhook_detector'
+
 module Github
   module Build
     class Action
@@ -70,6 +73,7 @@ module Github
         logger(Logger::INFO, "@jobs - #{@jobs.inspect}")
         create_jobs(rerun, resume)
         create_timeout_worker
+        Github::Build::JobsWithoutWebhook.schedule(@check_suite)
       end
 
       private
@@ -142,7 +146,13 @@ module Github
 
         logger(Logger::INFO, "create_jobs - #{job.inspect} -> #{stage.inspect}")
 
-        CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref], stage: stage)
+        CiJob.create(check_suite: @check_suite, name: job[:name], job_ref: job[:job_ref], stage: stage,
+                     webhook: webhook_detector.webhook?(job))
+      end
+
+      # Built on first use: a resumed setup whose jobs all exist does not read the plan from Bamboo.
+      def webhook_detector
+        @webhook_detector ||= Github::Build::WebhookDetector.new(@check_suite)
       end
 
       ##
