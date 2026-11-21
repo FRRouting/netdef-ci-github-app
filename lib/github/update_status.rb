@@ -110,8 +110,10 @@ module Github
 
     ##
     # Inserts a new delayed job for the CI job.
+    # to_i guards against a database where github_pr_id is a string: String#% formats instead of
+    # taking the remainder, so the job would land in a queue no worker consumes.
     def insert_new_delayed_job
-      queue = @job.check_suite.pull_request.github_pr_id % 10
+      queue = @job.check_suite.pull_request.github_pr_id.to_i % 10
 
       logger(Logger::INFO, "Inserting new delayed job for queue: #{queue} to update job #{@job.id}")
 

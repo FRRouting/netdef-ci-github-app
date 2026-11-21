@@ -46,7 +46,7 @@ module Github
         fetch_plans.each do |plan|
           CreateExecutionByComment
             .delay(run_at: TIMER.seconds.from_now.utc, queue: 'create_execution_by_comment')
-            .create(@pull_request.id, @payload, plan)
+            .create(@pull_request.id, @payload, plan.id)
         end
 
         [200, 'Scheduled Plan Runs']

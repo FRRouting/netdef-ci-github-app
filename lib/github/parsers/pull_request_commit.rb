@@ -20,7 +20,8 @@ module Github
         @repo = repo
         @pr_id = pr_id
 
-        pull_request = PullRequest.find_by(github_pr_id: pr_id)
+        # PR numbers repeat across repositories.
+        pull_request = PullRequest.find_by(github_pr_id: pr_id, repository: repo)
 
         @github_check = Github::Check.new(pull_request.check_suites.last)
       end

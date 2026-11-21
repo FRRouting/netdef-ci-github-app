@@ -58,8 +58,46 @@ describe CreateExecutionByComment do
   end
 
   describe '.create' do
+    before { allow(Github::ReRun::FailureNotice).to receive(:notify) }
+
     it 'returns [422, "Plan not found"] if plan is nil' do
       expect(described_class.create(pull_request.id, payload, nil)).to eq([422, 'Plan not found'])
+    end
+
+    it 'does not notify the pull request when the rerun starts' do
+      described_class.create(pull_request.id, payload, plan.id)
+
+      expect(Github::ReRun::FailureNotice).not_to have_received(:notify)
+    end
+
+    it 'notifies the pull request when the rerun does not start' do
+      allow_any_instance_of(described_class).to receive(:run_by_plan).and_return([400, 'Failed to create CI Plan'])
+
+      expect(described_class.create(pull_request.id, payload, plan.id)).to eq([400, 'Failed to create CI Plan'])
+      expect(Github::ReRun::FailureNotice)
+        .to have_received(:notify).with(pull_request, payload, plan.name, 'Failed to create CI Plan')
+    end
+  end
+
+  describe '.failure' do
+    before { allow(Github::ReRun::FailureNotice).to receive(:notify) }
+
+    def job_for(plan_ref)
+      double('Delayed::Job', payload_object: double(args: [pull_request.id, payload, plan_ref]))
+    end
+
+    it 'notifies the pull request once the job has used up its attempts' do
+      described_class.failure(job_for(plan.id))
+
+      expect(Github::ReRun::FailureNotice)
+        .to have_received(:notify).with(pull_request, payload, plan.name, 'internal error')
+    end
+
+    it 'accepts jobs enqueued with the Plan record' do
+      described_class.failure(job_for(plan))
+
+      expect(Github::ReRun::FailureNotice)
+        .to have_received(:notify).with(pull_request, payload, plan.name, 'internal error')
     end
   end
 
