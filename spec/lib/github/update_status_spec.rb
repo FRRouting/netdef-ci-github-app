@@ -727,11 +727,11 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         }
       end
 
-      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule_confirm) }
 
       it 'must confirm the result with Bamboo instead of dropping it' do
         expect(update_status.update).to eq([202, 'Accepted'])
-        expect(Github::Build::Summary::PendingJobs).to have_received(:schedule).with(ci_job.stage, 'Github')
+        expect(Github::Build::Summary::PendingJobs).to have_received(:schedule_confirm).with(ci_job, 'Github')
       end
 
       it 'must keep the job queued until Bamboo confirms it' do
@@ -749,11 +749,11 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         }
       end
 
-      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule_confirm) }
 
       it 'must returns not modified' do
         expect(update_status.update).to eq([304, 'Not Modified'])
-        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule)
+        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule_confirm)
       end
     end
 
@@ -766,11 +766,11 @@ existingFailedTests,fixedTests,quarantinedTests,skippedTests",
         }
       end
 
-      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule) }
+      before { allow(Github::Build::Summary::PendingJobs).to receive(:schedule_confirm) }
 
       it 'must returns not modified' do
         expect(update_status.update).to eq([304, 'Not Modified'])
-        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule)
+        expect(Github::Build::Summary::PendingJobs).not_to have_received(:schedule_confirm)
       end
     end
 

@@ -16,4 +16,8 @@ class SyncPendingJobs
   def self.sync(stage_id, agent)
     Github::Build::Summary::PendingJobs.sync_stage(stage_id, agent)
   end
+
+  def self.confirm(job_id, agent, attempt)
+    Github::Build::Summary::PendingJobs.confirm_job(job_id, agent, attempt)
+  end
 end
