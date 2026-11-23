@@ -77,15 +77,15 @@ module Github
     ##
     # A queued job reporting its end lost its in_progress hook, and would stay queued until the plan finishes.
     # The hook alone cannot finish it: after a retry re-queued the job, a late hook of the attempt that failed
-    # arrives the same way. PendingJobs reads the result from Bamboo and only takes one that finished after
-    # the re-queue.
+    # arrives the same way. PendingJobs reads the result from Bamboo, retrying while it is not finished, and
+    # only takes one that finished after the re-queue.
     #
     # @return [Array] An array containing the status code and message.
     def queued_job_update
       return [304, 'Not Modified'] if @job.stage.nil? or !%w[success failure].include?(@status)
 
       logger(Logger::WARN, "Job #{@reference} reported #{@status} while queued: confirming with Bamboo")
-      Github::Build::Summary::PendingJobs.schedule(@job.stage, 'Github')
+      Github::Build::Summary::PendingJobs.schedule_confirm(@job, 'Github')
 
       [202, 'Accepted']
     end

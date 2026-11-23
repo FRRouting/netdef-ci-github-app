@@ -18,6 +18,8 @@ module Github
       # Its result is read from Bamboo instead of leaving the stage stuck.
       class PendingJobs
         QUEUE = 'sync_pending_jobs'
+        CONFIRM_ATTEMPTS = 5
+        CONFIRM_INTERVAL = 60 # seconds, multiplied by the attempt: 0, 1, 2, 3 and 4 minutes later
 
         # Summary runs inside webhooks, so the Bamboo reads happen in a Delayed Job, once per stage at a time.
         def self.schedule(stage, agent)
@@ -34,6 +36,29 @@ module Github
           return if stage.nil? or !(stage.queued? or stage.in_progress?)
 
           new(Github::Check.new(stage.check_suite), agent).sync(stage)
+          finish_stage(stage, agent)
+        end
+
+        # A queued job whose end hook arrived (Github::UpdateStatus). Bamboo sends that hook from a task inside
+        # the job, so its result is often not Finished yet when the first read happens: it is read again, at
+        # most CONFIRM_ATTEMPTS times, before giving up.
+        def self.schedule_confirm(job, agent, attempt = 1)
+          return if attempt == 1 and DelayedJobLookup.pending(method: :confirm, first_arg: job.id, queue: QUEUE).exists?
+
+          SyncPendingJobs
+            .delay(run_at: ((attempt - 1) * CONFIRM_INTERVAL).seconds.from_now.utc, queue: QUEUE)
+            .confirm(job.id, agent, attempt)
+        end
+
+        def self.confirm_job(job_id, agent, attempt)
+          job = CiJob.find_by(id: job_id)
+          return if job.nil? or job.stage.nil? or !(job.queued? or job.in_progress?)
+          return finish_stage(job.stage, agent) if new(Github::Check.new(job.check_suite), agent).sync_job(job)
+
+          schedule_confirm(job, agent, attempt + 1) if attempt < CONFIRM_ATTEMPTS
+        end
+
+        def self.finish_stage(stage, agent)
           last_job = stage.reload.jobs.last
 
           return if stage.running? or last_job.nil?

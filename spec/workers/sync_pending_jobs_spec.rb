@@ -16,4 +16,12 @@ describe SyncPendingJobs do
 
     expect(Github::Build::Summary::PendingJobs).to have_received(:sync_stage).with(12, 'WatchDog')
   end
+
+  it 'delegates the confirmation of a job to Summary::PendingJobs' do
+    allow(Github::Build::Summary::PendingJobs).to receive(:confirm_job)
+
+    described_class.confirm(7, 'Github', 2)
+
+    expect(Github::Build::Summary::PendingJobs).to have_received(:confirm_job).with(7, 'Github', 2)
+  end
 end
