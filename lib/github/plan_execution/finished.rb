@@ -71,7 +71,7 @@ module Github
       #
       # @return [Hash] The build status.
       def fetch_build_status
-        get_request_with_status(URI("https://127.0.0.1/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}"))
+        get_request_with_status(URI(bamboo_url("/rest/api/latest/result/status/#{@check_suite.bamboo_ci_ref}")))
       end
 
       ##

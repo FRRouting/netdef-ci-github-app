@@ -21,20 +21,25 @@ module BambooCi
   module Api
     include GitHubApp::Request
 
+    # Full address of a Bamboo path ('/rest/api/latest/...'), from the configured Bamboo API base.
+    def bamboo_url(path)
+      "#{GitHubApp::Configuration.instance.bamboo_api_url}#{path}"
+    end
+
     def fetch_executions(plan)
       PrometheusMetrics.track_bamboo('fetch_executions') do
-        get_request(URI("https://127.0.0.1/rest/api/latest/search/jobs/#{plan}"))
+        get_request(URI(bamboo_url("/rest/api/latest/search/jobs/#{plan}")))
       end
     end
 
     def get_status(id)
       PrometheusMetrics.track_bamboo('get_status') do
-        get_request(URI("https://127.0.0.1/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts"))
+        get_request(URI(bamboo_url("/rest/api/latest/result/#{id}?expand=stages.stage.results,artifacts")))
       end
     end
 
     def submit_pr_to_ci(check_suite, plan, ci_variables)
-      url = "https://127.0.0.1/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}"
+      url = bamboo_url("/rest/api/latest/queue/#{plan.bamboo_ci_plan_name}")
 
       url += custom_variables(check_suite)
 
@@ -59,7 +64,7 @@ module BambooCi
     end
 
     def add_comment_to_ci(key, comment)
-      url = "https://127.0.0.1/rest/api/latest/result/#{key}/comment"
+      url = bamboo_url("/rest/api/latest/result/#{key}/comment")
 
       logger(Logger::DEBUG, "Comment Submission URL:\n  #{url}")
 
@@ -77,7 +82,7 @@ module BambooCi
     def send_request(uri, req, machine)
       account = BambooCi::ServiceAccount.instance
       return super unless account.configured?
-      return non_rest_request(uri, req, machine) unless uri.path.to_s.start_with?('/rest/')
+      return non_rest_request(uri, req, machine) unless rest_endpoint?(uri)
 
       token, resp = service_account_request(uri, req, account)
       return request_without_token(uri, req, machine, resp) if token.nil?
@@ -97,6 +102,10 @@ module BambooCi
       return [token, resp] unless resp.code.to_i == 401 && !fresh
 
       retry_with_new_token(uri, req, account, token, resp)
+    end
+
+    def rest_endpoint?(uri)
+      uri.path.to_s.start_with?("#{GitHubApp::Configuration.instance.bamboo_api_path}/rest/")
     end
 
     def non_rest_request(uri, req, machine)

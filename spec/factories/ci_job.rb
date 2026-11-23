@@ -36,5 +36,9 @@ FactoryBot.define do
     trait :success do
       status { 'success' }
     end
+
+    trait :without_webhook do
+      webhook { false }
+    end
   end
 end

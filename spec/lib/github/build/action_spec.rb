@@ -46,6 +46,7 @@ describe Github::Build::Action do
     allow(fake_github_check).to receive(:queued).and_return(ci_job.check_suite)
     allow(fake_github_check).to receive(:check_runs_for_ref).and_return({})
     allow(BambooCi::Result).to receive(:fetch).and_return({})
+    allow(BambooCi::PlanSpecs).to receive(:jobs).and_return(nil)
 
     allow(TimeoutExecution).to receive_message_chain(:delay, :timeout).and_return(true)
 
@@ -314,6 +315,24 @@ describe Github::Build::Action do
       action.create_summary(resume: true)
 
       expect(delayed).to have_received(:timeout).with(check_suite.id)
+    end
+  end
+
+  context 'when a job has no GitHub Check tasks in Bamboo' do
+    let(:check_suite) { create(:check_suite, bamboo_ci_ref: 'FRR-PULLREQ3-25201') }
+    let(:ci_job) { build(:ci_job, stage: stage, check_suite: check_suite, job_ref: 'FRR-PULLREQ3-U2604-25201') }
+    let(:specs) { { 'FRR-PULLREQ3-U2604' => { name: ci_job.name, commands: ['make'] } } }
+
+    before do
+      allow(BambooCi::PlanSpecs).to receive(:jobs).and_return(specs)
+      allow(Github::Build::JobsWithoutWebhook).to receive(:schedule)
+    end
+
+    it 'creates the job without webhook and schedules its polling' do
+      action.create_summary
+
+      expect(CiJob.find_by(job_ref: ci_job.job_ref).webhook).to be(false)
+      expect(Github::Build::JobsWithoutWebhook).to have_received(:schedule).with(check_suite)
     end
   end
 end

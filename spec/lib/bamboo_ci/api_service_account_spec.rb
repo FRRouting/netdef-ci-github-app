@@ -53,6 +53,21 @@ describe BambooCi::Api, 'with a Bamboo service account' do
     end
   end
 
+  context 'when Bamboo is served under a context path' do
+    before do
+      allow(GitHubApp::Configuration.instance).to receive(:bamboo_api_url).and_return('https://host/bamboo')
+      stub_request(:post, 'https://host/bamboo/rest/oauth2/latest/token')
+        .to_return(status: 200, body: { access_token: 'tok-1' }.to_json)
+      stub_request(:get, 'https://host/bamboo/rest/api/latest/search/jobs/PLAN')
+        .with(headers: { 'Authorization' => 'Bearer tok-1' })
+        .to_return(status: 200, body: { 'size' => 1 }.to_json)
+    end
+
+    it 'gets the token under that path and sends it to the REST endpoint' do
+      expect(client.fetch_executions('PLAN')).to eq({ 'size' => 1 })
+    end
+  end
+
   context 'when the request is not a REST endpoint' do
     let(:log_url) { 'https://127.0.0.1/download/PLAN-JOB1/build_logs/PLAN-JOB1-12.log' }
 

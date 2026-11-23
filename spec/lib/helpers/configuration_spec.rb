@@ -138,6 +138,60 @@ describe GitHubApp::Configuration do
     end
   end
 
+  describe '#bamboo_api_url' do
+    before { stub_const('ENV', ENV.to_h.except('BAMBOO_API_URL').merge(env)) }
+
+    context 'when nothing is configured' do
+      let(:env) { {} }
+
+      it 'returns the local Bamboo address' do
+        expect(described_class.instance.bamboo_api_url).to eq('https://127.0.0.1')
+      end
+    end
+
+    context 'when config.yml sets the address' do
+      let(:env) { {} }
+
+      before do
+        allow(YAML).to receive(:load_file)
+          .and_return(default_config.merge('bamboo' => { 'api_url' => 'https://bamboo.internal:8443/' }))
+      end
+
+      it 'returns it without the trailing slash' do
+        expect(described_class.instance.bamboo_api_url).to eq('https://bamboo.internal:8443')
+      end
+    end
+
+    context 'when the address has a context path' do
+      let(:env) { { 'BAMBOO_API_URL' => 'https://host/bamboo/' } }
+
+      it 'keeps the path, which bamboo_api_path returns' do
+        expect(described_class.instance.bamboo_api_url).to eq('https://host/bamboo')
+        expect(described_class.instance.bamboo_api_path).to eq('/bamboo')
+      end
+    end
+
+    context 'when Bamboo is served at the root' do
+      let(:env) { {} }
+
+      it 'has an empty bamboo_api_path' do
+        expect(described_class.instance.bamboo_api_path).to eq('')
+      end
+    end
+
+    context 'when the environment sets the address' do
+      let(:env) { { 'BAMBOO_API_URL' => 'https://bamboo.env' } }
+
+      before do
+        allow(YAML).to receive(:load_file).and_return(default_config.merge('bamboo' => { 'api_url' => 'https://yml' }))
+      end
+
+      it 'prefers the environment' do
+        expect(described_class.instance.bamboo_api_url).to eq('https://bamboo.env')
+      end
+    end
+  end
+
   describe '#bamboo_oauth_scope' do
     before { stub_const('ENV', ENV.to_h.except('BAMBOO_OAUTH_SCOPE').merge(env)) }
 
