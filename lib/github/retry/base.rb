@@ -84,6 +84,7 @@ module Github
 
         @restarted = true
         Github::Build::UnavailableJobs.new(@check_suite).update
+        Github::Build::JobsWithoutWebhook.schedule(@check_suite)
 
         SlackBot.instance.execution_started_notification(@check_suite)
 

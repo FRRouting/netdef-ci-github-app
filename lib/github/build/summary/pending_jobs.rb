@@ -50,20 +50,22 @@ module Github
           stage.jobs.where(status: %i[queued in_progress]).each { |job| sync_job(job) }
         end
 
-        private
-
-        def sync_job(job)
-          result = BambooCi::Result.fetch(job.job_ref, expand: '')
-          return unless current_result?(job, result)
+        # Saves the final result Bamboo gives for the job. Also used by JobsWithoutWebhook with the result it
+        # already read. Returns whether the job changed.
+        def sync_job(job, result = BambooCi::Result.fetch(job.job_ref, expand: ''))
+          return false unless current_result?(job, result)
 
           case result['state']
           when 'Successful' then job.success(@github, agent: @agent)
           when 'Failed' then failed(job)
-          else return
+          else return false
           end
 
           job.update_execution_time
+          true
         end
+
+        private
 
         # Bamboo keeps only the latest result of a job key. Until it restarts a job that a retry re-queued,
         # that result is still the attempt that failed, so it only counts when it finished after the re-queue.

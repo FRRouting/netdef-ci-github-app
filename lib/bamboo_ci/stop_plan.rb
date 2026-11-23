@@ -30,7 +30,7 @@ module BambooCi
       PrometheusMetrics.track_bamboo('stop_plan') do
         next stop_by_rest(bamboo_ci_ref) if BambooCi::ServiceAccount.instance.configured?
 
-        get_request(URI("https://127.0.0.1/build/admin/stopPlan.action?planResultKey=#{bamboo_ci_ref}"))
+        get_request(URI(bamboo_url("/build/admin/stopPlan.action?planResultKey=#{bamboo_ci_ref}")))
       end
     rescue StandardError => e
       log_failure("Stop of #{bamboo_ci_ref}", e)
@@ -68,8 +68,7 @@ module BambooCi
     end
 
     def self.fetch_result(bamboo_ci_ref)
-      get_request_with_status(URI("https://127.0.0.1/rest/api/latest/result/#{bamboo_ci_ref}" \
-                                  '?expand=stages.stage.results'))
+      get_request_with_status(URI(bamboo_url("/rest/api/latest/result/#{bamboo_ci_ref}?expand=stages.stage.results")))
     end
 
     def self.unknown_to_bamboo?(response, result)
@@ -135,7 +134,7 @@ module BambooCi
     # 404: the build or job is no longer in the queue (already finished), so there is nothing left to stop.
     # A request that raises (network error) counts as refused: nil is returned and the error logged.
     def self.delete_from_queue(key)
-      response = delete_request(URI("https://127.0.0.1/rest/api/latest/queue/#{key}"))
+      response = delete_request(URI(bamboo_url("/rest/api/latest/queue/#{key}")))
       return response if stop_accepted?(response)
 
       logger(Logger::ERROR, "Bamboo refused to stop #{key}: HTTP #{response&.code} " \

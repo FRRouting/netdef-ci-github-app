@@ -185,6 +185,12 @@ anything is enqueued. ⚠️ The jobs do not follow the three-phase pattern yet 
 - `watch_dog.rb` (cron) does the same in bulk for executions that look stale.
 - `PrBambooSync` cross-checks GitHub check runs, the database and Bamboo, and reports mismatches.
 
+### 5.6 Jobs without webhook
+
+A job whose Bamboo task list does not run the GitHub Check scripts never calls `/update/status`. It is created with
+`ci_jobs.webhook = false`, its status is polled from Bamboo every 2 minutes (queue `poll_jobs_without_webhook`), and
+the stage summary lists it under "Jobs without webhook". See [Jobs without webhook](jobs-without-webhook.md).
+
 ## 6. Failure handling and idempotency (read this before changing a job)
 
 ### 6.1 Why it matters

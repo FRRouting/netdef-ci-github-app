@@ -35,6 +35,8 @@ require_relative 'github/build/skip_old_tests'
 require_relative 'github/topotest_failures/retrieve_error'
 require_relative 'github/build/plan_run'
 require_relative 'github/build/checks_setup'
+require_relative 'github/build/jobs_without_webhook'
+require_relative 'github/build/webhook_detector'
 
 # Helpers libs
 require_relative 'helpers/configuration'
@@ -56,6 +58,7 @@ require_relative '../workers/create_execution_by_command'
 require_relative '../workers/resume_rerun_checks'
 require_relative '../workers/revert_retry_check'
 require_relative '../workers/sync_pending_jobs'
+require_relative '../workers/poll_jobs_without_webhook'
 
 # Slack libs
 require_relative 'slack/slack'

@@ -9,12 +9,14 @@
 #  frozen_string_literal: true
 
 require 'singleton'
+require 'uri'
 require 'yaml'
 module GitHubApp
   class Configuration
     include Singleton
 
     DEFAULT_BAMBOO_OAUTH_SCOPE = 'READ TRIGGER WRITE'
+    DEFAULT_BAMBOO_API_URL = 'https://127.0.0.1'
 
     attr_reader :config
 
@@ -38,6 +40,19 @@ module GitHubApp
       return @config['ci']['url'] if @config.key?('ci') && @config['ci'].key?('url')
 
       'https://ci1.netdef.org'
+    end
+
+    # Base address of the Bamboo REST API, without a trailing slash; ci_url is only the public address for links.
+    # The environment (BAMBOO_API_URL) wins over config.yml (bamboo.api_url).
+    def bamboo_api_url
+      url = bamboo_setting('BAMBOO_API_URL', 'api_url')
+
+      (url.empty? ? DEFAULT_BAMBOO_API_URL : url).chomp('/')
+    end
+
+    # Context path Bamboo is served under ('/bamboo' for https://host/bamboo; '' at the root).
+    def bamboo_api_path
+      URI(bamboo_api_url).path
     end
 
     # Bamboo 12 service account (OAuth 2.0 client credentials): [client_id, client_secret] when both are set.
