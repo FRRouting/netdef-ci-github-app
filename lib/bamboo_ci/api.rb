@@ -82,7 +82,7 @@ module BambooCi
     def send_request(uri, req, machine)
       account = BambooCi::ServiceAccount.instance
       return super unless account.configured?
-      return non_rest_request(uri, req, machine) unless uri.path.to_s.start_with?('/rest/')
+      return non_rest_request(uri, req, machine) unless rest_endpoint?(uri)
 
       token, resp = service_account_request(uri, req, account)
       return request_without_token(uri, req, machine, resp) if token.nil?
@@ -102,6 +102,10 @@ module BambooCi
       return [token, resp] unless resp.code.to_i == 401 && !fresh
 
       retry_with_new_token(uri, req, account, token, resp)
+    end
+
+    def rest_endpoint?(uri)
+      uri.path.to_s.start_with?("#{GitHubApp::Configuration.instance.bamboo_api_path}/rest/")
     end
 
     def non_rest_request(uri, req, machine)

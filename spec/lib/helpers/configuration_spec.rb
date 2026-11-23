@@ -162,6 +162,23 @@ describe GitHubApp::Configuration do
       end
     end
 
+    context 'when the address has a context path' do
+      let(:env) { { 'BAMBOO_API_URL' => 'https://host/bamboo/' } }
+
+      it 'keeps the path, which bamboo_api_path returns' do
+        expect(described_class.instance.bamboo_api_url).to eq('https://host/bamboo')
+        expect(described_class.instance.bamboo_api_path).to eq('/bamboo')
+      end
+    end
+
+    context 'when Bamboo is served at the root' do
+      let(:env) { {} }
+
+      it 'has an empty bamboo_api_path' do
+        expect(described_class.instance.bamboo_api_path).to eq('')
+      end
+    end
+
     context 'when the environment sets the address' do
       let(:env) { { 'BAMBOO_API_URL' => 'https://bamboo.env' } }
 

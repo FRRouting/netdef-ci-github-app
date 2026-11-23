@@ -9,6 +9,7 @@
 #  frozen_string_literal: true
 
 require 'singleton'
+require 'uri'
 require 'yaml'
 module GitHubApp
   class Configuration
@@ -47,6 +48,11 @@ module GitHubApp
       url = bamboo_setting('BAMBOO_API_URL', 'api_url')
 
       (url.empty? ? DEFAULT_BAMBOO_API_URL : url).chomp('/')
+    end
+
+    # Context path Bamboo is served under ('/bamboo' for https://host/bamboo; '' at the root).
+    def bamboo_api_path
+      URI(bamboo_api_url).path
     end
 
     # Bamboo 12 service account (OAuth 2.0 client credentials): [client_id, client_secret] when both are set.
