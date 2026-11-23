@@ -75,9 +75,9 @@ module Github
           stage.jobs.where(status: %i[queued in_progress]).each { |job| sync_job(job) }
         end
 
-        # Saves the final result Bamboo gives for the job. Returns whether the job changed.
-        def sync_job(job)
-          result = BambooCi::Result.fetch(job.job_ref, expand: '')
+        # Saves the final result Bamboo gives for the job. Also used by JobsWithoutWebhook with the result it
+        # already read. Returns whether the job changed.
+        def sync_job(job, result = BambooCi::Result.fetch(job.job_ref, expand: ''))
           return false unless current_result?(job, result)
 
           case result['state']

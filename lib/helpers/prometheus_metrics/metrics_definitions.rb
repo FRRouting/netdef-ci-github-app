@@ -175,6 +175,11 @@ module PrometheusMetrics
     docstring: 'CI job retries triggered, by reason (partial or full)',
     labels: [:reason]
   )
+  CI_JOBS_WITHOUT_WEBHOOK = REGISTRY.counter(
+    :ci_jobs_without_webhook_total,
+    docstring: 'CI jobs created without the GitHub Check tasks (status polled from Bamboo), by Bamboo plan',
+    labels: [:plan]
+  )
   CI_TIMEOUTS = REGISTRY.counter(
     :ci_job_timeout_total,
     docstring: 'Check suites marked as hanged by the timeout watchdog (no update for >2h)'

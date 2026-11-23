@@ -91,7 +91,8 @@ module BambooCi
     end
 
     def request_token(uri)
-      token_uri = URI::HTTPS.build(host: uri.host, port: uri.port, path: TOKEN_PATH)
+      path = "#{GitHubApp::Configuration.instance.bamboo_api_path}#{TOKEN_PATH}"
+      token_uri = URI::HTTPS.build(host: uri.host, port: uri.port, path: path)
       req = Net::HTTP::Post.new(token_uri)
       req.set_form_data(token_form)
       req['Accept'] = 'application/json'

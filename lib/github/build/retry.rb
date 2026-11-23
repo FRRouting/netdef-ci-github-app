@@ -31,7 +31,7 @@ module Github
         @check_suite = check_suite
         @github = github
         @loggers = []
-        @stages_config = StageConfiguration.all
+        @stages_config = StageConfiguration.order(:position, :id)
         @audit_retry = audit_retry
 
         %w[github_app.log github_build_retry.log].each do |filename|

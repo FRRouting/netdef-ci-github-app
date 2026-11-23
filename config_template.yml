@@ -12,6 +12,10 @@ github_apps:
     cert:
     repo:
 
+# Bamboo REST API base address (BAMBOO_API_URL overrides it). Defaults to https://127.0.0.1.
+# bamboo:
+#   api_url: https://127.0.0.1
+
 redis:
   host:
   port:

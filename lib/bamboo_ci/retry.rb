@@ -21,7 +21,7 @@ module BambooCi
     def self.restart(plan_key)
       @logger = Logger.new($stdout)
       PrometheusMetrics.track_bamboo('retry_plan') do
-        put_request(URI("https://127.0.0.1/rest/api/latest/queue/#{plan_key}?executeAllStages=true"))
+        put_request(URI(bamboo_url("/rest/api/latest/queue/#{plan_key}?executeAllStages=true")))
       end
     end
 
@@ -35,7 +35,7 @@ module BambooCi
 
     def self.rerun(plan_key)
       @logger = Logger.new($stdout)
-      url = "https://127.0.0.1/rest/api/latest/queue/#{plan_key}?executeAllStages=true&orphanRemoval=true"
+      url = bamboo_url("/rest/api/latest/queue/#{plan_key}?executeAllStages=true&orphanRemoval=true")
       resp = PrometheusMetrics.track_bamboo('rerun_plan') do
         put_request(URI(url))
       end

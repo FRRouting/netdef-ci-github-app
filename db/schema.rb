@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 2026_11_18_120000) do
+ActiveRecord::Schema[7.2].define(version: 2026_11_21_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -82,6 +82,7 @@ ActiveRecord::Schema[7.2].define(version: 2026_11_18_120000) do
     t.bigint "stage_id"
     t.integer "execution_time"
     t.string "summary"
+    t.boolean "webhook", default: true, null: false
     t.index ["check_suite_id"], name: "index_ci_jobs_on_check_suite_id"
     t.index ["stage_id"], name: "index_ci_jobs_on_stage_id"
   end
