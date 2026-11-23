@@ -21,10 +21,11 @@ describe RevertRetryCheck do
     context 'when the stage is still failure' do
       let(:stage) { create(:stage, status: :failure) }
 
-      it 'sends the failure to GitHub' do
+      it 'sends the failure to the check run the retry queued' do
         described_class.sync('Stage', stage.id, output)
 
-        expect(fake_github_check).to have_received(:failure).with(10, output)
+        expect(fake_github_check).to have_received(:failure).with(stage.check_ref, output)
+        expect(fake_github_check).not_to have_received(:create)
       end
     end
 

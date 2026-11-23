@@ -144,6 +144,12 @@ module PrometheusMetrics
     labels: %i[event result]
   )
 
+  GITHUB_NOTICES = REGISTRY.counter(
+    :github_notices_total,
+    docstring: 'Notices the app posts on GitHub pull requests (comments, reactions), by type and delivery status',
+    labels: %i[type status]
+  )
+
   # --- Bamboo CI API integration ---
 
   BAMBOO_REQUESTS = REGISTRY.counter(

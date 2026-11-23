@@ -21,9 +21,26 @@ describe Github::Parsers::PullRequestCommit do
     allow(OpenSSL::PKey::RSA).to receive(:new).and_return(OpenSSL::PKey::RSA.new(2048))
   end
 
+  describe '.new' do
+    let(:pr_id) { 1 }
+    let(:repo) { 'Unit/Test' }
+    let!(:other_repo_pull_request) do
+      create(:pull_request, :with_check_suite, github_pr_id: 1, repository: 'Other/Repo')
+    end
+
+    before { allow(Github::Check).to receive(:new).and_call_original }
+
+    it 'uses the pull request of the given repository when the number repeats in another one' do
+      parser
+
+      expect(Github::Check).to have_received(:new).with(pull_request.check_suites.last)
+      expect(Github::Check).not_to have_received(:new).with(other_repo_pull_request.check_suites.last)
+    end
+  end
+
   describe '.find_by_sha' do
     let(:pr_id) { 1 }
-    let(:repo) { 'test' }
+    let(:repo) { 'Unit/Test' }
 
     context 'when sha is nil' do
       let(:output) { [] }

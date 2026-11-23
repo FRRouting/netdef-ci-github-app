@@ -53,7 +53,7 @@ module Github
     def update
       logger(Logger::INFO, "Updating status for job: #{@reference} with status: #{@status}")
       return job_not_found if @job.nil?
-      return [304, 'Not Modified'] if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
+      return queued_job_update if @job.queued? and @status != 'in_progress' and @job.name != 'Checkout Code'
       return [304, 'Not Modified'] if @job.in_progress? and !%w[success failure].include? @status
 
       @github_check = Github::Check.new(@job.check_suite)
@@ -71,6 +71,22 @@ module Github
       logger(Logger::ERROR, "CI JOB not found: '#{@reference}'")
 
       [404, 'CI JOB not found']
+    end
+
+    ##
+    # A queued job reporting its end lost its in_progress hook, and would stay queued until the plan finishes.
+    # The hook alone cannot finish it: after a retry re-queued the job, a late hook of the attempt that failed
+    # arrives the same way. PendingJobs reads the result from Bamboo and only takes one that finished after
+    # the re-queue.
+    #
+    # @return [Array] An array containing the status code and message.
+    def queued_job_update
+      return [304, 'Not Modified'] if @job.stage.nil? or !%w[success failure].include?(@status)
+
+      logger(Logger::WARN, "Job #{@reference} reported #{@status} while queued: confirming with Bamboo")
+      Github::Build::Summary::PendingJobs.schedule(@job.stage, 'Github')
+
+      [202, 'Accepted']
     end
 
     ##
@@ -110,8 +126,10 @@ module Github
 
     ##
     # Inserts a new delayed job for the CI job.
+    # to_i guards against a database where github_pr_id is a string: String#% formats instead of
+    # taking the remainder, so the job would land in a queue no worker consumes.
     def insert_new_delayed_job
-      queue = @job.check_suite.pull_request.github_pr_id % 10
+      queue = @job.check_suite.pull_request.github_pr_id.to_i % 10
 
       logger(Logger::INFO, "Inserting new delayed job for queue: #{queue} to update job #{@job.id}")
 

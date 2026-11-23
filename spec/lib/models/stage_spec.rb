@@ -147,4 +147,37 @@ describe Stage do
       expect(stage.reload.status).to eq('success')
     end
   end
+
+  describe 'completing an existing check run' do
+    let(:stage) { create(:stage, :with_check_suite, status: :in_progress, check_ref: '1234') }
+    let(:new_check_run) { Struct.new(:id).new(5678) }
+
+    before { allow(github).to receive(:create).and_return(new_check_run) }
+
+    %i[success failure cancelled].each do |conclusion|
+      context "when GitHub accepts the #{conclusion} update" do
+        before { allow(github).to receive(conclusion).and_return({ id: 1234, conclusion: conclusion.to_s }) }
+
+        it 'must complete the stage check run instead of creating a new one' do
+          stage.public_send(conclusion, github)
+
+          expect(github).to have_received(conclusion).with('1234', {})
+          expect(github).not_to have_received(:create)
+          expect(stage.reload).to have_attributes(status: conclusion.to_s, check_ref: '1234')
+        end
+      end
+
+      context "when GitHub refuses the #{conclusion} update" do
+        before { allow(github).to receive(conclusion).and_return({}) }
+
+        it 'must create a new check run and complete it' do
+          stage.public_send(conclusion, github)
+
+          expect(github).to have_received(:create).with("[CI] #{stage.name}")
+          expect(github).to have_received(conclusion).with(5678, {})
+          expect(stage.reload).to have_attributes(status: conclusion.to_s, check_ref: '5678')
+        end
+      end
+    end
+  end
 end
