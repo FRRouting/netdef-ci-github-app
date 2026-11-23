@@ -152,6 +152,42 @@ describe Github::Build::JobsWithoutWebhook do
       expect(delayed_poll).to have_received(:poll).with(check_suite.id)
     end
 
+    it 'ignores a result read before a retry re-queued the job' do
+      job
+      allow(BambooCi::Result).to receive(:fetch) do
+        job.class.find(job.id).update!(retry: job.retry.to_i + 1, status: :queued)
+        { 'lifeCycleState' => 'Finished', 'state' => 'Failed', 'buildCompletedTime' => Time.now.iso8601(3) }
+      end
+
+      described_class.poll(check_suite.id)
+
+      expect(job.reload.status).to eq('queued')
+      expect(Github::Build::SummaryRefresh).not_to have_received(:schedule)
+    end
+
+    it 'ignores a result read while a hook finished the job' do
+      job
+      allow(BambooCi::Result).to receive(:fetch) do
+        job.class.find(job.id).update!(status: :success)
+        { 'lifeCycleState' => 'Finished', 'state' => 'Failed', 'buildCompletedTime' => Time.now.iso8601(3) }
+      end
+
+      described_class.poll(check_suite.id)
+
+      expect(job.reload.status).to eq('success')
+      expect(github).not_to have_received(:failure)
+    end
+
+    it 'leaves the job open when its summary refresh cannot be scheduled' do
+      bamboo_result('Finished', 'Successful')
+      allow(Github::Build::SummaryRefresh).to receive(:schedule).and_raise(ActiveRecord::StatementInvalid)
+
+      described_class.poll(check_suite.id)
+
+      expect(job.reload.status).to eq('queued')
+      expect(delayed_poll).to have_received(:poll).with(check_suite.id)
+    end
+
     it 'keeps polling when one job fails' do
       job
       allow(BambooCi::Result).to receive(:fetch).and_raise(Timeout::Error)

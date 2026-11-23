@@ -95,9 +95,10 @@ module BambooCi
       task['enabled'] == false or task.values.any? { |value| value.is_a?(Hash) and value['enabled'] == false }
     end
 
+    # A task's description is only a label: naming a script there does not run it.
     def self.strings(value)
       case value
-      when Hash then value.values.flat_map { |item| strings(item) }
+      when Hash then value.except('description').values.flat_map { |item| strings(item) }
       when Array then value.flat_map { |item| strings(item) }
       when String then [value]
       else []

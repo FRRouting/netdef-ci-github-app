@@ -150,4 +150,24 @@ describe BambooCi::PlanSpecs do
       expect(described_class.jobs('FRR-PULLREQ3')['FRR-PULLREQ3-JOB'][:commands]).to eq(['plain text task'])
     end
   end
+
+  context 'when a task only names the scripts in its description' do
+    let(:yaml) do
+      <<~YAML
+        Job:
+          key: JOB
+          tasks:
+          - command:
+              executable: Bash
+              argument: ci/build.sh
+              description: replaces ci/github_checks/in_progress.sh and ci/github_checks/complete.sh
+      YAML
+    end
+
+    before { stub_specs(yaml) }
+
+    it 'does not count the description as a command' do
+      expect(described_class.jobs('FRR-PULLREQ3')['FRR-PULLREQ3-JOB'][:commands]).to eq(["Bash\nci/build.sh"])
+    end
+  end
 end

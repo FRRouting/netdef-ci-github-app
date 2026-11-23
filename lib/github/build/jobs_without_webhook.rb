@@ -61,10 +61,7 @@ module Github
       end
 
       def poll
-        changed = open_jobs.select { |job| poll_job(job) }
-        return if changed.empty?
-
-        SummaryRefresh.schedule(changed.last)
+        open_jobs.each { |job| poll_job(job) }
       end
 
       private
@@ -75,11 +72,11 @@ module Github
 
       # An error on one job must not stop the chain: the next poll reads it again.
       def poll_job(job)
+        attempt = job.retry.to_i
         result = fetch(job)
         return false unless result.is_a?(Hash)
-        return start(job) if result['lifeCycleState'] == 'InProgress'
 
-        @pending_jobs.sync_job(job, result)
+        apply(job, attempt, result)
       rescue StandardError => e
         @logger.error("[#{self.class}] Polling #{job.job_ref} failed: #{e.class} #{e.message}")
         false
@@ -89,6 +86,25 @@ module Github
         PrometheusMetrics.track_bamboo('poll_job_without_webhook') do
           BambooCi::Result.fetch(job.job_ref, expand: '')
         end
+      end
+
+      # The Bamboo read takes time: a hook may have finished the job, or a retry re-queued it, meanwhile.
+      # The status and its summary refresh are saved together, so a failed refresh leaves the job open and
+      # the next poll applies the result again.
+      def apply(job, attempt, result)
+        job.with_lock(requires_new: true) do
+          next false unless (job.queued? or job.in_progress?) and job.retry.to_i == attempt
+
+          changed = update(job, result)
+          SummaryRefresh.schedule(job) if changed
+          changed
+        end
+      end
+
+      def update(job, result)
+        return start(job) if result['lifeCycleState'] == 'InProgress'
+
+        @pending_jobs.sync_job(job, result)
       end
 
       def start(job)
