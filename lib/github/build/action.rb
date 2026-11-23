@@ -44,7 +44,7 @@ module Github
         @github = github
         @jobs = jobs
         @loggers = []
-        @stages_config = StageConfiguration.all
+        @stages_config = StageConfiguration.order(:position, :id)
         @name = name
 
         %w[github_app.log github_build_action.log].each do |filename|
