@@ -41,7 +41,7 @@ module BambooCi
     end
 
     def self.fetch(plan_key)
-      uri = URI("https://127.0.0.1/rest/api/latest/plan/#{plan_key}/specs?format=YAML")
+      uri = URI(bamboo_url("/rest/api/latest/plan/#{plan_key}/specs?format=YAML"))
       body = PrometheusMetrics.track_bamboo('fetch_plan_specs') { get_request(uri, json: false) }
 
       code = spec_code(body)

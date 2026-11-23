@@ -19,7 +19,7 @@ module BambooCi
     ACTIVE_STATES = %w[Queued Pending InProgress].freeze
 
     def self.fetch(job_key, expand: 'testResults.failedTests.testResult.errors')
-      uri = URI("https://127.0.0.1/rest/api/latest/result/#{job_key}?expand=#{expand}")
+      uri = URI(bamboo_url("/rest/api/latest/result/#{job_key}?expand=#{expand}"))
       get_request(uri)
     end
 

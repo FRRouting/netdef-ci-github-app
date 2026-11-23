@@ -31,7 +31,7 @@ module BambooCi
     def self.fetch(plan_key)
       @logger = GithubLogger.instance.create('github_running_plan.log', Logger::INFO)
 
-      resp = get_request(URI("https://127.0.0.1/rest/api/latest/result/#{plan_key}?expand=stages.stage.results"))
+      resp = get_request(URI(bamboo_url("/rest/api/latest/result/#{plan_key}?expand=stages.stage.results")))
 
       return [] if resp.nil? or resp.empty? or resp.dig('stages', 'stage').nil?
 

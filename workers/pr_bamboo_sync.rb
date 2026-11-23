@@ -125,7 +125,7 @@ class PrBambooSync
   end
 
   def fetch_bamboo_status(bamboo_ref)
-    get_request(URI("https://127.0.0.1/rest/api/latest/result/status/#{bamboo_ref}"))
+    get_request(URI(bamboo_url("/rest/api/latest/result/status/#{bamboo_ref}")))
   rescue StandardError => e
     @logger.error "    Failed fetching Bamboo status for #{bamboo_ref}: #{e.message}"
     nil
