@@ -50,12 +50,20 @@ module Github
             .confirm(job.id, agent, attempt)
         end
 
+        # A job already saved as finished does not read Bamboo again, but its stage summary is still built while
+        # the stage is open: a retry after the summary failed must not leave the stage stuck.
         def self.confirm_job(job_id, agent, attempt)
           job = CiJob.find_by(id: job_id)
-          return if job.nil? or job.stage.nil? or !(job.queued? or job.in_progress?)
-          return finish_stage(job.stage, agent) if new(Github::Check.new(job.check_suite), agent).sync_job(job)
+          stage = job&.stage
+          return if stage.nil?
+          return finish_open_stage(stage, agent) unless job.queued? or job.in_progress?
+          return finish_stage(stage, agent) if new(Github::Check.new(job.check_suite), agent).sync_job(job)
 
           schedule_confirm(job, agent, attempt + 1) if attempt < CONFIRM_ATTEMPTS
+        end
+
+        def self.finish_open_stage(stage, agent)
+          finish_stage(stage, agent) if stage.queued? or stage.in_progress?
         end
 
         def self.finish_stage(stage, agent)

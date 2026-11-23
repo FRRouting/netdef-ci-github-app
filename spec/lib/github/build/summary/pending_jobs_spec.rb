@@ -143,14 +143,28 @@ describe Github::Build::Summary::PendingJobs do
       expect(SyncPendingJobs).not_to have_received(:delay)
     end
 
-    it 'does nothing for a job that is already finished' do
-      job.update(status: :success)
-      allow(BambooCi::Result).to receive(:fetch)
+    context 'when the job was saved as finished but the stage summary failed before' do
+      before do
+        job.update(status: :success)
+        allow(BambooCi::Result).to receive(:fetch)
+      end
 
-      described_class.confirm_job(job.id, 'Github', 1)
+      it 'builds the stage summary again on the retry without reading Bamboo' do
+        described_class.confirm_job(job.id, 'Github', 1)
 
-      expect(BambooCi::Result).not_to have_received(:fetch)
-      expect(SyncPendingJobs).not_to have_received(:delay)
+        expect(Github::Build::Summary).to have_received(:new).with(job, agent: 'Github')
+        expect(BambooCi::Result).not_to have_received(:fetch)
+        expect(SyncPendingJobs).not_to have_received(:delay)
+      end
+
+      it 'does nothing once the stage is closed' do
+        stage.update(status: :success)
+
+        described_class.confirm_job(job.id, 'Github', 1)
+
+        expect(Github::Build::Summary).not_to have_received(:new)
+        expect(BambooCi::Result).not_to have_received(:fetch)
+      end
     end
 
     it 'does nothing for a job that no longer exists' do
